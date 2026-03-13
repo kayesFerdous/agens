@@ -10,12 +10,12 @@ logger = logging.getLogger(__name__)
 
 
 class Planner:
-    def __init__(self, llm: LLM, tool_names: list[str]) -> None:
+    def __init__(self, llm: LLM, tool_descriptions: list[dict[str, str]]) -> None:
         self._llm = llm
-        self._tool_names = tool_names
+        self._tool_descriptions = tool_descriptions
 
     def plan(self, user_request: str) -> list[TaskStep]:
-        system, prompt = build_prompt(user_request, self._tool_names)
+        system, prompt = build_prompt(user_request, self._tool_descriptions)
         raw = self._llm.generate(prompt, system=system)
         logger.info("Planner raw output:\n%s", raw)
 

@@ -13,13 +13,14 @@ Rules:
 - Paths must be absolute.
 
 Tool signatures:
-- search_file(path: str, pattern: str) -> matching file paths
-- read_file(path: str) -> file contents
-- edit_file(path: str, find: str, replace: str) -> confirmation
-- write_file(path: str, content: str) -> confirmation
-- shell_command(command: str) -> stdout/stderr"""
+{tool_signatures}"""
 
 
-def build_prompt(user_request: str, tool_names: list[str]) -> tuple[str, str]:
-    system = SYSTEM_PROMPT.format(tool_names=", ".join(tool_names))
+def build_prompt(
+    user_request: str,
+    tool_descriptions: list[dict[str, str]],
+) -> tuple[str, str]:
+    tool_names = ", ".join(t["name"] for t in tool_descriptions)
+    tool_signatures = "\n".join(f"- {t['description']}" for t in tool_descriptions)
+    system = SYSTEM_PROMPT.format(tool_names=tool_names, tool_signatures=tool_signatures)
     return system, user_request

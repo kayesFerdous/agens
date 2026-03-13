@@ -1,7 +1,7 @@
 # example.py — demonstrates full Agent -> Planner -> Tool -> Result flow
 # Uses a fake LLM so this runs without an API key.
 import json
-import logging
+from config.logging import setup_logging
 from llm.base import LLM
 from core.registry import ToolRegistry
 from planner.planner import Planner
@@ -10,7 +10,7 @@ from tools.file_search import FileSearchTool
 from tools.file_read import FileReadTool
 from tools.file_edit import FileEditTool
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
+setup_logging()
 
 
 class FakeLLM(LLM):
@@ -47,7 +47,7 @@ def main() -> None:
     registry.register(FileEditTool())
 
     llm = FakeLLM(plan=hardcoded_plan)
-    planner = Planner(llm=llm, tool_names=registry.list_tools())
+    planner = Planner(llm=llm, tool_descriptions=registry.tool_descriptions())
     agent = Agent(planner=planner, registry=registry)
 
     # --- Execute ---

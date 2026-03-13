@@ -10,6 +10,10 @@ class FileSearchTool(Tool):
     def name(self) -> str:
         return "search_file"
 
+    @property
+    def description(self) -> str:
+        return "search_file(path: str, pattern: str) -> matching file paths"
+
     def execute(self, **kwargs: Any) -> str:
         path: str = kwargs["path"]
         pattern: str = kwargs["pattern"]

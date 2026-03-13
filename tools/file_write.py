@@ -9,6 +9,10 @@ class FileWriteTool(Tool):
     def name(self) -> str:
         return "write_file"
 
+    @property
+    def description(self) -> str:
+        return "write_file(path: str, content: str) -> confirmation"
+
     def execute(self, **kwargs: Any) -> str:
         path: str = kwargs["path"]
         content: str = kwargs["content"]

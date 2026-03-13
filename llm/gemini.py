@@ -26,3 +26,7 @@ class GeminiLLM(LLM):
         if response.text is None:
             raise RuntimeError("Gemini returned empty response")
         return response.text
+
+if __name__ == "__main__":
+    llm = GeminiLLM()
+    print(llm.generate("What is the capital of France?"))

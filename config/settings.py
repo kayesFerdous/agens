@@ -1,13 +1,12 @@
 # config/settings.py
-from __future__ import annotations
-import os
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-def get_google_api_key() -> str:
-    key = os.environ.get("GOOGLE_API_KEY")
-    if not key:
-        raise EnvironmentError("GOOGLE_API_KEY environment variable is not set")
-    return key
+class Settings(BaseSettings):
+    GOOGLE_API_KEY: str
+    DEFAULT_MODEL: str = "gemini-2.5-flash-lite"
+
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="", extra="ignore")
 
 
-DEFAULT_MODEL = "gemini-2.5-flash-lite"
+settings = Settings()

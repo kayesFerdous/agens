@@ -9,6 +9,10 @@ class FileReadTool(Tool):
     def name(self) -> str:
         return "read_file"
 
+    @property
+    def description(self) -> str:
+        return "read_file(path: str) -> file contents"
+
     def execute(self, **kwargs: Any) -> str:
         path: str = kwargs["path"]
         with open(path, "r") as f:

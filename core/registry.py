@@ -19,4 +19,4 @@ class ToolRegistry:
         return list(self._tools.keys())
 
     def tool_descriptions(self) -> list[dict[str, str]]:
-        return [{"name": t.name} for t in self._tools.values()]
+        return [{"name": t.name, "description": t.description} for t in self._tools.values()]

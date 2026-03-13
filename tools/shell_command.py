@@ -10,6 +10,10 @@ class ShellCommandTool(Tool):
     def name(self) -> str:
         return "shell_command"
 
+    @property
+    def description(self) -> str:
+        return "shell_command(command: str) -> stdout/stderr"
+
     def execute(self, **kwargs: Any) -> str:
         command: str = kwargs["command"]
         result = subprocess.run(

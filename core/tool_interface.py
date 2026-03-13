@@ -8,5 +8,9 @@ class Tool(ABC):
     @abstractmethod
     def name(self) -> str: ...
 
+    @property
+    @abstractmethod
+    def description(self) -> str: ...
+
     @abstractmethod
     def execute(self, **kwargs: Any) -> str: ...

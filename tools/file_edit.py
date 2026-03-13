@@ -9,6 +9,10 @@ class FileEditTool(Tool):
     def name(self) -> str:
         return "edit_file"
 
+    @property
+    def description(self) -> str:
+        return "edit_file(path: str, find: str, replace: str) -> confirmation"
+
     def execute(self, **kwargs: Any) -> str:
         path: str = kwargs["path"]
         find: str = kwargs["find"]
