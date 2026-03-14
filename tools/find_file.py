@@ -1,6 +1,7 @@
 # tools/find_file.py
 from __future__ import annotations
 import os
+from pathlib import Path
 from typing import Any
 from core.tool_interface import Tool
 from config.workspace import WORKSPACE_ROOT, SKIPPED_DIRS
@@ -21,15 +22,16 @@ class FindFileTool(Tool):
 
     def execute(self, **kwargs: Any) -> str:
         pattern: str = kwargs["pattern"]
-        matches: list[str] = []
+        matches: list[Path] = []
 
+        # os.walk is used here for traversal performance over large trees.
         for root, dirs, files in os.walk(WORKSPACE_ROOT):
             # Prune skipped dirs in-place so os.walk won't descend into them.
             dirs[:] = [d for d in dirs if d not in SKIPPED_DIRS and not d.startswith(".")]
             for f in files:
                 if pattern in f:
-                    matches.append(os.path.join(root, f))
+                    matches.append(Path(root) / f)
 
         if not matches:
             return f"No files matching '{pattern}' found under {WORKSPACE_ROOT}"
-        return "\n".join(matches)
+        return "\n".join(str(p) for p in matches)
