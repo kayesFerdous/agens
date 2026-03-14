@@ -12,11 +12,11 @@ class GeminiLLM(LLM):
         self._client = genai.Client(api_key=key)
         self._model = model
 
-    def generate(self, prompt: str, system: str = "") -> str:
+    def generate(self, prompt: str, system: str = "", temperature: float = 0) -> str:
         config = types.GenerateContentConfig(
             system_instruction=system or None,
             response_mime_type="application/json",
-            temperature=0,
+            temperature=temperature,
         )
         response = self._client.models.generate_content(
             model=self._model,
@@ -26,7 +26,3 @@ class GeminiLLM(LLM):
         if response.text is None:
             raise RuntimeError("Gemini returned empty response")
         return response.text
-
-if __name__ == "__main__":
-    llm = GeminiLLM()
-    print(llm.generate("What is the capital of France?"))

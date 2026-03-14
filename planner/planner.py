@@ -16,7 +16,7 @@ class Planner:
 
     def plan(self, user_request: str) -> list[TaskStep]:
         system, prompt = build_prompt(user_request, self._tool_descriptions)
-        raw = self._llm.generate(prompt, system=system)
+        raw = self._llm.generate(prompt, system=system, temperature=0)
         logger.info("Planner raw output:\n%s", raw)
 
         steps_data = json.loads(raw)
