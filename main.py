@@ -11,14 +11,14 @@ def main() -> None:
     response = agent.run(request)
 
     if response.success:
-        print("\nDone. All steps succeeded.")
+        print("\n" + (response.answer or "(no answer synthesized)"))
     else:
         print(f"\nFailed: {response.error}")
-
-    for r in response.results:
-        status = "OK" if r.success else "FAIL"
-        print(f"  [{status}] {r.step.tool}: {r.output[:120]}")
+        for r in response.results:
+            status = "OK" if r.success else "FAIL"
+            print(f"  [{status}] {r.step.tool}: {r.output[:200]}")
 
 
 if __name__ == "__main__":
     main()
+

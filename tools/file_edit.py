@@ -2,6 +2,7 @@
 from __future__ import annotations
 from typing import Any
 from core.tool_interface import Tool
+from config.workspace import resolve_safe
 
 
 class FileEditTool(Tool):
@@ -14,7 +15,7 @@ class FileEditTool(Tool):
         return "edit_file(path: str, find: str, replace: str) -> confirmation"
 
     def execute(self, **kwargs: Any) -> str:
-        path: str = kwargs["path"]
+        path = resolve_safe(kwargs["path"])
         find: str = kwargs["find"]
         replace: str = kwargs["replace"]
 
@@ -31,3 +32,4 @@ class FileEditTool(Tool):
             f.write(new_content)
 
         return f"Replaced {count} occurrence(s) of {find!r} with {replace!r} in {path}"
+

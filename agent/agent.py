@@ -1,17 +1,26 @@
 # agent/agent.py
 from __future__ import annotations
 import logging
+from llm.base import LLM
 from core.registry import ToolRegistry
 from core.types import AgentResponse, TaskResult, TaskStep
 from planner.planner import Planner
 
 logger = logging.getLogger(__name__)
 
+_SYNTHESIS_SYSTEM = (
+    "You are a helpful assistant. Given the user's original request and the "
+    "raw output from the tools that ran to answer it, produce a single, clear, "
+    "natural-language answer. Be concise. Do not repeat raw paths verbatim unless "
+    "they are the direct answer to the question."
+)
+
 
 class Agent:
-    def __init__(self, planner: Planner, registry: ToolRegistry) -> None:
+    def __init__(self, planner: Planner, registry: ToolRegistry, llm: LLM) -> None:
         self._planner = planner
         self._registry = registry
+        self._llm = llm
 
     def run(self, user_request: str) -> AgentResponse:
         logger.info("User request: %s", user_request)
@@ -37,8 +46,9 @@ class Agent:
 
             logger.info("Step %d result: %s", i, result.output[:200])
 
-        logger.info("All %d steps completed successfully.", len(steps))
-        return AgentResponse(success=True, results=results)
+        logger.info("All %d steps completed. Synthesizing answer.", len(steps))
+        answer = self._synthesize(user_request, results)
+        return AgentResponse(success=True, results=results, answer=answer)
 
     def _execute_step(self, step: TaskStep) -> TaskResult:
         try:
@@ -51,3 +61,21 @@ class Agent:
             return TaskResult.ok(step, output)
         except Exception as e:
             return TaskResult.fail(step, f"{type(e).__name__}: {e}")
+
+    def _synthesize(self, user_request: str, results: list[TaskResult]) -> str:
+        steps_summary = "\n\n".join(
+            f"Tool: {r.step.tool}\nArguments: {r.step.arguments}\nOutput:\n{r.output}"
+            for r in results
+        )
+        prompt = (
+            f"User request: {user_request}\n\n"
+            f"Tool results:\n{steps_summary}\n\n"
+            "Provide a clear, natural-language answer to the user's request based on the above."
+        )
+        try:
+            return self._llm.generate(prompt, system=_SYNTHESIS_SYSTEM, temperature=0)
+        except Exception as e:
+            logger.warning("Synthesis LLM call failed: %s", e)
+            # Fall back to concatenated raw outputs
+            return "\n".join(r.output for r in results)
+

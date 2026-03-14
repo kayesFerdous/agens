@@ -2,6 +2,7 @@
 from __future__ import annotations
 from typing import Any
 from core.tool_interface import Tool
+from config.workspace import resolve_safe
 
 
 class FileReadTool(Tool):
@@ -14,6 +15,7 @@ class FileReadTool(Tool):
         return "read_file(path: str) -> file contents"
 
     def execute(self, **kwargs: Any) -> str:
-        path: str = kwargs["path"]
+        path = resolve_safe(kwargs["path"])
         with open(path, "r") as f:
             return f.read()
+

@@ -30,3 +30,5 @@ class AgentResponse:
     success: bool
     results: list[TaskResult] = field(default_factory=list)
     error: str | None = None
+    answer: str | None = None   # synthesized natural-language reply
+
