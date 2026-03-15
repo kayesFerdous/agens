@@ -91,7 +91,7 @@ class Agent:
             "Provide a clear, natural-language answer to the user's request based on the above."
         )
         try:
-            return self._llm.generate(prompt, system=_SYNTHESIS_SYSTEM, temperature=0)
+            return self._llm.generate(prompt, system=_SYNTHESIS_SYSTEM, temperature=0.5)
         except Exception as e:
             logger.warning("Synthesis LLM call failed: %s", e)
             return "\n".join(r.output for r in results)

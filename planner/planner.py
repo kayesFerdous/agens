@@ -30,7 +30,7 @@ class Planner:
 
     def plan(self, user_request: str) -> list[TaskStep]:
         system, prompt = build_prompt(user_request, self._tool_descriptions)
-        raw = self._llm.generate(prompt, system=system, temperature=0)
+        raw = self._llm.generate_structured(prompt, system=system, temperature=0)
         logger.info("Planner raw output:\n%s", raw)
 
         steps = self._parse(raw)
@@ -43,7 +43,7 @@ class Planner:
                 f"Your previous plan had this error: {error}\n\n"
                 "Produce a corrected JSON array following all the rules."
             )
-            raw2 = self._llm.generate(correction_prompt, system=system, temperature=0)
+            raw2 = self._llm.generate_structured(correction_prompt, system=system, temperature=0)
             logger.info("Planner retry output:\n%s", raw2)
             steps = self._parse(raw2)
             error2 = self._validate(steps)
