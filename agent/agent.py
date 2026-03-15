@@ -13,9 +13,9 @@ logger = get_logger(__name__)
 
 _SYNTHESIS_SYSTEM = (
     "You are a helpful assistant. Given the user's original request and the "
-    "raw output from the tools that ran to answer it, produce a single, clear, "
-    "natural-language answer. Be concise. Do not repeat raw paths verbatim unless "
-    "they are the direct answer to the question."
+    "results from the tools that were executed, produce a single, clear, "
+    "natural-language answer. Be concise and focus on directly answering "
+    "the user's question."
 )
 
 
