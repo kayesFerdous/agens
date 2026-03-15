@@ -7,8 +7,11 @@ from llm.base import LLM
 from core.types import TaskStep
 from planner.prompt_builder import build_prompt
 from config.workspace import WORKSPACE_ROOT
+from config.logging import get_logger, setup_logging
 
-logger = logging.getLogger(__name__)
+setup_logging()
+
+logger = get_logger(__name__)
 
 # Argument keys that are expected to hold filesystem paths
 _PATH_ARGS = {"path", "directory", "file", "dest", "source", "target"}
@@ -55,12 +58,19 @@ class Planner:
         if not isinstance(steps_data, list):
             raise ValueError(f"Planner returned non-list: {type(steps_data)}")
         return [
-            TaskStep(tool=item["tool"], arguments=item.get("arguments", {}))
+            TaskStep(
+                tool=item["tool"],
+                arguments=item.get("arguments", {}),
+                output_key=item.get("output_key"),
+                depends_on=item.get("depends_on"),
+            )
             for item in steps_data
         ]
 
     def _validate(self, steps: list[TaskStep]) -> str | None:
         """Return an error description string, or None if valid."""
+        declared_keys: set[str] = set()
+
         for i, step in enumerate(steps, 1):
             if step.tool not in self._known_tool_names:
                 known = ", ".join(sorted(self._known_tool_names))
@@ -77,5 +87,15 @@ class Planner:
                             f"Step {i} ({step.tool}): path argument '{key}={val}' "
                             f"is outside workspace root '{WORKSPACE_ROOT}'."
                         )
+            if step.depends_on:
+                for arg_name, ctx_key in step.depends_on.items():
+                    if ctx_key not in declared_keys:
+                        return (
+                            f"Step {i} ({step.tool}): depends_on references "
+                            f"'{ctx_key}' which is not an output_key of any earlier step."
+                        )
+            if step.output_key:
+                declared_keys.add(step.output_key)
+
         return None
 

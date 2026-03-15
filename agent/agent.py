@@ -1,13 +1,15 @@
 # agent/agent.py
 from __future__ import annotations
-import logging
+from config.logging import get_logger, setup_logging
 from typing import Any
 from llm.base import LLM
 from core.registry import ToolRegistry
 from core.types import AgentResponse, TaskResult, TaskStep
 from planner.planner import Planner
 
-logger = logging.getLogger(__name__)
+setup_logging()
+
+logger = get_logger(__name__)
 
 _SYNTHESIS_SYSTEM = (
     "You are a helpful assistant. Given the user's original request and the "
@@ -36,16 +38,18 @@ class Agent:
             logger.info("  [%d] %s(%s)", i, step.tool, step.arguments)
 
         results: list[TaskResult] = []
-        context: dict[str, Any] = {}
+        context: dict[str, str] = {}
 
         for i, step in enumerate(steps, 1):
             logger.info("--- Executing step %d: %s ---", i, step.tool)
 
-            args: dict [str, Any] = {}
             if step.depends_on:
-                for key, value in step.depends_on.items():                
-                    if value in context:
-                        args[key] = context[value]
+                for arg_name, ctx_key in step.depends_on.items():
+                    if ctx_key not in context:
+                        err = f"Step {i} ({step.tool}): depends_on key '{ctx_key}' not in context"
+                        logger.error(err)
+                        return AgentResponse(success=False, results=results, error=err)
+                    step.arguments[arg_name] = context[ctx_key]
 
             result = self._execute_step(step)
             results.append(result)
@@ -53,6 +57,10 @@ class Agent:
             if not result.success:
                 logger.error("Step %d failed: %s", i, result.output)
                 return AgentResponse(success=False, results=results, error=result.output)
+
+            if step.output_key:
+                context[step.output_key] = result.output
+                logger.info("Stored context[%s] = %s", step.output_key, result.output[:120])
 
             logger.info("Step %d result: %s", i, result.output[:200])
 
@@ -86,6 +94,4 @@ class Agent:
             return self._llm.generate(prompt, system=_SYNTHESIS_SYSTEM, temperature=0)
         except Exception as e:
             logger.warning("Synthesis LLM call failed: %s", e)
-            # Fall back to concatenated raw outputs
             return "\n".join(r.output for r in results)
-

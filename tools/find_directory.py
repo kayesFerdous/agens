@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Any
 from core.tool_interface import Tool
-from config.workspace import WORKSPACE_ROOT, SKIPPED_DIRS
+from config.workspace import WORKSPACE_ROOT, SKIPPED_DIRS, resolve_safe
 
 
 class FindDirectoryTool(Tool):
@@ -15,22 +15,21 @@ class FindDirectoryTool(Tool):
     @property
     def description(self) -> str:
         return (
-            f"find_directory(name: str) -> matching directory paths under workspace root "
-            f"({WORKSPACE_ROOT}). Use this to locate a directory by its exact name."
+            "find_directory(name: str, directory: str = WORKSPACE_ROOT) -> matching "
+            "directory paths. Pass 'directory' to scope the search to a subdirectory."
         )
 
     def execute(self, **kwargs: Any) -> str:
         name: str = kwargs["name"]
+        search_root = resolve_safe(kwargs["directory"]) if "directory" in kwargs else WORKSPACE_ROOT
         matches: list[Path] = []
 
-        # os.walk is used here for traversal performance over large trees.
-        for root, dirs, _ in os.walk(WORKSPACE_ROOT):
-            # Prune skipped dirs in-place so os.walk won't descend into them.
+        for root, dirs, _ in os.walk(search_root):
             dirs[:] = [d for d in dirs if d not in SKIPPED_DIRS and not d.startswith(".")]
             for d in dirs:
                 if d == name:
                     matches.append(Path(root) / d)
 
         if not matches:
-            return f"No directory named '{name}' found under {WORKSPACE_ROOT}"
+            return f"No directory named '{name}' found under {search_root}"
         return "\n".join(str(p) for p in matches)
