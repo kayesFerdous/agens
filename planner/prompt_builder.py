@@ -1,6 +1,9 @@
 # planner/prompt_builder.py
 from __future__ import annotations
+import platform
 from config.workspace import WORKSPACE_ROOT
+
+PLATFORM = platform.system()
 
 SYSTEM_PROMPT = """You are a planning agent for a file and shell automation assistant.
 Given a user request, produce a JSON array of steps. Each step is an object with:

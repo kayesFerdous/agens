@@ -5,6 +5,6 @@ from abc import ABC, abstractmethod
 
 class LLM(ABC):
     @abstractmethod
-    def generate(self, prompt: str, system: str = "") -> str:
+    def generate(self, prompt: str, system: str = "", temperature: float = 0) -> str:
         """Send prompt to the model and return raw text response."""
         ...

@@ -1,6 +1,7 @@
 # agent/agent.py
 from __future__ import annotations
 import logging
+from typing import Any
 from llm.base import LLM
 from core.registry import ToolRegistry
 from core.types import AgentResponse, TaskResult, TaskStep
@@ -35,8 +36,17 @@ class Agent:
             logger.info("  [%d] %s(%s)", i, step.tool, step.arguments)
 
         results: list[TaskResult] = []
+        context: dict[str, Any] = {}
+
         for i, step in enumerate(steps, 1):
             logger.info("--- Executing step %d: %s ---", i, step.tool)
+
+            args: dict [str, Any] = {}
+            if step.depends_on:
+                for key, value in step.depends_on.items():                
+                    if value in context:
+                        args[key] = context[value]
+
             result = self._execute_step(step)
             results.append(result)
 

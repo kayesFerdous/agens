@@ -8,6 +8,8 @@ from typing import Any
 class TaskStep:
     tool: str
     arguments: dict[str, Any] = field(default_factory=dict)
+    output_key: str | None = None
+    depends_on: dict[str, Any] | None = field(default_factory=dict)
 
 
 @dataclass
