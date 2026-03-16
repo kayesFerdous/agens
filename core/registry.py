@@ -20,3 +20,14 @@ class ToolRegistry:
 
     def tool_descriptions(self) -> list[dict[str, str]]:
         return [{"name": t.name, "description": t.description} for t in self._tools.values()]
+
+    def tool_schemas(self) -> list[dict]:
+        """Return tool schemas for function calling: [{name, description, parameters}, ...]."""
+        return [
+            {
+                "name": t.name,
+                "description": t.description,
+                "parameters": t.parameters,
+            }
+            for t in self._tools.values()
+        ]

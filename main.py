@@ -14,9 +14,12 @@ def main() -> None:
         print("\n" + (response.answer or "(no answer synthesized)"))
     else:
         print(f"\nFailed: {response.error}")
-        for r in response.results:
-            status = "OK" if r.success else "FAIL"
-            print(f"  [{status}] {r.step.tool}: {r.output[:200]}")
+
+    if response.tool_history:
+        print("\n=== Tool History ===")
+        for i, call in enumerate(response.tool_history, 1):
+            status = "FAIL" if call.error else "OK"
+            print(f"  [{i}] [{status}] {call.tool}({call.arguments}) -> {call.result or call.error}")
 
 
 if __name__ == "__main__":

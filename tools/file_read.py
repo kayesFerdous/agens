@@ -12,10 +12,23 @@ class FileReadTool(Tool):
 
     @property
     def description(self) -> str:
-        return "read_file(path: str) -> file contents"
+        return "Read and return the contents of a file at the given absolute path."
 
-    def execute(self, **kwargs: Any) -> str:
+    @property
+    def parameters(self) -> dict:
+        return {
+            "type": "OBJECT",
+            "properties": {
+                "path": {
+                    "type": "STRING",
+                    "description": "Absolute path to the file to read.",
+                },
+            },
+            "required": ["path"],
+        }
+
+    def execute(self, **kwargs: Any) -> dict:
         path = resolve_safe(kwargs["path"])
         with open(path, "r") as f:
-            return f.read()
-
+            content = f.read()
+        return {"path": str(path), "content": content}

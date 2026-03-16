@@ -12,9 +12,30 @@ class FileEditTool(Tool):
 
     @property
     def description(self) -> str:
-        return "edit_file(path: str, find: str, replace: str) -> confirmation"
+        return "Find and replace text in a file. Replaces all occurrences of 'find' with 'replace'."
 
-    def execute(self, **kwargs: Any) -> str:
+    @property
+    def parameters(self) -> dict:
+        return {
+            "type": "OBJECT",
+            "properties": {
+                "path": {
+                    "type": "STRING",
+                    "description": "Absolute path to the file to edit.",
+                },
+                "find": {
+                    "type": "STRING",
+                    "description": "The exact text to search for.",
+                },
+                "replace": {
+                    "type": "STRING",
+                    "description": "The text to replace each occurrence with.",
+                },
+            },
+            "required": ["path", "find", "replace"],
+        }
+
+    def execute(self, **kwargs: Any) -> dict:
         path = resolve_safe(kwargs["path"])
         find: str = kwargs["find"]
         replace: str = kwargs["replace"]
@@ -31,5 +52,4 @@ class FileEditTool(Tool):
         with open(path, "w") as f:
             f.write(new_content)
 
-        return f"Replaced {count} occurrence(s) of {find!r} with {replace!r} in {path}"
-
+        return {"path": str(path), "replacements": count, "find": find, "replace": replace}

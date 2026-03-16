@@ -5,32 +5,17 @@ from typing import Any
 
 
 @dataclass
-class TaskStep:
+class ToolCall:
+    """A single tool invocation recorded during the ReAct loop."""
     tool: str
-    arguments: dict[str, Any] = field(default_factory=dict)
-    output_key: str | None = None
-    depends_on: dict[str, str] | None = None
-
-
-@dataclass
-class TaskResult:
-    success: bool
-    output: str
-    step: TaskStep
-
-    @staticmethod
-    def ok(step: TaskStep, output: str) -> TaskResult:
-        return TaskResult(success=True, output=output, step=step)
-
-    @staticmethod
-    def fail(step: TaskStep, output: str) -> TaskResult:
-        return TaskResult(success=False, output=output, step=step)
+    arguments: dict[str, Any]
+    result: dict[str, Any] | None = None
+    error: str | None = None
 
 
 @dataclass
 class AgentResponse:
     success: bool
-    results: list[TaskResult] = field(default_factory=list)
+    answer: str | None = None
+    tool_history: list[ToolCall] = field(default_factory=list)
     error: str | None = None
-    answer: str | None = None   # synthesized natural-language reply
-
