@@ -122,17 +122,24 @@ class GeminiLLM(LLM):
                 config=config,
             )
 
+            if not response.candidates:
+                raise RuntimeError("Gemini returned no candidates.")
+
             candidate = response.candidates[0]
+            if not candidate.content or not candidate.content.parts:
+                raise RuntimeError("Candidate returned no content or parts.")
+
+            content_parts = candidate.content.parts
 
             # Collect all function calls from the response
             function_calls = [
-                part for part in candidate.content.parts
+                part for part in content_parts
                 if part.function_call
             ]
 
             # If no function calls, the model returned a text answer — we're done
             if not function_calls:
-                answer = candidate.content.parts[0].text or ""
+                answer = content_parts[0].text or ""
                 logger.info("ReAct complete after %d iteration(s)", iteration + 1)
                 return ReactResult(answer=answer, tool_calls=tool_history)
 
@@ -143,6 +150,10 @@ class GeminiLLM(LLM):
             func_response_parts: list[types.Part] = []
             for part in function_calls:
                 fc = part.function_call
+                # Help the type checker understand fc and fc.name are not None
+                if not fc or not fc.name:
+                    continue
+
                 fc_name = fc.name
                 fc_args = dict(fc.args) if fc.args else {}
 
