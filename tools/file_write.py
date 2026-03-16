@@ -12,12 +12,28 @@ class FileWriteTool(Tool):
 
     @property
     def description(self) -> str:
-        return "write_file(path: str, content: str) -> confirmation"
+        return "Write content to a file at the given absolute path. Creates or overwrites the file."
 
-    def execute(self, **kwargs: Any) -> str:
+    @property
+    def parameters(self) -> dict:
+        return {
+            "type": "OBJECT",
+            "properties": {
+                "path": {
+                    "type": "STRING",
+                    "description": "Absolute path to the file to write.",
+                },
+                "content": {
+                    "type": "STRING",
+                    "description": "The content to write to the file.",
+                },
+            },
+            "required": ["path", "content"],
+        }
+
+    def execute(self, **kwargs: Any) -> dict:
         path = resolve_safe(kwargs["path"])
         content: str = kwargs["content"]
         with open(path, "w") as f:
             f.write(content)
-        return f"Wrote {len(content)} bytes to {path}"
-
+        return {"path": str(path), "bytes_written": len(content)}

@@ -12,5 +12,13 @@ class Tool(ABC):
     @abstractmethod
     def description(self) -> str: ...
 
+    @property
     @abstractmethod
-    def execute(self, **kwargs: Any) -> str: ...
+    def parameters(self) -> dict:
+        """Return a JSON Schema dict describing this tool's arguments."""
+        ...
+
+    @abstractmethod
+    def execute(self, **kwargs: Any) -> dict:
+        """Execute the tool and return a structured result dict."""
+        ...

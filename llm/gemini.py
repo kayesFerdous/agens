@@ -1,15 +1,19 @@
 # llm/gemini.py
 from __future__ import annotations
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from typing import Any
 from google import genai
 from google.genai import types
-from llm.base import LLM
+from llm.base import LLM, ReactResult
+from core.types import ToolCall
+from config.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class GeminiLLM(LLM):
-    """Google Gemini backend implementing all three generation modes."""
+    """Google Gemini backend implementing all generation modes."""
 
     def __init__(
         self,
@@ -72,6 +76,123 @@ class GeminiLLM(LLM):
         ):
             if chunk.text:
                 yield chunk.text
+
+    # ----- ReAct loop with function calling -----
+
+    def react(
+        self,
+        user_request: str,
+        *,
+        system: str = "",
+        tool_schemas: list[dict],
+        tool_executor: Callable[[str, dict[str, Any]], dict[str, Any]],
+        max_iterations: int = 10,
+        temperature: float = 0,
+    ) -> ReactResult:
+        # Build function declarations from tool schemas
+        func_decls = [
+            types.FunctionDeclaration(
+                name=s["name"],
+                description=s["description"],
+                parameters=s["parameters"],
+            )
+            for s in tool_schemas
+        ]
+        tools = [types.Tool(function_declarations=func_decls)]
+
+        config = types.GenerateContentConfig(
+            system_instruction=system or None,
+            tools=tools,
+            temperature=temperature,
+        )
+
+        # Conversation history starts with the user request
+        contents: list[types.Content] = [
+            types.Content(role="user", parts=[types.Part.from_text(text=user_request)])
+        ]
+
+        tool_history: list[ToolCall] = []
+
+        for iteration in range(max_iterations):
+            logger.info("ReAct iteration %d", iteration + 1)
+
+            response = self._client.models.generate_content(
+                model=self._model,
+                contents=contents,
+                config=config,
+            )
+
+            candidate = response.candidates[0]
+
+            # Collect all function calls from the response
+            function_calls = [
+                part for part in candidate.content.parts
+                if part.function_call
+            ]
+
+            # If no function calls, the model returned a text answer — we're done
+            if not function_calls:
+                answer = candidate.content.parts[0].text or ""
+                logger.info("ReAct complete after %d iteration(s)", iteration + 1)
+                return ReactResult(answer=answer, tool_calls=tool_history)
+
+            # Append the model's response (with function calls) to history
+            contents.append(candidate.content)
+
+            # Execute each function call and build responses
+            func_response_parts: list[types.Part] = []
+            for part in function_calls:
+                fc = part.function_call
+                fc_name = fc.name
+                fc_args = dict(fc.args) if fc.args else {}
+
+                logger.info("Tool call: %s(%s)", fc_name, fc_args)
+
+                call_record = ToolCall(tool=fc_name, arguments=fc_args)
+
+                try:
+                    result = tool_executor(fc_name, fc_args)
+                    call_record.result = result
+                    logger.info("Tool result: %s", str(result)[:200])
+                except Exception as e:
+                    error_msg = f"{type(e).__name__}: {e}"
+                    result = {"error": error_msg}
+                    call_record.error = error_msg
+                    logger.warning("Tool error: %s", error_msg)
+
+                tool_history.append(call_record)
+
+                func_response_parts.append(
+                    types.Part.from_function_response(
+                        name=fc_name,
+                        response=result,
+                    )
+                )
+
+            # Append all function responses to history
+            contents.append(types.Content(role="user", parts=func_response_parts))
+
+        # Exhausted iterations — ask the model for a final answer without tools
+        logger.warning("ReAct hit max iterations (%d). Requesting final answer.", max_iterations)
+        contents.append(
+            types.Content(
+                role="user",
+                parts=[types.Part.from_text(
+                    text="You have used all available iterations. Provide your best answer now based on the information gathered so far."
+                )],
+            )
+        )
+        final_config = types.GenerateContentConfig(
+            system_instruction=system or None,
+            temperature=temperature,
+        )
+        final_response = self._client.models.generate_content(
+            model=self._model,
+            contents=contents,
+            config=final_config,
+        )
+        answer = final_response.text or "(No answer produced)"
+        return ReactResult(answer=answer, tool_calls=tool_history)
 
     # ----- shared helper -----
 

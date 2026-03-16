@@ -1,6 +1,5 @@
 # agent/factory.py — wires up the Agent with its dependencies
 from agent.agent import Agent
-from planner.planner import Planner
 from core.registry import ToolRegistry
 from llm.gemini import GeminiLLM
 from config.settings import settings
@@ -26,10 +25,4 @@ def build_registry() -> ToolRegistry:
 def build_agent() -> Agent:
     registry = build_registry()
     llm = GeminiLLM(model=settings.DEFAULT_MODEL, api_key=settings.GOOGLE_API_KEY)
-    planner = Planner(
-        llm=llm,
-        tool_descriptions=registry.tool_descriptions(),
-        known_tool_names=set(registry.list_tools()),
-    )
-    return Agent(planner=planner, registry=registry, llm=llm)
-
+    return Agent(registry=registry, llm=llm)

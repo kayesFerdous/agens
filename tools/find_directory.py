@@ -15,21 +15,36 @@ class FindDirectoryTool(Tool):
     @property
     def description(self) -> str:
         return (
-            "find_directory(name: str, directory: str = WORKSPACE_ROOT) -> matching "
-            "directory paths. Pass 'directory' to scope the search to a subdirectory."
+            "Find directories by name under the workspace root or a given "
+            "subdirectory. Returns a list of matching absolute paths."
         )
 
-    def execute(self, **kwargs: Any) -> str:
+    @property
+    def parameters(self) -> dict:
+        return {
+            "type": "OBJECT",
+            "properties": {
+                "name": {
+                    "type": "STRING",
+                    "description": "Exact directory name to search for.",
+                },
+                "directory": {
+                    "type": "STRING",
+                    "description": "Absolute path to scope the search. Defaults to workspace root.",
+                },
+            },
+            "required": ["name"],
+        }
+
+    def execute(self, **kwargs: Any) -> dict:
         name: str = kwargs["name"]
         search_root = resolve_safe(kwargs["directory"]) if "directory" in kwargs else WORKSPACE_ROOT
-        matches: list[Path] = []
+        matches: list[str] = []
 
         for root, dirs, _ in os.walk(search_root):
             dirs[:] = [d for d in dirs if d not in SKIPPED_DIRS and not d.startswith(".")]
             for d in dirs:
                 if d == name:
-                    matches.append(Path(root) / d)
+                    matches.append(str(Path(root) / d))
 
-        if not matches:
-            return f"No directory named '{name}' found under {search_root}"
-        return "\n".join(str(p) for p in matches)
+        return {"matches": matches}

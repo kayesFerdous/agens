@@ -12,15 +12,28 @@ class ShellCommandTool(Tool):
 
     @property
     def description(self) -> str:
-        return "shell_command(command: str) -> stdout/stderr"
+        return "Run a shell command and return its stdout, stderr, and exit code."
 
-    def execute(self, **kwargs: Any) -> str:
+    @property
+    def parameters(self) -> dict:
+        return {
+            "type": "OBJECT",
+            "properties": {
+                "command": {
+                    "type": "STRING",
+                    "description": "The shell command to execute.",
+                },
+            },
+            "required": ["command"],
+        }
+
+    def execute(self, **kwargs: Any) -> dict:
         command: str = kwargs["command"]
         result = subprocess.run(
             command, shell=True, capture_output=True, text=True, timeout=30,
         )
-        output = result.stdout
-        if result.returncode != 0:
-            output += f"\nSTDERR:\n{result.stderr}" if result.stderr else ""
-            raise RuntimeError(f"Command failed (exit {result.returncode}):\n{output}")
-        return output or "(no output)"
+        return {
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "exit_code": result.returncode,
+        }
