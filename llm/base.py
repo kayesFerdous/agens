@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any
-from core.types import ToolCall
+from core.types import ToolCall, Usage
 
 
 @dataclass
@@ -12,6 +12,7 @@ class ReactResult:
     """Result of a ReAct loop: final answer + history of tool calls."""
     answer: str
     tool_calls: list[ToolCall] = field(default_factory=list)
+    usage: Usage = field(default_factory=Usage)
 
 
 class LLM(ABC):

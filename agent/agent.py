@@ -42,7 +42,7 @@ class Agent:
         return AgentResponse(
             success=True,
             answer=result.answer,
-            tool_history=result.tool_calls,
+            tool_history=result.tool_calls, # pyright: ignore
         )
 
     def _execute_tool(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
