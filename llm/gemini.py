@@ -6,10 +6,27 @@ from typing import Any
 from google import genai
 from google.genai import types
 from llm.base import LLM, ReactResult
-from core.types import ToolCall
+from core.types import ToolCall, Usage
 from config.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def _extract_usage(response: types.GenerateContentResponse, usage: Usage) -> None:
+    """Safely extract token counts from a Gemini response into *usage*.
+
+    Logs a warning instead of crashing when metadata is missing or partial.
+    """
+    meta = response.usage_metadata
+    if meta is None:
+        logger.warning("Gemini response missing usage_metadata")
+        return
+
+    usage.record(
+        prompt_tokens=meta.prompt_token_count or 0,
+        completion_tokens=getattr(meta, "candidates_token_count", None) or 0,
+        total_tokens=meta.total_token_count or 0,
+    )
 
 
 class GeminiLLM(LLM):
@@ -112,6 +129,7 @@ class GeminiLLM(LLM):
         ]
 
         tool_history: list[ToolCall] = []
+        usage: Usage = Usage()
 
         for iteration in range(max_iterations):
             logger.info("ReAct iteration %d", iteration + 1)
@@ -122,12 +140,15 @@ class GeminiLLM(LLM):
                 config=config,
             )
 
+            _extract_usage(response, usage)
+
             if not response.candidates:
                 raise RuntimeError("Gemini returned no candidates.")
 
             candidate = response.candidates[0]
             if not candidate.content or not candidate.content.parts:
-                raise RuntimeError("Candidate returned no content or parts.")
+                reason = getattr(candidate, "finish_reason", "UNKNOWN")
+                raise RuntimeError(f"Candidate returned no content or parts. Finish reason: {reason}")
 
             content_parts = candidate.content.parts
 
@@ -140,8 +161,9 @@ class GeminiLLM(LLM):
             # If no function calls, the model returned a text answer — we're done
             if not function_calls:
                 answer = content_parts[0].text or ""
+                usage.log(logger, model=self._model, context="react")
                 logger.info("ReAct complete after %d iteration(s)", iteration + 1)
-                return ReactResult(answer=answer, tool_calls=tool_history)
+                return ReactResult(answer=answer, tool_calls=tool_history, usage=usage)
 
             # Append the model's response (with function calls) to history
             contents.append(candidate.content)
@@ -181,7 +203,7 @@ class GeminiLLM(LLM):
                 )
 
             # Append all function responses to history
-            contents.append(types.Content(role="user", parts=func_response_parts))
+            contents.append(types.Content(role="tool", parts=func_response_parts))
 
         # Exhausted iterations — ask the model for a final answer without tools
         logger.warning("ReAct hit max iterations (%d). Requesting final answer.", max_iterations)
@@ -195,15 +217,19 @@ class GeminiLLM(LLM):
         )
         final_config = types.GenerateContentConfig(
             system_instruction=system or None,
-            temperature=temperature,
+            temperature=0.6,
         )
         final_response = self._client.models.generate_content(
             model=self._model,
             contents=contents,
             config=final_config,
         )
+
+        _extract_usage(final_response, usage)
+        usage.log(logger, model=self._model, context="react_fallback")
+
         answer = final_response.text or "(No answer produced)"
-        return ReactResult(answer=answer, tool_calls=tool_history)
+        return ReactResult(answer=answer, tool_calls=tool_history, usage=usage)
 
     # ----- shared helper -----
 
@@ -213,6 +239,11 @@ class GeminiLLM(LLM):
             contents=prompt,
             config=config,
         )
+
+        usage = Usage()
+        _extract_usage(response, usage)
+        usage.log(logger, model=self._model, context="generate")
+
         if response.text is None:
             raise RuntimeError("Gemini returned empty response")
         return response.text
