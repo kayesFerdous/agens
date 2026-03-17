@@ -147,7 +147,8 @@ class GeminiLLM(LLM):
 
             candidate = response.candidates[0]
             if not candidate.content or not candidate.content.parts:
-                raise RuntimeError("Candidate returned no content or parts.")
+                reason = getattr(candidate, "finish_reason", "UNKNOWN")
+                raise RuntimeError(f"Candidate returned no content or parts. Finish reason: {reason}")
 
             content_parts = candidate.content.parts
 
@@ -202,7 +203,7 @@ class GeminiLLM(LLM):
                 )
 
             # Append all function responses to history
-            contents.append(types.Content(role="user", parts=func_response_parts))
+            contents.append(types.Content(role="tool", parts=func_response_parts))
 
         # Exhausted iterations — ask the model for a final answer without tools
         logger.warning("ReAct hit max iterations (%d). Requesting final answer.", max_iterations)
@@ -216,7 +217,7 @@ class GeminiLLM(LLM):
         )
         final_config = types.GenerateContentConfig(
             system_instruction=system or None,
-            temperature=6,
+            temperature=0.6,
         )
         final_response = self._client.models.generate_content(
             model=self._model,
