@@ -4,7 +4,8 @@ import os
 from collections.abc import Callable, Iterator
 from typing import Any
 from google import genai
-from google.genai import types
+from google.genai.types import Content, FunctionDeclaration, GenerateContentConfig, GenerateContentResponse, Part, Tool
+
 from llm.base import LLM, ReactResult
 from core.types import ToolCall, Usage
 from config.logging import get_logger
@@ -12,7 +13,7 @@ from config.logging import get_logger
 logger = get_logger(__name__)
 
 
-def _extract_usage(response: types.GenerateContentResponse, usage: Usage) -> None:
+def _extract_usage(response: GenerateContentResponse, usage: Usage) -> None:
     """Safely extract token counts from a Gemini response into *usage*.
 
     Logs a warning instead of crashing when metadata is missing or partial.
@@ -49,7 +50,7 @@ class GeminiLLM(LLM):
         system: str = "",
         temperature: float = 0,
     ) -> str:
-        config = types.GenerateContentConfig(
+        config = GenerateContentConfig(
             system_instruction=system or None,
             temperature=temperature,
         )
@@ -65,7 +66,7 @@ class GeminiLLM(LLM):
         temperature: float = 0,
         response_schema: dict[str, Any] | None = None,
     ) -> str:
-        config = types.GenerateContentConfig(
+        config = GenerateContentConfig(
             system_instruction=system or None,
             response_mime_type="application/json",
             response_schema=response_schema,
@@ -82,7 +83,7 @@ class GeminiLLM(LLM):
         system: str = "",
         temperature: float = 0,
     ) -> Iterator[str]:
-        config = types.GenerateContentConfig(
+        config = GenerateContentConfig(
             system_instruction=system or None,
             temperature=temperature,
         )
@@ -108,24 +109,24 @@ class GeminiLLM(LLM):
     ) -> ReactResult:
         # Build function declarations from tool schemas
         func_decls = [
-            types.FunctionDeclaration(
+            FunctionDeclaration(
                 name=s["name"],
                 description=s["description"],
                 parameters=s["parameters"],
             )
             for s in tool_schemas
         ]
-        tools = [types.Tool(function_declarations=func_decls)]
+        tools = [Tool(function_declarations=func_decls)]
 
-        config = types.GenerateContentConfig(
+        config = GenerateContentConfig(
             system_instruction=system or None,
             tools=tools,
             temperature=temperature,
         )
 
         # Conversation history starts with the user request
-        contents: list[types.Content] = [
-            types.Content(role="user", parts=[types.Part.from_text(text=user_request)])
+        contents: list[Content] = [
+            Content(role="user", parts=[Part.from_text(text=user_request)])
         ]
 
         tool_history: list[ToolCall] = []
@@ -133,6 +134,9 @@ class GeminiLLM(LLM):
 
         for iteration in range(max_iterations):
             logger.info("ReAct iteration %d", iteration + 1)
+
+            # Reduce old tool outputs to save tokens
+            self._reduce_tool_outputs(contents)
 
             response = self._client.models.generate_content(
                 model=self._model,
@@ -169,7 +173,7 @@ class GeminiLLM(LLM):
             contents.append(candidate.content)
 
             # Execute each function call and build responses
-            func_response_parts: list[types.Part] = []
+            func_response_parts: list[Part] = []
             for part in function_calls:
                 fc = part.function_call
                 # Help the type checker understand fc and fc.name are not None
@@ -196,28 +200,28 @@ class GeminiLLM(LLM):
                 tool_history.append(call_record)
 
                 func_response_parts.append(
-                    types.Part.from_function_response(
+                    Part.from_function_response(
                         name=fc_name,
                         response=result,
                     )
                 )
 
             # Append all function responses to history
-            contents.append(types.Content(role="tool", parts=func_response_parts))
+            contents.append(Content(role="tool", parts=func_response_parts))
 
         # Exhausted iterations — ask the model for a final answer without tools
         logger.warning("ReAct hit max iterations (%d). Requesting final answer.", max_iterations)
         contents.append(
-            types.Content(
+            Content(
                 role="user",
-                parts=[types.Part.from_text(
+                parts=[Part.from_text(
                     text="You have used all available iterations. Provide your best answer now based on the information gathered so far."
                 )],
             )
         )
-        final_config = types.GenerateContentConfig(
+        final_config = GenerateContentConfig(
             system_instruction=system or None,
-            temperature=0.6,
+            temperature=temperature,
         )
         final_response = self._client.models.generate_content(
             model=self._model,
@@ -231,9 +235,37 @@ class GeminiLLM(LLM):
         answer = final_response.text or "(No answer produced)"
         return ReactResult(answer=answer, tool_calls=tool_history, usage=usage)
 
+    def _reduce_tool_outputs(self, contents: list[Content], max_chars: int = 500) -> None:
+        """Truncate old tool outputs to reduce token usage, keeping the last output intact."""
+        for i, content in enumerate(contents[:-1]):
+            if content.role == "tool" and content.parts:
+                new_parts = []
+                for part in content.parts:
+                    if part.function_response and part.function_response.response:
+                        response = part.function_response.response
+                        # Truncate string values in a copy of the response dict
+                        truncated_response = {}
+                        for key, value in response.items():
+                            if isinstance(value, str) and len(value) > max_chars:
+                                truncated_response[key] = value[:max_chars] + "... [truncated]"
+                            else:
+                                truncated_response[key] = value
+                        # Reconstruct the part with truncated response
+                        new_parts.append(
+                            Part.from_function_response(
+                                name=part.function_response.name,
+                                response=truncated_response,
+                            )
+                        )
+                    else:
+                        new_parts.append(part)
+                # Replace the content's parts with truncated versions
+                contents[i] = Content(role="tool", parts=new_parts)
+
+
     # ----- shared helper -----
 
-    def _call(self, prompt: str, config: types.GenerateContentConfig) -> str:
+    def _call(self, prompt: str, config: GenerateContentConfig) -> str:
         response = self._client.models.generate_content(
             model=self._model,
             contents=prompt,

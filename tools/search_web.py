@@ -59,6 +59,7 @@ class WebSearchTool(Tool):
         }
 
     def execute(self, **kwargs: Any) -> dict:
+        MAX_TOKEN = 400
         query: str = kwargs["query"]
         logger.info("Web search: %s", query)
 
@@ -71,27 +72,28 @@ class WebSearchTool(Tool):
         if not response.text:
             return {"answer": "", "queries": [], "sources": []}
 
-        sources: list[dict[str, str]] = []
+        # sources: list[dict[str, str]] = []
         queries_used: list[str] = []
 
-        if response.candidates and response.candidates[0].grounding_metadata:
-            meta = response.candidates[0].grounding_metadata
-            queries_used = list(meta.web_search_queries or [])
-            for chunk in meta.grounding_chunks or []:
-                if chunk.web:
-                    sources.append({
-                        "title": chunk.web.title or "",
-                        "url": chunk.web.uri or "",
-                    })
+        # if response.candidates and response.candidates[0].grounding_metadata:
+        #     meta = response.candidates[0].grounding_metadata
+        #     queries_used = list(meta.web_search_queries or [])
+            # for chunk in meta.grounding_chunks or []:
+                # if chunk.web:
+                    # sources.append({
+                    #     "title": chunk.web.title or "",
+                    #     "url": chunk.web.uri or "",
+                    # })
 
         logger.info(
-            "Search returned %d source(s) from %d query(ies)",
-            len(sources),
+            # "Search returned %d source(s) from %d query(ies)",
+            "Search returned from %d query(ies)",
+            # len(sources),
             len(queries_used),
         )
 
         return {
-            "answer": response.text,
+            "answer": response.text[:MAX_TOKEN*4], #NOTE: truncating output
             "queries": queries_used,
             # "sources": sources,
         }
