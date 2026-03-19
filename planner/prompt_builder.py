@@ -14,7 +14,8 @@ Guidelines:
 - For shell commands: use {platform}-appropriate syntax.
 - If a tool returns multiple results, reason about which one is most relevant.
 - If a tool fails, try an alternative approach before giving up.
-- When you have enough information, respond with your final answer directly."""
+- When you have enough information, respond with your final answer directly.
+- Parallel execution: when multiple tools can run independently, call them all in a single response rather than waiting for each result before calling the next."""
 
 
 def build_system_prompt() -> str:
