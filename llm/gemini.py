@@ -103,6 +103,7 @@ class GeminiLLM(LLM):
         *,
         system: str = "",
         tool_schemas: list[dict],
+        message_history: list[Content],
         tool_executor: Callable[[str, dict[str, Any]], dict[str, Any]],
         max_iterations: int = 10,
         temperature: float = 0,
@@ -124,8 +125,7 @@ class GeminiLLM(LLM):
             temperature=temperature,
         )
 
-        # Conversation history starts with the user request
-        contents: list[Content] = [
+        contents: list[Content] = message_history + [
             Content(role="user", parts=[Part.from_text(text=user_request)])
         ]
 

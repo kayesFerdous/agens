@@ -2,6 +2,7 @@
 from google import genai
 
 from agent.agent import Agent
+from memory.manager import MemoryManager
 from core.registry import ToolRegistry
 from llm.gemini import GeminiLLM
 from config.settings import settings
@@ -33,4 +34,5 @@ def build_registry() -> ToolRegistry:
 def build_agent() -> Agent:
     registry = build_registry()
     llm = GeminiLLM(model=settings.DEFAULT_MODEL, api_key=settings.GOOGLE_API_KEY)
-    return Agent(registry=registry, llm=llm)
+    memory_manager = MemoryManager()
+    return Agent(registry=registry, llm=llm, memory_manager=memory_manager)
