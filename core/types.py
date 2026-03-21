@@ -2,6 +2,7 @@
 from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
+import time
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -54,3 +55,11 @@ class AgentResponse:
     answer: str | None = None
     tool_history: list[ToolCall] = field(default_factory=list)
     error: str | None = None
+
+
+@dataclass
+class ConversationTurn:
+    """One complete turn: user request + assistant response."""
+    user_message: str
+    assistant_message: str
+    timestamp: float = field(default_factory=time.time)

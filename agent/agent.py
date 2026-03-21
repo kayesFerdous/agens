@@ -6,6 +6,7 @@ from llm.base import LLM
 from core.registry import ToolRegistry
 from core.types import AgentResponse
 from planner.prompt_builder import build_system_prompt
+from memory.manager import MemoryManager
 
 setup_logging()
 
@@ -13,15 +14,17 @@ logger = get_logger(__name__)
 
 
 class Agent:
-    def __init__(self, registry: ToolRegistry, llm: LLM) -> None:
+    def __init__(self, registry: ToolRegistry, llm: LLM, memory_manager: MemoryManager) -> None:
         self._registry = registry
         self._llm = llm
+        self._memory_manager = memory_manager
 
     def run(self, user_request: str) -> AgentResponse:
         logger.info("User request: %s", user_request)
 
         system = build_system_prompt()
         tool_schemas = self._registry.tool_schemas()
+        message_history = self._memory_manager.get_history_for_gemini()
 
         try:
             result = self._llm.react(
@@ -29,7 +32,11 @@ class Agent:
                 system=system,
                 tool_schemas=tool_schemas,
                 tool_executor=self._execute_tool,
+                message_history=message_history
             )
+
+            self._memory_manager.store(user_request, result.answer)
+
         except Exception as e:
             logger.error("ReAct loop failed: %s", e)
             return AgentResponse(success=False, error=str(e))

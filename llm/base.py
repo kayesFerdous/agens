@@ -66,6 +66,7 @@ class LLM(ABC):
         *,
         system: str = "",
         tool_schemas: list[dict],
+        message_history: list[Any] | None = None,
         tool_executor: Callable[[str, dict[str, Any]], dict[str, Any]],
         max_iterations: int = 10,
         temperature: float = 0,
