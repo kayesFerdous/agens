@@ -131,12 +131,13 @@ class GeminiLLM(LLM):
 
         tool_history: list[ToolCall] = []
         usage: Usage = Usage()
+        truncated_indices: set[int] = set()
 
         for iteration in range(max_iterations):
             logger.info("ReAct iteration %d", iteration + 1)
 
             # Reduce old tool outputs to save tokens
-            self._reduce_tool_outputs(contents)
+            self._reduce_tool_outputs(contents, truncated_indices)
 
             response = self._client.models.generate_content(
                 model=self._model,
@@ -235,32 +236,33 @@ class GeminiLLM(LLM):
         answer = final_response.text or "(No answer produced)"
         return ReactResult(answer=answer, tool_calls=tool_history, usage=usage)
 
-    def _reduce_tool_outputs(self, contents: list[Content], max_chars: int = 500) -> None:
+    def _reduce_tool_outputs(self, contents: list[Content], truncated_indices: set[int], max_chars: int = 500) -> None:
         """Truncate old tool outputs to reduce token usage, keeping the last output intact."""
         for i, content in enumerate(contents[:-1]):
-            if content.role == "tool" and content.parts:
-                new_parts = []
-                for part in content.parts:
-                    if part.function_response and part.function_response.response:
-                        response = part.function_response.response
-                        # Truncate string values in a copy of the response dict
-                        truncated_response = {}
-                        for key, value in response.items():
-                            if isinstance(value, str) and len(value) > max_chars:
-                                truncated_response[key] = value[:max_chars] + "... [truncated]"
-                            else:
-                                truncated_response[key] = value
-                        # Reconstruct the part with truncated response
-                        new_parts.append(
-                            Part.from_function_response(
-                                name=part.function_response.name,
-                                response=truncated_response,
-                            )
+            if i in truncated_indices or content.role != "tool" or not content.parts:
+                continue
+
+            new_parts = []
+            for part in content.parts:
+                if part.function_response and part.function_response.response:
+                    response = part.function_response.response
+                    truncated_response = {
+                        key: value[:max_chars] + "... [truncated]"
+                        if isinstance(value, str) and len(value) > max_chars
+                        else value
+                        for key, value in response.items()
+                    }
+                    new_parts.append(
+                        Part.from_function_response(
+                            name=part.function_response.name,
+                            response=truncated_response,
                         )
-                    else:
-                        new_parts.append(part)
-                # Replace the content's parts with truncated versions
-                contents[i] = Content(role="tool", parts=new_parts)
+                    )
+                else:
+                    new_parts.append(part)
+
+            contents[i] = Content(role="tool", parts=new_parts)
+            truncated_indices.add(i)
 
 
     # ----- shared helper -----
