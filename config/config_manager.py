@@ -31,11 +31,13 @@ class AppConfig(BaseModel):
     preferences: PreferencesConfig = PreferencesConfig()
 
     def to_system_prompt(self) -> str:
-        return (
-            f"Username: {self.user.name}. "
-            f"Assistant's name: {self.assistant.name} "
-            f"and speaks in a {self.assistant.tone} tone."
-        )
+        prefs = self.preferences.model_dump()
+        parts = [
+            f"User: {self.user.name} | Assistant: {self.assistant.name} | Tone: {self.assistant.tone}",
+        ]
+        if prefs:
+            parts.append(f"Preferences: {prefs}")
+        return "\n".join(parts)
 
 
 # ── Manager ─────────────────────────────────────────────────────
