@@ -5,6 +5,7 @@ from typing import Any
 from llm.base import LLM
 from core.registry import ToolRegistry
 from core.types import AgentResponse
+from config.config_manager import ConfigManager
 from planner.prompt_builder import build_system_prompt
 from memory.manager import MemoryManager
 
@@ -14,15 +15,17 @@ logger = get_logger(__name__)
 
 
 class Agent:
-    def __init__(self, registry: ToolRegistry, llm: LLM, memory_manager: MemoryManager) -> None:
+    def __init__(self, registry: ToolRegistry, llm: LLM, memory_manager: MemoryManager, config_manager: ConfigManager) -> None:
         self._registry = registry
         self._llm = llm
         self._memory_manager = memory_manager
+        self._config_manager = config_manager
 
     def run(self, user_request: str) -> AgentResponse:
         logger.info("User request: %s", user_request)
 
-        system = build_system_prompt()
+        config = self._config_manager.load_config()
+        system = build_system_prompt(config)
         tool_schemas = self._registry.tool_schemas()
         message_history = self._memory_manager.get_history_for_gemini()
 
