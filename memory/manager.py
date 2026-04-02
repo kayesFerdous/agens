@@ -1,28 +1,46 @@
 from google.genai.types import Content, Part
-from core.types import ConversationTurn
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from db.models import Message
+from db.repository import add_message, get_messages
+
 
 class MemoryManager:
-    def __init__(self, max_history: int = 4):
-        self._history: list[ConversationTurn] = []
+    def __init__(self, db: AsyncSession, session_id: str, max_history: int = 4):
+        self.db = db
+        self.session_id = session_id
         self.max_history = max_history
+        self._cache: list[Message] = []
+        self._loaded = False
 
-    def store(self, user_message: str, assistant_message: str):
-        turn = ConversationTurn(user_message, assistant_message)
-        self._history.append(turn)
+    async def _ensure_loaded(self, session_id: str):
+        if not self._loaded:
+            messages = await get_messages(self.db, session_id)
+            self._cache = messages[-(self.max_history * 2):]
+            self._loaded = True
 
-        if len(self._history) > self.max_history:
-            self._history = self._history[-self.max_history:]
+    async def store(
+        self,
+        user_msg: str,
+        assistant_msg: str,
+        tool_calls: list[dict] | None = None
+    ) -> None:
+        await self._ensure_loaded(self.session_id)
 
-    def get_history_for_gemini(self) -> list[Content]:
-        """Convert domain history to Gemini format."""
-        contents: list[Content] = []
-        for turn in self._history:
-            contents.append(
-                Content(role="user", parts=[Part.from_text(text=turn.user_message)])
+        user_message = await add_message(self.db, self.session_id, "user", user_msg)
+        assistant_message = await add_message(self.db, self.session_id, "assistant", assistant_msg, tool_calls)
+
+        self._cache.extend([user_message, assistant_message])
+        if len(self._cache) > self.max_history * 2:
+            self._cache = self._cache[-(self.max_history * 2):]
+
+    async def get_history_for_gemini(self) -> list[Content]:
+        await self._ensure_loaded(self.session_id)
+
+        return [
+            Content(
+                role="user" if msg.role == "user" else "model",
+                parts=[Part.from_text(text=msg.content)]
             )
-            contents.append(
-                Content(role="model", parts=[Part.from_text(text=turn.assistant_message)])
-            )
-        return contents
-
-    
+            for msg in self._cache
+        ]
