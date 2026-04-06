@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "aiosqlite>=0.20.0",
+    "alembic>=1.13.0",
     "google-genai>=1.66.0",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",

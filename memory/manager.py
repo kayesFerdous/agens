@@ -6,41 +6,30 @@ from db.repository import add_message, get_messages
 
 
 class MemoryManager:
-    def __init__(self, db: AsyncSession, session_id: str, max_history: int = 4):
+    def __init__(self, db: AsyncSession):
         self.db = db
-        self.session_id = session_id
-        self.max_history = max_history
-        self._cache: list[Message] = []
-        self._loaded = False
-
-    async def _ensure_loaded(self, session_id: str):
-        if not self._loaded:
-            messages = await get_messages(self.db, session_id)
-            self._cache = messages[-(self.max_history * 2):]
-            self._loaded = True
 
     async def store(
         self,
+        session_id: str,
         user_msg: str,
         assistant_msg: str,
         tool_calls: list[dict] | None = None
     ) -> None:
-        await self._ensure_loaded(self.session_id)
+        await add_message(self.db, session_id, "user", user_msg)
+        await add_message(self.db, session_id, "assistant", assistant_msg, tool_calls)
 
-        user_message = await add_message(self.db, self.session_id, "user", user_msg)
-        assistant_message = await add_message(self.db, self.session_id, "assistant", assistant_msg, tool_calls)
+    async def get_history(self, session_id: str, max_history: int = 3) -> list[Message]:
+        messages = await get_messages(self.db, session_id, max_history)
+        return messages[-(max_history * 2):]
 
-        self._cache.extend([user_message, assistant_message])
-        if len(self._cache) > self.max_history * 2:
-            self._cache = self._cache[-(self.max_history * 2):]
-
-    async def get_history_for_gemini(self) -> list[Content]:
-        await self._ensure_loaded(self.session_id)
-
+    async def get_history_for_gemini(self, session_id: str, max_history: int = 3) -> list[Content]:
+        messages = await self.get_history(session_id, max_history)
+        
         return [
             Content(
                 role="user" if msg.role == "user" else "model",
                 parts=[Part.from_text(text=msg.content)]
             )
-            for msg in self._cache
+            for msg in messages
         ]

@@ -1,28 +1,31 @@
 import asyncio
 
-
-
 from config.logging import setup_logging
 from agent.factory import build_agent
 from db.database import async_session
+from db.init import init_db
 
 setup_logging()
 
 
 async def main() -> None:
+    print("Running database migrations...")
+    await init_db()
+    print("Database ready!\n")
+    
     agent = build_agent()
-    session_id = "str"
+    session_id = "default-session"
 
-    exit = ["exit", "quit"]
+    exit_commands = ["exit", "quit"]
 
     while True:
         request = input("Request: ")
-        if request in exit:
+        if request in exit_commands:
             print("\n\nThanks bruhh")
             break
+        
         async with async_session() as db:
             response = await agent.run(request, session_id, db)
-        # response = await agent.run(request, session_id, db)
 
             if response.success:
                 print("\n" + (response.answer or "(no answer synthesized)"))

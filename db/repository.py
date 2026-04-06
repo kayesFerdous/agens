@@ -40,10 +40,11 @@ async def add_message(
     return message
 
 
-async def get_messages(db: AsyncSession, session_id: str) -> list[Message]:
+async def get_messages(db: AsyncSession, session_id: str, max_history: int = 3) -> list[Message]:
     result = await db.execute(
         select(Message)
         .where(Message.session_id == session_id)
         .order_by(Message.created_at)
+        .limit(max_history * 2)
     )
     return list(result.scalars().all())

@@ -22,13 +22,13 @@ class Agent:
         self._config_manager = config_manager
 
     async def run(self, user_request: str, session_id: str, db: AsyncSession) -> AgentResponse:
-        memory_manager = MemoryManager(db, session_id)
+        memory_manager = MemoryManager(db)
         logger.info("User request: %s", user_request)
 
         config = self._config_manager.load_config()
         system = build_system_prompt(config)
         tool_schemas = self._registry.tool_schemas()
-        message_history = await memory_manager.get_history_for_gemini()
+        message_history = await memory_manager.get_history_for_gemini(session_id)
 
         try:
             result = self._llm.react(
@@ -43,7 +43,7 @@ class Agent:
                 {"tool": tc.tool, "arguments": tc.arguments, "result": tc.result, "error": tc.error}
                 for tc in result.tool_calls
             ]
-            await memory_manager.store(user_request, result.answer, tool_calls_json)
+            await memory_manager.store(session_id, user_request, result.answer, tool_calls_json)
 
         except Exception as e:
             logger.error("ReAct loop failed: %s", e)
