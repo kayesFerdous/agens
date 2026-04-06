@@ -3,6 +3,7 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
+from sqlalchemy import text
 
 from db.database import Base, engine
 
@@ -11,7 +12,29 @@ async def init_db():
     """Run Alembic migrations to create/update tables."""
     alembic_cfg = Config(Path(__file__).parent.parent / "alembic.ini")
     
-    # Run in a separate thread since alembic uses sync code
+    # Check if alembic_version table exists
+    async with engine.connect() as conn:
+        result = await conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='alembic_version'")
+        )
+        has_alembic_version = result.fetchone() is not None
+    
+    if not has_alembic_version:
+        # Check if sessions table exists (created by old init_db)
+        async with engine.connect() as conn:
+            result = await conn.execute(
+                text("SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'")
+            )
+            has_sessions = result.fetchone() is not None
+        
+        if has_sessions:
+            # Tables exist but Alembic doesn't know - stamp with current version
+            print("Existing tables found. Registering with Alembic...")
+            await asyncio.to_thread(command.stamp, alembic_cfg, "head")
+            print("Database registered with Alembic.")
+            return
+    
+    # Run migrations normally
     await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
 
 
