@@ -1,5 +1,6 @@
-# agent/agent.py
 from __future__ import annotations
+
+from sqlalchemy.ext.asyncio.session import AsyncSession
 from config.logging import get_logger, setup_logging
 from typing import Any
 from llm.base import LLM
@@ -15,19 +16,19 @@ logger = get_logger(__name__)
 
 
 class Agent:
-    def __init__(self, registry: ToolRegistry, llm: LLM, memory_manager: MemoryManager, config_manager: ConfigManager) -> None:
+    def __init__(self, registry: ToolRegistry, llm: LLM, config_manager: ConfigManager) -> None:
         self._registry = registry
         self._llm = llm
-        self._memory_manager = memory_manager
         self._config_manager = config_manager
 
-    def run(self, user_request: str) -> AgentResponse:
+    async def run(self, user_request: str, session_id: str, db: AsyncSession) -> AgentResponse:
+        memory_manager = MemoryManager(db)
         logger.info("User request: %s", user_request)
 
         config = self._config_manager.load_config()
         system = build_system_prompt(config)
         tool_schemas = self._registry.tool_schemas()
-        message_history = self._memory_manager.get_history_for_gemini()
+        message_history = await memory_manager.get_history_for_gemini(session_id)
 
         try:
             result = self._llm.react(
@@ -38,7 +39,11 @@ class Agent:
                 message_history=message_history
             )
 
-            self._memory_manager.store(user_request, result.answer)
+            tool_calls_json = [
+                {"tool": tc.tool, "arguments": tc.arguments, "result": tc.result, "error": tc.error}
+                for tc in result.tool_calls
+            ]
+            await memory_manager.store(session_id, user_request, result.answer, tool_calls_json)
 
         except Exception as e:
             logger.error("ReAct loop failed: %s", e)
@@ -52,7 +57,7 @@ class Agent:
         return AgentResponse(
             success=True,
             answer=result.answer,
-            tool_history=result.tool_calls, # pyright: ignore
+            tool_history=result.tool_calls,
         )
 
     def _execute_tool(self, name: str, args: dict[str, Any]) -> dict[str, Any]:

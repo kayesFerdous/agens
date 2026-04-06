@@ -46,5 +46,4 @@ def build_agent() -> Agent:
     config_manager = ConfigManager(_CONFIG_PATH)
     registry = build_registry(config_manager)
     llm = GeminiLLM(model=settings.DEFAULT_MODEL, api_key=settings.GOOGLE_API_KEY)
-    memory_manager = MemoryManager()
-    return Agent(registry=registry, llm=llm, memory_manager=memory_manager, config_manager=config_manager)
+    return Agent(registry=registry, llm=llm, config_manager=config_manager)
