@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy.ext.asyncio.session import AsyncSession
-from config.logging import get_logger, setup_logging
+from config.logging import get_logger
 from typing import Any
 from llm.base import LLM
 from core.registry import ToolRegistry
@@ -9,8 +9,6 @@ from core.types import AgentResponse
 from config.config_manager import ConfigManager
 from planner.prompt_builder import build_system_prompt
 from memory.manager import MemoryManager
-
-setup_logging()
 
 logger = get_logger(__name__)
 
@@ -58,6 +56,7 @@ class Agent:
             success=True,
             answer=result.answer,
             tool_history=result.tool_calls,
+            usage=result.usage,
         )
 
     def _execute_tool(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
