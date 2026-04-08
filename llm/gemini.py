@@ -4,30 +4,14 @@ import os
 from collections.abc import Callable, Iterator
 from typing import Any
 from google import genai
-from google.genai.types import Content, FunctionDeclaration, GenerateContentConfig, GenerateContentResponse, Part, Tool
+from google.genai.types import Content, FunctionDeclaration, GenerateContentConfig, Part, Tool
 
 from llm.base import LLM, ReactResult
+from llm.gemini_usage import extract_gemini_usage
 from core.types import ToolCall, Usage
 from config.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-def _extract_usage(response: GenerateContentResponse, usage: Usage) -> None:
-    """Safely extract token counts from a Gemini response into *usage*.
-
-    Logs a warning instead of crashing when metadata is missing or partial.
-    """
-    meta = response.usage_metadata
-    if meta is None:
-        logger.warning("Gemini response missing usage_metadata")
-        return
-
-    usage.record(
-        prompt_tokens=meta.prompt_token_count or 0,
-        completion_tokens=getattr(meta, "candidates_token_count", None) or 0,
-        total_tokens=meta.total_token_count or 0,
-    )
 
 
 class GeminiLLM(LLM):
@@ -35,9 +19,11 @@ class GeminiLLM(LLM):
 
     def __init__(
         self,
+        usage: Usage,
         model: str = "gemini-2.5-flash-lite",
         api_key: str | None = None,
     ) -> None:
+        self.usage = usage
         self._client = genai.Client(api_key=api_key or os.environ["GOOGLE_API_KEY"])
         self._model = model
 
@@ -130,7 +116,6 @@ class GeminiLLM(LLM):
         ]
 
         tool_history: list[ToolCall] = []
-        usage: Usage = Usage()
         truncated_indices: set[int] = set()
 
         for iteration in range(max_iterations):
@@ -145,7 +130,7 @@ class GeminiLLM(LLM):
                 config=config,
             )
 
-            _extract_usage(response, usage)
+            extract_gemini_usage(response, self.usage, logger=logger)
 
             if not response.candidates:
                 raise RuntimeError("Gemini returned no candidates.")
@@ -166,9 +151,9 @@ class GeminiLLM(LLM):
             # If no function calls, the model returned a text answer — we're done
             if not function_calls:
                 answer = content_parts[0].text or ""
-                usage.log(logger, model=self._model, context="react")
+                self.usage.log(logger, model=self._model, context="react")
                 logger.info("ReAct complete after %d iteration(s)", iteration + 1)
-                return ReactResult(answer=answer, tool_calls=tool_history, usage=usage)
+                return ReactResult(answer=answer, tool_calls=tool_history, usage=self.usage)
 
             # Append the model's response (with function calls) to history
             contents.append(candidate.content)
@@ -230,11 +215,11 @@ class GeminiLLM(LLM):
             config=final_config,
         )
 
-        _extract_usage(final_response, usage)
-        usage.log(logger, model=self._model, context="react_fallback")
+        extract_gemini_usage(final_response, self.usage, logger=logger)
+        self.usage.log(logger, model=self._model, context="react_fallback")
 
         answer = final_response.text or "(No answer produced)"
-        return ReactResult(answer=answer, tool_calls=tool_history, usage=usage)
+        return ReactResult(answer=answer, tool_calls=tool_history, usage=self.usage)
 
     def _reduce_tool_outputs(self, contents: list[Content], truncated_indices: set[int], max_chars: int = 500) -> None:
         """Truncate old tool outputs to reduce token usage, keeping the last output intact."""
@@ -274,9 +259,8 @@ class GeminiLLM(LLM):
             config=config,
         )
 
-        usage = Usage()
-        _extract_usage(response, usage)
-        usage.log(logger, model=self._model, context="generate")
+        extract_gemini_usage(response, self.usage, logger=logger)
+        self.usage.log(logger, model=self._model, context="generate")
 
         if response.text is None:
             raise RuntimeError("Gemini returned empty response")
