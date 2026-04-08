@@ -10,7 +10,7 @@ from db.database import Base, engine
 
 async def init_db():
     """Run Alembic migrations to create/update tables."""
-    alembic_cfg = Config(Path(__file__).parent.parent / "alembic.ini")
+    alembic_cfg = Config(Path(__file__).resolve().parent.parent.parent / "alembic.ini")
     
     # Check if alembic_version table exists
     async with engine.connect() as conn:

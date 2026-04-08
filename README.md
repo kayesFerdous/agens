@@ -1,6 +1,16 @@
-This is the assistant project.
-It is built with Python.
-Line 1
-Line 2
-Line 3
-Line 4
+
+**To start:**
+```
+env PYTHONPATH=src uv run -m src.main
+```
+or
+```
+uv run src/main.py
+```
+
+**For migration:**
+```
+env PYTHONPATH=src uv run -m db.init
+```
+
+
