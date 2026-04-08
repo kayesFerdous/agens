@@ -89,11 +89,12 @@ class GeminiLLM(LLM):
         *,
         system: str = "",
         tool_schemas: list[dict],
-        message_history: list[Content],
+        message_history: list[Any] | None = None,
         tool_executor: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
         max_iterations: int = 10,
         temperature: float = 0,
     ) -> ReactResult:
+        message_history = message_history or []
         # Build function declarations from tool schemas
         func_decls = [
             FunctionDeclaration(
@@ -229,12 +230,13 @@ class GeminiLLM(LLM):
         *,
         system: str = "",
         tool_schemas: list[dict],
-        message_history: list[Content],
+        message_history: list[Any] | None = None,
         tool_executor: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
         max_iterations: int = 10,
         temperature: float = 0,
     ) -> AsyncIterator[StreamEvent]:
         """Streaming variant of react(). Yields StreamEvent objects in real time."""
+        message_history = message_history or []
 
         func_decls = [
             FunctionDeclaration(

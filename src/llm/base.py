@@ -1,7 +1,7 @@
 # llm/base.py
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Iterator, AsyncIterator, Awaitable
+from collections.abc import Callable, AsyncIterator, Awaitable
 from dataclasses import dataclass, field
 from typing import Any
 from core.types import StreamEvent, ToolCall, Usage
@@ -49,7 +49,7 @@ class LLM(ABC):
         ...
 
     @abstractmethod
-    async def generate_stream(
+    def generate_stream(
         self,
         prompt: str,
         *,
@@ -80,7 +80,7 @@ class LLM(ABC):
         ...
 
     @abstractmethod
-    async def react_stream(
+    def react_stream(
         self,
         user_request: str,
         *,
