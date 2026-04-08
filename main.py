@@ -3,18 +3,18 @@ import asyncio
 from config.logging import setup_logging
 from agent.factory import build_agent
 from db.database import async_session
-from db.init import init_db
+from db.repository import create_session
 
 setup_logging()
 
 
 async def main() -> None:
-    print("Running database migrations...")
-    await init_db()
-    print("Database ready!\n")
-    
     agent = build_agent()
-    session_id = "default-session"
+    
+    async with async_session() as db:
+        session = await create_session(db, title="CLI Auto Session")
+        session_id = session.id
+        print(f"\n[Started new session: {session_id}]")
 
     exit_commands = ["exit", "quit"]
 
