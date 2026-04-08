@@ -1,7 +1,7 @@
 # llm/gemini.py
 from __future__ import annotations
 import os
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, AsyncIterator, Awaitable
 from typing import Any
 from google import genai
 from google.genai.types import Content, FunctionDeclaration, GenerateContentConfig, Part, Tool
@@ -29,7 +29,7 @@ class GeminiLLM(LLM):
 
     # ----- plain text completion -----
 
-    def generate(
+    async def generate(
         self,
         prompt: str,
         *,
@@ -40,11 +40,11 @@ class GeminiLLM(LLM):
             system_instruction=system or None,
             temperature=temperature,
         )
-        return self._call(prompt, config)
+        return await self._call(prompt, config)
 
     # ----- structured / JSON completion -----
 
-    def generate_structured(
+    async def generate_structured(
         self,
         prompt: str,
         *,
@@ -58,22 +58,22 @@ class GeminiLLM(LLM):
             response_schema=response_schema,
             temperature=temperature,
         )
-        return self._call(prompt, config)
+        return await self._call(prompt, config)
 
     # ----- streaming completion -----
 
-    def generate_stream(
+    async def generate_stream(
         self,
         prompt: str,
         *,
         system: str = "",
         temperature: float = 0,
-    ) -> Iterator[str]:
+    ) -> AsyncIterator[str]:
         config = GenerateContentConfig(
             system_instruction=system or None,
             temperature=temperature,
         )
-        for chunk in self._client.models.generate_content_stream(
+        async for chunk in await self._client.aio.models.generate_content_stream(
             model=self._model,
             contents=prompt,
             config=config,
@@ -83,14 +83,14 @@ class GeminiLLM(LLM):
 
     # ----- ReAct loop with function calling -----
 
-    def react(
+    async def react(
         self,
         user_request: str,
         *,
         system: str = "",
         tool_schemas: list[dict],
         message_history: list[Content],
-        tool_executor: Callable[[str, dict[str, Any]], dict[str, Any]],
+        tool_executor: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
         max_iterations: int = 10,
         temperature: float = 0,
     ) -> ReactResult:
@@ -124,7 +124,7 @@ class GeminiLLM(LLM):
             # Reduce old tool outputs to save tokens
             self._reduce_tool_outputs(contents, truncated_indices)
 
-            response = self._client.models.generate_content(
+            response = await self._client.aio.models.generate_content(
                 model=self._model,
                 contents=contents,
                 config=config,
@@ -174,7 +174,7 @@ class GeminiLLM(LLM):
                 call_record = ToolCall(tool=fc_name, arguments=fc_args)
 
                 try:
-                    result = tool_executor(fc_name, fc_args)
+                    result = await tool_executor(fc_name, fc_args)
                     call_record.result = result
                     logger.info("Tool result: %s", str(result)[:200])
                 except Exception as e:
@@ -209,7 +209,7 @@ class GeminiLLM(LLM):
             system_instruction=system or None,
             temperature=temperature,
         )
-        final_response = self._client.models.generate_content(
+        final_response = await self._client.aio.models.generate_content(
             model=self._model,
             contents=contents,
             config=final_config,
@@ -223,17 +223,17 @@ class GeminiLLM(LLM):
 
     # ----- Streaming ReAct loop -----
 
-    def react_stream(
+    async def react_stream(
         self,
         user_request: str,
         *,
         system: str = "",
         tool_schemas: list[dict],
         message_history: list[Content],
-        tool_executor: Callable[[str, dict[str, Any]], dict[str, Any]],
+        tool_executor: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
         max_iterations: int = 10,
         temperature: float = 0,
-    ) -> Iterator[StreamEvent]:
+    ) -> AsyncIterator[StreamEvent]:
         """Streaming variant of react(). Yields StreamEvent objects in real time."""
 
         func_decls = [
@@ -264,7 +264,7 @@ class GeminiLLM(LLM):
             self._reduce_tool_outputs(contents, truncated_indices)
 
             # Use non-streaming to check if the model wants tools or text
-            response = self._client.models.generate_content(
+            response = await self._client.aio.models.generate_content(
                 model=self._model,
                 contents=contents,
                 config=config,
@@ -296,7 +296,7 @@ class GeminiLLM(LLM):
                     temperature=temperature,
                     # No tools — force a text-only response
                 )
-                for chunk in self._client.models.generate_content_stream(
+                async for chunk in await self._client.aio.models.generate_content_stream(
                     model=self._model,
                     contents=contents,
                     config=stream_config,
@@ -332,7 +332,7 @@ class GeminiLLM(LLM):
                 call_record = ToolCall(tool=fc_name, arguments=fc_args)
 
                 try:
-                    result = tool_executor(fc_name, fc_args)
+                    result = await tool_executor(fc_name, fc_args)
                     call_record.result = result
                     logger.info("Tool result (stream): %s", str(result)[:200])
                     yield StreamEvent(type="tool_end", tool=fc_name, result=result)
@@ -364,7 +364,7 @@ class GeminiLLM(LLM):
             system_instruction=system or None,
             temperature=temperature,
         )
-        for chunk in self._client.models.generate_content_stream(
+        async for chunk in await self._client.aio.models.generate_content_stream(
             model=self._model,
             contents=contents,
             config=fallback_config,
@@ -406,8 +406,8 @@ class GeminiLLM(LLM):
 
     # ----- shared helper -----
 
-    def _call(self, prompt: str, config: GenerateContentConfig) -> str:
-        response = self._client.models.generate_content(
+    async def _call(self, prompt: str, config: GenerateContentConfig) -> str:
+        response = await self._client.aio.models.generate_content(
             model=self._model,
             contents=prompt,
             config=config,
