@@ -2,7 +2,7 @@
 from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 logger = logging.getLogger(__name__)
 
@@ -54,3 +54,4 @@ class AgentResponse:
     answer: str | None = None
     tool_history: list[ToolCall] = field(default_factory=list)
     error: str | None = None
+    usage: Usage | None = None

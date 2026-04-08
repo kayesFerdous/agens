@@ -12,3 +12,6 @@ wheels/
 # Environment variables
 .env
 test.py
+example.py
+data/config.json
+app.db

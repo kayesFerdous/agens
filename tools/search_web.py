@@ -8,6 +8,8 @@ from google.genai import types
 
 from config.logging import get_logger
 from core.tool_interface import Tool
+from core.types import Usage
+from llm.gemini_usage import extract_gemini_usage
 
 logger = get_logger(__name__)
 
@@ -29,9 +31,11 @@ class WebSearchTool(Tool):
         client: genai.Client,
         *,
         model: str = "gemini-2.5-flash-lite",
+        usage: Usage | None = None,
     ) -> None:
         self._client = client
         self._model = model
+        self.usage = usage or Usage()
 
     @property
     def name(self) -> str:
@@ -68,6 +72,7 @@ class WebSearchTool(Tool):
             contents=query,
             config=_SEARCH_CONFIG,
         )
+        extract_gemini_usage(response, self.usage, logger=logger)
 
         if not response.text:
             return {"answer": "", "queries": [], "sources": []}

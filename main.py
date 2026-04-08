@@ -28,7 +28,7 @@ async def main() -> None:
             response = await agent.run(request, session_id, db)
 
             if response.success:
-                print("\n" + (response.answer or "(no answer synthesized)"))
+                print((response.answer or "(no answer synthesized)"))
             else:
                 print(f"\nFailed: {response.error}")
 
@@ -37,6 +37,10 @@ async def main() -> None:
                 for i, call in enumerate(response.tool_history, 1):
                     status = "FAIL" if call.error else "OK"
                     print(f"  [{i}] [{status}] {call.tool}({call.arguments}) -> {call.result or call.error}")
+
+            if response.usage:
+                u = response.usage
+                print(f"\nTokens — prompt: {u.prompt_tokens}  completion: {u.completion_tokens}  total: {u.total_tokens}", end="\n\n\n")
 
 
 if __name__ == "__main__":
