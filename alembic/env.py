@@ -1,5 +1,10 @@
 import asyncio
+import sys
+from pathlib import Path
 from logging.config import fileConfig
+
+# Add src to sys.path so we can import from db
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection

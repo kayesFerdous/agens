@@ -1,0 +1,10 @@
+{
+  "user": {
+    "name": ""
+  },
+  "assistant": {
+    "name": "",
+    "tone": "friendly"
+  },
+  "preferences": {}
+}
