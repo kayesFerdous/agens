@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db.models import Message, Session
 
 
-async def create_session(db: AsyncSession, title: str | None = None) -> Session:
+async def insert_session(db: AsyncSession, title: str | None = None) -> Session:
     session = Session(title=title)
     db.add(session)
     await db.commit()
@@ -15,7 +15,7 @@ async def get_session(db: AsyncSession, session_id: str) -> Session | None:
     return await db.get(Session, session_id)
 
 
-async def list_sessions(db: AsyncSession, limit: int = 20) -> list[Session]:
+async def fetch_all_sessions(db: AsyncSession, limit: int = 20) -> list[Session]:
     result = await db.execute(
         select(Session).order_by(Session.created_at.desc()).limit(limit)
     )

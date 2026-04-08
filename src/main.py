@@ -3,7 +3,7 @@ import asyncio
 from config.logging import setup_logging
 from agent.factory import build_agent
 from db.database import async_session
-from db.repository import create_session
+from db.repository import insert_session
 
 setup_logging()
 
@@ -12,7 +12,7 @@ async def main() -> None:
     agent = build_agent()
     
     async with async_session() as db:
-        session = await create_session(db, title="CLI Auto Session")
+        session = await insert_session(db, title="CLI Auto Session")
         session_id = session.id
         print(f"\n[Started new session: {session_id}]")
 
