@@ -5,9 +5,11 @@ from collections.abc import Callable, AsyncIterator, Awaitable
 from typing import Any
 from google import genai
 from google.genai.types import Content, FunctionDeclaration, GenerateContentConfig, Part, Tool
+from google.api_core.exceptions import ResourceExhausted, TooManyRequests
 
 from llm.base import LLM, ReactResult
 from llm.gemini_usage import extract_gemini_usage
+from llm.api_key_manager import APIKeyManager, AllKeysExhaustedError
 from core.types import StreamEvent, ToolCall, Usage
 from config.logging import get_logger
 
@@ -15,17 +17,78 @@ logger = get_logger(__name__)
 
 
 class GeminiLLM(LLM):
-    """Google Gemini backend implementing all generation modes."""
+    """Google Gemini backend implementing all generation modes with key rotation."""
 
     def __init__(
         self,
         usage: Usage,
         model: str = "gemini-2.5-flash-lite",
         api_key: str | None = None,
+        key_manager: APIKeyManager | None = None,
     ) -> None:
         self.usage = usage
-        self._client = genai.Client(api_key=api_key or os.environ["GOOGLE_API_KEY"])
         self._model = model
+        self._key_manager = key_manager
+
+        # If key_manager is provided, use it; otherwise use single key (backwards compat)
+        if key_manager:
+            initial_key = key_manager.get_available_key()
+            self._client = genai.Client(api_key=initial_key)
+            self._current_key = initial_key
+        else:
+            single_key = api_key or os.environ.get("GOOGLE_API_KEY", "")
+            self._client = genai.Client(api_key=single_key)
+            self._current_key = single_key
+
+    def _rotate_client_if_needed(self) -> None:
+        """Rotate to a new API key if manager is available."""
+        if self._key_manager:
+            new_key = self._key_manager.get_available_key()
+            if new_key != self._current_key:
+                self._client = genai.Client(api_key=new_key)
+                self._current_key = new_key
+                logger.info("Rotated to new API key: ...%s", new_key[-4:])
+
+    async def _with_retry(self, operation: Callable[[], Awaitable[Any]], max_retries: int = 3) -> Any:
+        """Execute operation with automatic key rotation on rate limit errors."""
+        last_error: Exception | None = None
+
+        for attempt in range(max_retries):
+            try:
+                result = await operation()
+                if self._key_manager:
+                    self._key_manager.report_success(self._current_key)
+                return result
+
+            except (ResourceExhausted, TooManyRequests) as e:
+                last_error = e
+                error_msg = str(e).lower()
+
+                if self._key_manager:
+                    if "quota" in error_msg or "daily" in error_msg:
+                        self._key_manager.report_quota_exhausted(self._current_key)
+                    else:
+                        self._key_manager.report_rate_limit(self._current_key)
+
+                    logger.warning(
+                        "Rate limit hit (attempt %d/%d), rotating key...",
+                        attempt + 1,
+                        max_retries,
+                    )
+
+                    try:
+                        self._rotate_client_if_needed()
+                    except AllKeysExhaustedError:
+                        raise
+                else:
+                    # No key manager - can't rotate
+                    raise
+
+            except Exception as e:
+                # For non-rate-limit errors, don't retry
+                raise
+
+        raise last_error or RuntimeError("All retry attempts failed")
 
     # ----- plain text completion -----
 
@@ -125,11 +188,14 @@ class GeminiLLM(LLM):
             # Reduce old tool outputs to save tokens
             self._reduce_tool_outputs(contents, truncated_indices)
 
-            response = await self._client.aio.models.generate_content(
-                model=self._model,
-                contents=contents,
-                config=config,
-            )
+            async def _do_react_call():
+                return await self._client.aio.models.generate_content(
+                    model=self._model,
+                    contents=contents,
+                    config=config,
+                )
+
+            response = await self._with_retry(_do_react_call)
 
             extract_gemini_usage(response, self.usage, logger=logger)
 
@@ -210,11 +276,15 @@ class GeminiLLM(LLM):
             system_instruction=system or None,
             temperature=temperature,
         )
-        final_response = await self._client.aio.models.generate_content(
-            model=self._model,
-            contents=contents,
-            config=final_config,
-        )
+
+        async def _do_final_call():
+            return await self._client.aio.models.generate_content(
+                model=self._model,
+                contents=contents,
+                config=final_config,
+            )
+
+        final_response = await self._with_retry(_do_final_call)
 
         extract_gemini_usage(final_response, self.usage, logger=logger)
         self.usage.log(logger, model=self._model, context="react_fallback")
@@ -409,15 +479,18 @@ class GeminiLLM(LLM):
     # ----- shared helper -----
 
     async def _call(self, prompt: str, config: GenerateContentConfig) -> str:
-        response = await self._client.aio.models.generate_content(
-            model=self._model,
-            contents=prompt,
-            config=config,
-        )
+        async def _do_call() -> str:
+            response = await self._client.aio.models.generate_content(
+                model=self._model,
+                contents=prompt,
+                config=config,
+            )
 
-        extract_gemini_usage(response, self.usage, logger=logger)
-        self.usage.log(logger, model=self._model, context="generate")
+            extract_gemini_usage(response, self.usage, logger=logger)
+            self.usage.log(logger, model=self._model, context="generate")
 
-        if response.text is None:
-            raise RuntimeError("Gemini returned empty response")
-        return response.text
+            if response.text is None:
+                raise RuntimeError("Gemini returned empty response")
+            return response.text
+
+        return await self._with_retry(_do_call)
