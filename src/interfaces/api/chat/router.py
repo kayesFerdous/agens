@@ -25,10 +25,15 @@ async def chat(
         data: {"done": true, ...}     — final event with metadata
         data: {"error": "..."}        — if something goes wrong
     """
-    # Validate session exists
-    session = await session_repo.get_session(db, body.session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+    # Auto-create a session if none provided (first message)
+    if body.session_id:
+        session = await session_repo.get_session(db, body.session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        session_id = body.session_id
+    else:
+        session = await session_repo.insert_session(db)
+        session_id = session.id
 
     agent = request.app.state.agent
 
@@ -38,7 +43,7 @@ async def chat(
             # block the event loop while the ReAct loop executes.
             response = await asyncio.to_thread(
                 asyncio.run,
-                agent.run(body.message, body.session_id, db),
+                agent.run(body.message, session_id, db),
             )
 
             if not response.success:
@@ -73,7 +78,7 @@ async def chat(
                 for tc in (response.tool_history or [])
             ]
 
-            yield f"data: {json.dumps({'done': True, 'usage': usage_data, 'tool_history': tool_history})}\n\n"
+            yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'usage': usage_data, 'tool_history': tool_history})}\n\n"
 
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
