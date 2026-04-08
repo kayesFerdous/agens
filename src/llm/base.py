@@ -1,7 +1,7 @@
 # llm/base.py
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, AsyncIterator, Awaitable
 from dataclasses import dataclass, field
 from typing import Any
 from core.types import StreamEvent, ToolCall, Usage
@@ -26,7 +26,7 @@ class LLM(ABC):
     """
 
     @abstractmethod
-    def generate(
+    async def generate(
         self,
         prompt: str,
         *,
@@ -37,7 +37,7 @@ class LLM(ABC):
         ...
 
     @abstractmethod
-    def generate_structured(
+    async def generate_structured(
         self,
         prompt: str,
         *,
@@ -49,25 +49,25 @@ class LLM(ABC):
         ...
 
     @abstractmethod
-    def generate_stream(
+    async def generate_stream(
         self,
         prompt: str,
         *,
         system: str = "",
         temperature: float = 0,
-    ) -> Iterator[str]:
+    ) -> AsyncIterator[str]:
         """Yield text chunks as they arrive from the model."""
         ...
 
     @abstractmethod
-    def react(
+    async def react(
         self,
         user_request: str,
         *,
         system: str = "",
         tool_schemas: list[dict],
         message_history: list[Any] | None = None,
-        tool_executor: Callable[[str, dict[str, Any]], dict[str, Any]],
+        tool_executor: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
         max_iterations: int = 10,
         temperature: float = 0,
     ) -> ReactResult:
@@ -80,17 +80,17 @@ class LLM(ABC):
         ...
 
     @abstractmethod
-    def react_stream(
+    async def react_stream(
         self,
         user_request: str,
         *,
         system: str = "",
         tool_schemas: list[dict],
         message_history: list[Any] | None = None,
-        tool_executor: Callable[[str, dict[str, Any]], dict[str, Any]],
+        tool_executor: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
         max_iterations: int = 10,
         temperature: float = 0,
-    ) -> Iterator[StreamEvent]:
+    ) -> AsyncIterator[StreamEvent]:
         """Streaming variant of react().
 
         Yields StreamEvent objects in real time:
