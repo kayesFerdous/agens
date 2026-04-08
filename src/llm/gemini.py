@@ -8,7 +8,7 @@ from google.genai.types import Content, FunctionDeclaration, GenerateContentConf
 
 from llm.base import LLM, ReactResult
 from llm.gemini_usage import extract_gemini_usage
-from core.types import ToolCall, Usage
+from core.types import StreamEvent, ToolCall, Usage
 from config.logging import get_logger
 
 logger = get_logger(__name__)
@@ -220,6 +220,160 @@ class GeminiLLM(LLM):
 
         answer = final_response.text or "(No answer produced)"
         return ReactResult(answer=answer, tool_calls=tool_history, usage=self.usage)
+
+    # ----- Streaming ReAct loop -----
+
+    def react_stream(
+        self,
+        user_request: str,
+        *,
+        system: str = "",
+        tool_schemas: list[dict],
+        message_history: list[Content],
+        tool_executor: Callable[[str, dict[str, Any]], dict[str, Any]],
+        max_iterations: int = 10,
+        temperature: float = 0,
+    ) -> Iterator[StreamEvent]:
+        """Streaming variant of react(). Yields StreamEvent objects in real time."""
+
+        func_decls = [
+            FunctionDeclaration(
+                name=s["name"],
+                description=s["description"],
+                parameters=s["parameters"],
+            )
+            for s in tool_schemas
+        ]
+        tools = [Tool(function_declarations=func_decls)]
+
+        config = GenerateContentConfig(
+            system_instruction=system or None,
+            tools=tools,
+            temperature=temperature,
+        )
+
+        contents: list[Content] = message_history + [
+            Content(role="user", parts=[Part.from_text(text=user_request)])
+        ]
+
+        tool_history: list[ToolCall] = []
+        truncated_indices: set[int] = set()
+
+        for iteration in range(max_iterations):
+            logger.info("ReAct stream iteration %d", iteration + 1)
+            self._reduce_tool_outputs(contents, truncated_indices)
+
+            # Use non-streaming to check if the model wants tools or text
+            response = self._client.models.generate_content(
+                model=self._model,
+                contents=contents,
+                config=config,
+            )
+
+            extract_gemini_usage(response, self.usage, logger=logger)
+
+            if not response.candidates:
+                yield StreamEvent(type="error", error="Gemini returned no candidates.")
+                return
+
+            candidate = response.candidates[0]
+            if not candidate.content or not candidate.content.parts:
+                reason = getattr(candidate, "finish_reason", "UNKNOWN")
+                yield StreamEvent(type="error", error=f"No content. Finish reason: {reason}")
+                return
+
+            content_parts = candidate.content.parts
+            function_calls = [p for p in content_parts if p.function_call]
+
+            # --- Final text answer: re-request with streaming ---
+            if not function_calls:
+                self.usage.log(logger, model=self._model, context="react_stream")
+                logger.info("ReAct stream: final answer at iteration %d — streaming text", iteration + 1)
+
+                # Stream the final answer using generate_content_stream
+                stream_config = GenerateContentConfig(
+                    system_instruction=system or None,
+                    temperature=temperature,
+                    # No tools — force a text-only response
+                )
+                for chunk in self._client.models.generate_content_stream(
+                    model=self._model,
+                    contents=contents,
+                    config=stream_config,
+                ):
+                    if chunk.text:
+                        yield StreamEvent(type="token", content=chunk.text)
+                    # Capture usage from the last chunk
+                    if chunk.usage_metadata:
+                        self.usage.record(
+                            prompt_tokens=chunk.usage_metadata.prompt_token_count or 0,
+                            completion_tokens=getattr(chunk.usage_metadata, "candidates_token_count", None) or 0,
+                            total_tokens=chunk.usage_metadata.total_token_count or 0,
+                        )
+
+                yield StreamEvent(type="done", usage=self.usage, tool_calls=tool_history)
+                return
+
+            # --- Tool-calling iteration ---
+            contents.append(candidate.content)
+
+            func_response_parts: list[Part] = []
+            for part in function_calls:
+                fc = part.function_call
+                if not fc or not fc.name:
+                    continue
+
+                fc_name = fc.name
+                fc_args = dict(fc.args) if fc.args else {}
+
+                logger.info("Tool call (stream): %s(%s)", fc_name, fc_args)
+                yield StreamEvent(type="tool_start", tool=fc_name, arguments=fc_args)
+
+                call_record = ToolCall(tool=fc_name, arguments=fc_args)
+
+                try:
+                    result = tool_executor(fc_name, fc_args)
+                    call_record.result = result
+                    logger.info("Tool result (stream): %s", str(result)[:200])
+                    yield StreamEvent(type="tool_end", tool=fc_name, result=result)
+                except Exception as e:
+                    error_msg = f"{type(e).__name__}: {e}"
+                    result = {"error": error_msg}
+                    call_record.error = error_msg
+                    logger.warning("Tool error (stream): %s", error_msg)
+                    yield StreamEvent(type="tool_end", tool=fc_name, error=error_msg)
+
+                tool_history.append(call_record)
+                func_response_parts.append(
+                    Part.from_function_response(name=fc_name, response=result)
+                )
+
+            contents.append(Content(role="tool", parts=func_response_parts))
+
+        # --- Max iterations exhausted: stream fallback answer ---
+        logger.warning("ReAct stream hit max iterations (%d). Requesting final answer.", max_iterations)
+        contents.append(
+            Content(
+                role="user",
+                parts=[Part.from_text(
+                    text="You have used all available iterations. Provide your best answer now based on the information gathered so far."
+                )],
+            )
+        )
+        fallback_config = GenerateContentConfig(
+            system_instruction=system or None,
+            temperature=temperature,
+        )
+        for chunk in self._client.models.generate_content_stream(
+            model=self._model,
+            contents=contents,
+            config=fallback_config,
+        ):
+            if chunk.text:
+                yield StreamEvent(type="token", content=chunk.text)
+
+        self.usage.log(logger, model=self._model, context="react_stream_fallback")
+        yield StreamEvent(type="done", usage=self.usage, tool_calls=tool_history)
 
     def _reduce_tool_outputs(self, contents: list[Content], truncated_indices: set[int], max_chars: int = 500) -> None:
         """Truncate old tool outputs to reduce token usage, keeping the last output intact."""

@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any
-from core.types import ToolCall, Usage
+from core.types import StreamEvent, ToolCall, Usage
 
 
 @dataclass
@@ -76,5 +76,26 @@ class LLM(ABC):
         The LLM generates function calls; *tool_executor* runs them and
         returns structured dicts. The loop continues until the LLM returns
         a text response or *max_iterations* is reached.
+        """
+        ...
+
+    @abstractmethod
+    def react_stream(
+        self,
+        user_request: str,
+        *,
+        system: str = "",
+        tool_schemas: list[dict],
+        message_history: list[Any] | None = None,
+        tool_executor: Callable[[str, dict[str, Any]], dict[str, Any]],
+        max_iterations: int = 10,
+        temperature: float = 0,
+    ) -> Iterator[StreamEvent]:
+        """Streaming variant of react().
+
+        Yields StreamEvent objects in real time:
+          tool_start / tool_end — as tools execute
+          token                 — text chunks of the final answer
+          done                  — stream complete with usage + tool history
         """
         ...
