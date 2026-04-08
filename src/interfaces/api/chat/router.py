@@ -1,5 +1,5 @@
-import asyncio
 import json
+from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -20,10 +20,12 @@ async def chat(
 ):
     """Send a message and receive the response as an SSE stream.
 
-    SSE events:
-        data: {"token": "..."}        — a chunk of the answer text
-        data: {"done": true, ...}     — final event with metadata
-        data: {"error": "..."}        — if something goes wrong
+    SSE events (each line is `data: {json}\n\n`):
+        type: "tool_start"  — a tool is about to be executed
+        type: "tool_end"    — a tool finished (with result or error)
+        type: "token"       — a chunk of the final text answer
+        type: "error"       — something went wrong
+        type: "done"        — stream complete with session_id, usage, tool_history
     """
     # Auto-create a session if none provided (first message)
     if body.session_id:
@@ -39,49 +41,58 @@ async def chat(
 
     async def event_stream():
         try:
-            # Run the synchronous agent.run() in a thread so we don't
-            # block the event loop while the ReAct loop executes.
-            response = await asyncio.to_thread(
-                asyncio.run,
-                agent.run(body.message, session_id, db),
-            )
+            async for event in agent.run_stream(body.message, session_id, db):
+                payload = {}
 
-            if not response.success:
-                yield f"data: {json.dumps({'error': response.error})}\n\n"
-                return
+                if event.type == "token":
+                    payload = {"type": "token", "content": event.content}
 
-            # Stream the answer in chunks (word-by-word)
-            answer = response.answer or ""
-            words = answer.split(" ")
-            for i, word in enumerate(words):
-                # Re-add space between words (except before the first word)
-                token = f" {word}" if i > 0 else word
-                yield f"data: {json.dumps({'token': token})}\n\n"
-                await asyncio.sleep(0.02)  # Small delay for streaming feel
+                elif event.type == "tool_start":
+                    payload = {
+                        "type": "tool_start",
+                        "tool": event.tool,
+                        "arguments": event.arguments,
+                    }
 
-            # Final event with metadata
-            usage_data = None
-            if response.usage:
-                usage_data = {
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens,
-                }
+                elif event.type == "tool_end":
+                    payload = {
+                        "type": "tool_end",
+                        "tool": event.tool,
+                        "result": event.result,
+                        "error": event.error,
+                    }
 
-            tool_history = [
-                {
-                    "tool": tc.tool,
-                    "arguments": tc.arguments,
-                    "result": tc.result,
-                    "error": tc.error,
-                }
-                for tc in (response.tool_history or [])
-            ]
+                elif event.type == "error":
+                    payload = {"type": "error", "error": event.error}
 
-            yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'usage': usage_data, 'tool_history': tool_history})}\n\n"
+                elif event.type == "done":
+                    usage_data = None
+                    if event.usage:
+                        usage_data = {
+                            "prompt_tokens": event.usage.prompt_tokens,
+                            "completion_tokens": event.usage.completion_tokens,
+                            "total_tokens": event.usage.total_tokens,
+                        }
+                    tool_history = [
+                        {
+                            "tool": tc.tool,
+                            "arguments": tc.arguments,
+                            "result": tc.result,
+                            "error": tc.error,
+                        }
+                        for tc in event.tool_calls
+                    ]
+                    payload = {
+                        "type": "done",
+                        "session_id": session_id,
+                        "usage": usage_data,
+                        "tool_history": tool_history,
+                    }
+
+                yield f"data: {json.dumps(payload)}\n\n"
 
         except Exception as e:
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
 
     return StreamingResponse(
         event_stream(),

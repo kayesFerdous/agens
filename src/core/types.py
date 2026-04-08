@@ -55,3 +55,30 @@ class AgentResponse:
     tool_history: list[ToolCall] = field(default_factory=list)
     error: str | None = None
     usage: Usage | None = None
+
+
+@dataclass
+class StreamEvent:
+    """A single event yielded during a streaming ReAct loop.
+
+    Event types:
+        tool_start — a tool is about to be executed
+        tool_end   — a tool finished (with result or error)
+        token      — a chunk of the final text answer
+        error      — an unrecoverable error occurred
+        done       — the stream is complete (carries usage + tool history)
+    """
+    type: str  # "tool_start" | "tool_end" | "token" | "error" | "done"
+
+    # token events
+    content: str | None = None
+
+    # tool events
+    tool: str | None = None
+    arguments: dict[str, Any] | None = None
+    result: dict[str, Any] | None = None
+    error: str | None = None
+
+    # done event
+    usage: Usage | None = None
+    tool_calls: list[ToolCall] = field(default_factory=list)
