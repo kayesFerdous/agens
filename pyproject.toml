@@ -8,6 +8,7 @@ dependencies = [
     "aiosqlite>=0.20.0",
     "alembic>=1.13.0",
     "fastapi>=0.115.0",
+    "google-api-core>=2.30.2",
     "google-genai>=1.66.0",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
