@@ -1,5 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from db.models import Message, Session
 
@@ -12,7 +13,10 @@ async def insert_session(db: AsyncSession, title: str | None = None) -> Session:
 
 
 async def get_session(db: AsyncSession, session_id: str) -> Session | None:
-    return await db.get(Session, session_id)
+    result = await db.execute(
+        select(Session).where(Session.id == session_id).options(selectinload(Session.messages))
+    )
+    return result.scalars().one_or_none()
 
 
 async def fetch_all_sessions(db: AsyncSession, limit: int = 20) -> list[Session]:
