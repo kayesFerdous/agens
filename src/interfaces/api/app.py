@@ -4,19 +4,17 @@ from cryptography.fernet import Fernet
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from agent.factory import build_agent
-from db.database import async_session
 from config.settings import settings
 from interfaces.api.sessions.router import router as sessions_router
 from interfaces.api.chat.router import router as chat_router
+from interfaces.api.api_keys.router import router as api_keys_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Build the agent once on startup and store it in app state."""
+    """Initialize shared app state."""
     app.state.fernet = Fernet(settings.FERNET_SECRET)
-    async with async_session() as session:
-        app.state.agent = await build_agent(session, app.state.fernet)
+    app.state.agent = None
     yield
 
 
@@ -36,3 +34,4 @@ app.add_middleware(
 
 app.include_router(sessions_router, prefix="/sessions", tags=["sessions"])
 app.include_router(chat_router, prefix="/chat", tags=["chat"])
+app.include_router(api_keys_router, prefix="/api-keys", tags=["api-keys"])

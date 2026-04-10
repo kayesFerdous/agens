@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from agent.factory import build_agent
 from db.database import get_db
 from db import repository as session_repo
 from interfaces.api.chat.schemas import ChatRequest
@@ -38,6 +39,16 @@ async def chat(
         session_id = session.id
 
     agent = request.app.state.agent
+    if agent is None:
+        try:
+            agent = await build_agent(db, request.app.state.fernet)
+        except RuntimeError as e:
+            # Keep server usable before first key is configured.
+            raise HTTPException(
+                status_code=503,
+                detail="No active API key configured. Add one via POST /api-keys.",
+            ) from e
+        request.app.state.agent = agent
 
     async def event_stream():
         try:

@@ -63,6 +63,7 @@ async def build_agent(session: AsyncSession, fernet: Fernet) -> Agent:
     # Create LLM with key manager for automatic rotation
     llm = GeminiLLM(
         usage=usage,
-        client=genai.Client(api_key=key),
+        client=genai.Client(api_key=raw_key),
+        current_key_id=key.id,
     )
     return Agent(registry=registry, llm=llm, config_manager=config_manager)
