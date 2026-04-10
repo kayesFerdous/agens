@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.database import get_db
 from db import repository as session_repo
-from interfaces.api.sessions.schemas import SessionCreateRequest, SessionResponse
+from interfaces.api.sessions.schemas import SessionCreateRequest, SessionDetailsResponse, SessionResponse
 
 router = APIRouter()
 
@@ -23,7 +23,7 @@ async def list_sessions(db: AsyncSession = Depends(get_db)):
     return sessions
 
 
-@router.get("/{session_id}", response_model=SessionResponse)
+@router.get("/{session_id}", response_model=SessionDetailsResponse)
 async def get_session(
     session_id: str,
     db: AsyncSession = Depends(get_db),
