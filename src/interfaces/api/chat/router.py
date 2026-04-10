@@ -34,7 +34,7 @@ async def chat(
             raise HTTPException(status_code=404, detail="Session not found")
         session_id = body.session_id
     else:
-        session = await session_repo.insert_session(db)
+        session = await session_repo.insert_session(db, body.message[:60])
         session_id = session.id
 
     agent = request.app.state.agent
