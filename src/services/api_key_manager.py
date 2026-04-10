@@ -8,6 +8,8 @@ from db.repositories.api_key import APIKeyRepository
 
 MAX_FAILURES = 3
 
+SHORT_COOLDOWN = 60        # fallback for minute-level limits with no header
+DAY_IN_SECONDS = 86400
 
 class APIKeyManager:
 
@@ -47,10 +49,6 @@ class APIKeyManager:
 
     # --- Lifecycle ---
 
-    async def on_success(self, key_id: str) -> None:
-        await self.repo.reset_failures(key_id)
-        await self.repo.record_usage(key_id)
-
     async def on_failure(self, key_id: str) -> None:
         failures = await self.repo.increment_failure(key_id)
         if failures >= MAX_FAILURES:
@@ -58,3 +56,20 @@ class APIKeyManager:
 
     async def deactivate(self, key_id: str) -> None:
         await self.repo.update_status(key_id, KeyStatus.INACTIVE)
+
+
+
+    async def on_rate_limit(
+        self, key_id: str, retry_after: int | None = None, is_daily: bool = False
+    ) -> None:
+        if is_daily:
+            # No point retrying today — mark exhausted until tomorrow
+            await self.repo.set_cooldown(key_id, DAY_IN_SECONDS, status=KeyStatus.EXHAUSTED)
+        else:
+            seconds = retry_after or SHORT_COOLDOWN
+            await self.repo.set_cooldown(key_id, seconds, status=KeyStatus.RATE_LIMITED)
+
+    async def on_success(self, key_id: str) -> None:
+        await self.repo.clear_cooldown(key_id)   # revive if it was rate-limited
+        await self.repo.reset_failures(key_id)
+        await self.repo.record_usage(key_id)

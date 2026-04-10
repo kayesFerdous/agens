@@ -57,12 +57,12 @@ async def build_agent(session: AsyncSession, fernet: Fernet) -> Agent:
     config_manager = ConfigManager(_CONFIG_PATH)
     repo = APIKeyRepository(session)
     keys = APIKeyManager(repo, fernet=fernet)
-    _, key = await keys.get_key_for_use("google") #TODO: make it automatic
-    registry = build_registry(config_manager, usage, api_key=key)
+    key, raw_key = await keys.get_key_for_use("google") #TODO: make it automatic
+    registry = build_registry(config_manager, usage, api_key=raw_key)
 
     # Create LLM with key manager for automatic rotation
     llm = GeminiLLM(
         usage=usage,
-        model=settings.DEFAULT_MODEL,
+        client=genai.Client(api_key=key),
     )
     return Agent(registry=registry, llm=llm, config_manager=config_manager)

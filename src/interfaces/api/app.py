@@ -16,8 +16,8 @@ async def lifespan(app: FastAPI):
     """Build the agent once on startup and store it in app state."""
     app.state.fernet = Fernet(settings.FERNET_SECRET)
     async with async_session() as session:
-        app.state.agent = build_agent(session, app.state.fernet)
-        yield
+        app.state.agent = await build_agent(session, app.state.fernet)
+    yield
 
 
 app = FastAPI(
