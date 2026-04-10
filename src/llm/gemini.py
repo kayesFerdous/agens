@@ -9,7 +9,7 @@ from google.api_core.exceptions import ResourceExhausted, TooManyRequests
 
 from llm.base import LLM, ReactResult
 from llm.gemini_usage import extract_gemini_usage
-from llm.api_key_manager import APIKeyManager, AllKeysExhaustedError
+from llm.depricated_api_key_manager import APIKeyManager, AllKeysExhaustedError
 from core.types import StreamEvent, ToolCall, Usage
 from config.logging import get_logger
 
@@ -24,11 +24,11 @@ class GeminiLLM(LLM):
         usage: Usage,
         model: str = "gemini-2.5-flash-lite",
         api_key: str | None = None,
-        key_manager: APIKeyManager | None = None,
+        # key_manager: APIKeyManager | None = None,
     ) -> None:
         self.usage = usage
         self._model = model
-        self._key_manager = key_manager
+        # self._key_manager = key_manager
 
         # If key_manager is provided, use it; otherwise use single key (backwards compat)
         if key_manager:
