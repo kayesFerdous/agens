@@ -20,27 +20,8 @@ class Settings(BaseSettings):
     # Key rotation settings
     RATE_LIMIT_COOLDOWN: float = 60.0  # seconds
     QUOTA_EXHAUSTED_COOLDOWN: float = 86400.0  # seconds (24 hours - Google quota resets daily)
+    FERNET_SECRET: str
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="", extra="ignore")
-
-    def get_api_keys(self) -> list[str]:
-        """Get list of API keys, supporting both single and multiple key configs."""
-        keys: list[str] = []
-
-        # First, try GOOGLE_API_KEYS (comma-separated)
-        if self.GOOGLE_API_KEYS:
-            keys.extend(k.strip() for k in self.GOOGLE_API_KEYS.split(",") if k.strip())
-
-        # Fall back to single GOOGLE_API_KEY if no multi-key config
-        if not keys and self.GOOGLE_API_KEY:
-            keys.append(self.GOOGLE_API_KEY.strip())
-
-        if not keys:
-            raise ValueError(
-                "No API keys configured. Set GOOGLE_API_KEYS='key1,key2' or GOOGLE_API_KEY='key'"
-            )
-
-        return keys
-
 
 settings = Settings()  # type: ignore

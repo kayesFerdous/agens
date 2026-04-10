@@ -5,6 +5,7 @@ from collections.abc import Callable, AsyncIterator, Awaitable
 from dataclasses import dataclass, field
 from typing import Any
 from core.types import StreamEvent, ToolCall, Usage
+from services.api_key_manager import APIKeyManager
 
 
 @dataclass
@@ -25,59 +26,59 @@ class LLM(ABC):
         react               – ReAct loop with function calling
     """
 
-    @abstractmethod
-    async def generate(
-        self,
-        prompt: str,
-        *,
-        system: str = "",
-        temperature: float = 0,
-    ) -> str:
-        """Return a plain-text completion."""
-        ...
+    # @abstractmethod
+    # async def generate(
+    #     self,
+    #     prompt: str,
+    #     *,
+    #     system: str = "",
+    #     temperature: float = 0,
+    # ) -> str:
+    #     """Return a plain-text completion."""
+    #     ...
+    #
+    # @abstractmethod
+    # async def generate_structured(
+    #     self,
+    #     prompt: str,
+    #     *,
+    #     system: str = "",
+    #     temperature: float = 0,
+    #     response_schema: dict[str, Any] | None = None,
+    # ) -> str:
+    #     """Return a JSON string. Optionally constrained by *response_schema*."""
+    #     ...
+    #
+    # @abstractmethod
+    # def generate_stream(
+    #     self,
+    #     prompt: str,
+    #     *,
+    #     system: str = "",
+    #     temperature: float = 0,
+    # ) -> AsyncIterator[str]:
+    #     """Yield text chunks as they arrive from the model."""
+    #     ...
 
     @abstractmethod
-    async def generate_structured(
-        self,
-        prompt: str,
-        *,
-        system: str = "",
-        temperature: float = 0,
-        response_schema: dict[str, Any] | None = None,
-    ) -> str:
-        """Return a JSON string. Optionally constrained by *response_schema*."""
-        ...
-
-    @abstractmethod
-    def generate_stream(
-        self,
-        prompt: str,
-        *,
-        system: str = "",
-        temperature: float = 0,
-    ) -> AsyncIterator[str]:
-        """Yield text chunks as they arrive from the model."""
-        ...
-
-    @abstractmethod
-    async def react(
-        self,
-        user_request: str,
-        *,
-        system: str = "",
-        tool_schemas: list[dict],
-        message_history: list[Any] | None = None,
-        tool_executor: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
-        max_iterations: int = 10,
-        temperature: float = 0,
-    ) -> ReactResult:
-        """Run a ReAct loop using function calling.
-
-        The LLM generates function calls; *tool_executor* runs them and
-        returns structured dicts. The loop continues until the LLM returns
-        a text response or *max_iterations* is reached.
-        """
-        ...
+    # async def react(
+    #     self,
+    #     user_request: str,
+    #     *,
+    #     system: str = "",
+    #     tool_schemas: list[dict],
+    #     message_history: list[Any] | None = None,
+    #     tool_executor: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
+    #     max_iterations: int = 10,
+    #     temperature: float = 0,
+    # ) -> ReactResult:
+    #     """Run a ReAct loop using function calling.
+    #
+    #     The LLM generates function calls; *tool_executor* runs them and
+    #     returns structured dicts. The loop continues until the LLM returns
+    #     a text response or *max_iterations* is reached.
+    #     """
+    #     ...
 
     @abstractmethod
     def react_stream(
@@ -98,4 +99,9 @@ class LLM(ABC):
           token                 — text chunks of the final answer
           done                  — stream complete with usage + tool history
         """
+        ...
+
+
+    async def rotate_key(self, api_key_manager: APIKeyManager) -> None:
+        """Invalidate current client so next _get_client() picks a fresh key."""
         ...
