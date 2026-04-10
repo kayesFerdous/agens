@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     # Key rotation settings
     RATE_LIMIT_COOLDOWN: float = 60.0  # seconds
     QUOTA_EXHAUSTED_COOLDOWN: float = 86400.0  # seconds (24 hours - Google quota resets daily)
+    API_KEY_ENCRYPTION_SECRET: str
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="", extra="ignore")
 
