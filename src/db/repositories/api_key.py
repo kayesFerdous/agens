@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import or_
 
@@ -28,6 +28,24 @@ class APIKeyRepository:
             select(APIKey).where(APIKey.key_hash == key_hash)
         )
         return result.scalar_one_or_none()
+
+    async def list_keys(
+        self,
+        provider: str | None = None,
+        status: KeyStatus | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[APIKey]:
+        stmt = select(APIKey).order_by(APIKey.created_at.desc()).offset(offset).limit(limit)
+
+        if provider:
+            stmt = stmt.where(APIKey.provider == provider)
+
+        if status:
+            stmt = stmt.where(APIKey.status == status)
+
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
     async def update_status(self, key_id: str, status: KeyStatus) -> None:
         await self.session.execute(
@@ -97,3 +115,8 @@ class APIKeyRepository:
             .values(status=KeyStatus.ACTIVE, cooldown_until=None)
         )
         await self.session.commit()
+
+    async def delete_by_id(self, key_id: str) -> bool:
+        result = await self.session.execute(delete(APIKey).where(APIKey.id == key_id))
+        await self.session.commit()
+        return (result.rowcount or 0) > 0

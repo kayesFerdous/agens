@@ -50,11 +50,13 @@ class GeminiLLM(LLM):
     def __init__(
         self,
         usage: Usage,
-        client: genai.Client
+        client: genai.Client,
+        current_key_id: str | None = None,
     ) -> None:
         self.usage = usage
         self._provider = "google"
-        self._client = client
+        self._client: genai.Client | None = client
+        self._current_key_id = current_key_id or ""
         self._model = settings.DEFAULT_MODEL
 
 
@@ -100,15 +102,16 @@ class GeminiLLM(LLM):
             self._reduce_tool_outputs(contents, truncated_indices)
 
             # Use non-streaming to check if the model wants tools or text
+            client = self._require_client()
             try:
-                response = await self._client.aio.models.generate_content(
+                response = await client.aio.models.generate_content(
                     model=self._model,
                     contents=contents,
                     config=config,
                 )
             except errors.APIError as e:
                 if e.code == 429:
-                    raise _parse_rate_limit(e, self._current_key_id)
+                    raise _parse_rate_limit(e, self._current_key_id or "unknown")
                 raise
 
             extract_gemini_usage(response, self.usage, logger=logger)
@@ -139,7 +142,8 @@ class GeminiLLM(LLM):
                 )
 
                 try:
-                    async for chunk in await self._client.aio.models.generate_content_stream(
+                    client = self._require_client()
+                    async for chunk in await client.aio.models.generate_content_stream(
                         model=self._model,
                         contents=contents,
                         config=stream_config,
@@ -158,7 +162,7 @@ class GeminiLLM(LLM):
                     return
                 except errors.APIError as e:
                     if e.code == 429:
-                        raise _parse_rate_limit(e, self._current_key_id)
+                        raise _parse_rate_limit(e, self._current_key_id or "unknown")
                     raise
 
             # --- Tool-calling iteration ---
@@ -213,7 +217,8 @@ class GeminiLLM(LLM):
         )
 
         try:
-            async for chunk in await self._client.aio.models.generate_content_stream(
+            client = self._require_client()
+            async for chunk in await client.aio.models.generate_content_stream(
                 model=self._model,
                 contents=contents,
                 config=fallback_config,
@@ -225,7 +230,7 @@ class GeminiLLM(LLM):
             yield StreamEvent(type="done", usage=self.usage, tool_calls=tool_history)
         except errors.APIError as e:
             if e.code == 429:
-                raise _parse_rate_limit(e, self._current_key_id)
+                raise _parse_rate_limit(e, self._current_key_id or "unknown")
             raise
 
     def _reduce_tool_outputs(self, contents: list[Content], truncated_indices: set[int], max_chars: int = 500) -> None:
@@ -238,6 +243,7 @@ class GeminiLLM(LLM):
             for part in content.parts:
                 if part.function_response and part.function_response.response:
                     response = part.function_response.response
+                    response_name = part.function_response.name or "unknown_tool"
                     truncated_response = {
                         key: value[:max_chars] + "... [truncated]"
                         if isinstance(value, str) and len(value) > max_chars
@@ -246,7 +252,7 @@ class GeminiLLM(LLM):
                     }
                     new_parts.append(
                         Part.from_function_response(
-                            name=part.function_response.name,
+                            name=response_name,
                             response=truncated_response,
                         )
                     )
@@ -267,8 +273,14 @@ class GeminiLLM(LLM):
 
     # ----- shared helper -----
 
+    def _require_client(self) -> genai.Client:
+        if self._client is None:
+            raise RuntimeError("Gemini client is not initialized")
+        return self._client
+
     async def _call(self, prompt: str, config: GenerateContentConfig) -> str:
-        response = await self._client.aio.models.generate_content(
+        client = self._require_client()
+        response = await client.aio.models.generate_content(
             model=self._model,
             contents=prompt,
             config=config,
