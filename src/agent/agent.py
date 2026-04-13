@@ -16,7 +16,6 @@ from planner.prompt_builder import build_system_prompt
 from memory.manager import MemoryManager
 from llm.llm_exceptions import RateLimitError, LLMUnavailable
 from services.api_key_manager import APIKeyManager
-from db.database import async_session
 
 logger = get_logger(__name__)
 
@@ -28,12 +27,15 @@ class Agent:
         self._config_manager = config_manager
 
 
-    async def run_stream(self, user_request: str, session_id: str, db: AsyncSession) -> AsyncIterator[StreamEvent]:
+    async def run_stream(self, user_request: str, session_id: str, db: AsyncSession, fernet: Fernet) -> AsyncIterator[StreamEvent]:
         memory_manager = MemoryManager(db)
         config = self._config_manager.load_config()
         system = build_system_prompt(config)
         tool_schemas = self._registry.tool_schemas()
         message_history = await memory_manager.get_history_for_gemini(session_id)
+
+        provider = "google"
+        api_key_manager = APIKeyManager(repo=APIKeyRepository(db), fernet=fernet)
 
         answer_parts: list[str] = []
         last_done_event: StreamEvent | None = None
@@ -45,6 +47,18 @@ class Agent:
             rotated = False
 
             try:
+                key_usable = await api_key_manager.is_key_usable_now(
+                    key_id=self._llm.current_key_id,
+                    provider=provider,
+                )
+                if not key_usable:
+                    logger.warning("Current key is not usable. Rotating before request.")
+                    await self._llm.rotate_key(api_key_manager)
+                    yield StreamEvent(
+                        type="status",
+                        message="API key rotated before request.",
+                    )
+
                 async for event in self._llm.react_stream(
                     user_request,
                     system=system,
@@ -62,23 +76,19 @@ class Agent:
             except RateLimitError as e:
                 logger.warning("Stream rate limit on attempt %d: key=%s daily=%s", attempt, e.key_id, e.is_daily)
 
-                fernet = Fernet(key=settings.FERNET_SECRET)
-                async with async_session() as session:
-                    repo = APIKeyRepository(session)
-                    keys = APIKeyManager(repo, fernet=fernet)
-                    try:
-                        await keys.on_rate_limit(
-                            e.key_id, retry_after=e.retry_after, is_daily=e.is_daily
-                        )
-                        await self._llm.rotate_key(keys)
-                        yield StreamEvent(
-                            type="status",
-                            message="API key rotated. Retrying the request.",
-                        )
-                        rotated = True
-                    except RuntimeError:
-                        yield StreamEvent(type="error", error="All API keys are exhausted.")
-                        return
+                try:
+                    await api_key_manager.on_rate_limit(
+                        e.key_id, retry_after=e.retry_after, is_daily=e.is_daily
+                    )
+                    await self._llm.rotate_key(api_key_manager)
+                    yield StreamEvent(
+                        type="status",
+                        message="API key rotated. Retrying the request.",
+                    )
+                    rotated = True
+                except RuntimeError:
+                    yield StreamEvent(type="error", error="All API keys are exhausted.")
+                    return
 
                 if not rotated:
                     yield StreamEvent(type="error", error="Rate limit hit, could not rotate key.")
@@ -86,15 +96,15 @@ class Agent:
             except LLMUnavailable as e:
                 logger.warning(e)
 
-                fernet = Fernet(key=settings.FERNET_SECRET)
-                async with async_session() as session:
-                    repo = APIKeyRepository(session)
-                    keys = APIKeyManager(repo, fernet=fernet)
-                    try:
-                        await self._llm.rotate_key(keys)
-                    except RuntimeError:
-                        yield StreamEvent(type="error", error="All API keys are exhausted.")
-                        return
+                try:
+                    await self._llm.rotate_key(api_key_manager)
+                    yield StreamEvent(
+                        type="status",
+                        message="API key rotated after availability error. Retrying the request.",
+                    )
+                except RuntimeError:
+                    yield StreamEvent(type="error", error="All API keys are exhausted.")
+                    return
 
             except Exception as e:
                 logger.error("Streaming ReAct loop failed: %s", e)

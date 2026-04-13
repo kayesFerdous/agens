@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer, load_only
+from sqlalchemy.sql import or_
 
 from db.models import APIKey, KeyStatus
 from config.logging import get_logger
@@ -13,6 +14,26 @@ class APIKeyRepository:
 
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    async def is_key_usable_now(self, key_id: str, provider: str | None = None) -> bool:
+        now = datetime.now(timezone.utc)
+
+        conditions = [
+            APIKey.id == key_id,
+            APIKey.status == KeyStatus.ACTIVE,
+            or_(
+                APIKey.cooldown_until.is_(None),
+                APIKey.cooldown_until <= now,
+            ),
+        ]
+
+        if provider:
+            conditions.append(APIKey.provider == provider)
+
+        stmt = select(1).where(*conditions).limit(1)
+
+        result = await self.session.scalar(stmt)
+        return result is not None
 
     async def insert(self, api_key: APIKey) -> APIKey:
         self.session.add(api_key)

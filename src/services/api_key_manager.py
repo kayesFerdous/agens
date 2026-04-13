@@ -47,6 +47,12 @@ class APIKeyManager:
         raw_key = self.fernet.decrypt(key.encrypted_key.encode()).decode()
         return key, raw_key
 
+    async def is_key_usable_now(self, key_id: str | None, provider: str) -> bool:
+        if not key_id:
+            return False
+        await self.repo.check_cooldown(provider=provider)
+        return await self.repo.is_key_usable_now(key_id=key_id, provider=provider)
+
     # --- Lifecycle ---
 
     async def on_failure(self, key_id: str) -> None:
