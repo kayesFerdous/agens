@@ -14,7 +14,7 @@ from core.types import StreamEvent
 from config.config_manager import ConfigManager
 from planner.prompt_builder import build_system_prompt
 from memory.manager import MemoryManager
-from llm.llm_exceptions import RateLimitError
+from llm.llm_exceptions import RateLimitError, LLMUnavailable
 from services.api_key_manager import APIKeyManager
 from db.database import async_session
 
@@ -83,6 +83,18 @@ class Agent:
                 if not rotated:
                     yield StreamEvent(type="error", error="Rate limit hit, could not rotate key.")
                     return
+            except LLMUnavailable as e:
+                logger.warning(e)
+
+                fernet = Fernet(key=settings.FERNET_SECRET)
+                async with async_session() as session:
+                    repo = APIKeyRepository(session)
+                    keys = APIKeyManager(repo, fernet=fernet)
+                    try:
+                        await self._llm.rotate_key(keys)
+                    except RuntimeError:
+                        yield StreamEvent(type="error", error="All API keys are exhausted.")
+                        return
 
             except Exception as e:
                 logger.error("Streaming ReAct loop failed: %s", e)

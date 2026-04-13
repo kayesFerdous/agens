@@ -11,7 +11,7 @@ from llm.gemini_usage import extract_gemini_usage
 from core.types import StreamEvent, ToolCall, Usage
 from config.logging import get_logger
 from config.settings import settings
-from llm.llm_exceptions import RateLimitError
+from llm.llm_exceptions import RateLimitError, LLMUnavailable
 from services.api_key_manager import APIKeyManager
 
 logger = get_logger(__name__)
@@ -103,6 +103,8 @@ class GeminiLLM(LLM):
             # Use non-streaming to check if the model wants tools or text
             client = self._require_client()
             try:
+                # logger.info("Message History: \n", contents)
+                logger.info("api key id: %s", self._current_key_id)
                 response = await client.aio.models.generate_content(
                     model=self._model,
                     contents=contents,
@@ -280,7 +282,7 @@ class GeminiLLM(LLM):
 
     def _require_client(self) -> genai.Client:
         if self._client is None:
-            raise RuntimeError("Gemini client is not initialized")
+            raise LLMUnavailable("Gemini client is not initialized")
         return self._client
 
     async def _call(self, prompt: str, config: GenerateContentConfig) -> str:
