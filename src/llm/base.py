@@ -26,6 +26,10 @@ class LLM(ABC):
         react               – ReAct loop with function calling
     """
 
+    @property
+    @abstractmethod
+    def current_key_id(self) -> str:
+        ...
     # @abstractmethod
     # async def generate(
     #     self,
@@ -60,7 +64,7 @@ class LLM(ABC):
     #     """Yield text chunks as they arrive from the model."""
     #     ...
 
-    @abstractmethod
+    # @abstractmethod
     # async def react(
     #     self,
     #     user_request: str,

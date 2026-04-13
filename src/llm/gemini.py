@@ -58,6 +58,10 @@ class GeminiLLM(LLM):
         self._current_key_id = current_key_id or ""
         self._model = settings.DEFAULT_MODEL
 
+    @property
+    def current_key_id(self):
+        return self._current_key_id
+
 
     async def react_stream(
         self,
