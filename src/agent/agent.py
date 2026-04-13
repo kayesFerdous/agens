@@ -7,11 +7,10 @@ from sqlalchemy.ext.asyncio.session import AsyncSession
 from config.settings import settings
 from config.logging import get_logger
 from typing import Any, AsyncIterator
-from google.genai import errors
 from db.repositories.api_key import APIKeyRepository
 from llm.base import LLM
 from core.registry import ToolRegistry
-from core.types import AgentResponse, StreamEvent
+from core.types import StreamEvent
 from config.config_manager import ConfigManager
 from planner.prompt_builder import build_system_prompt
 from memory.manager import MemoryManager

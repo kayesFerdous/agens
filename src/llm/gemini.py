@@ -1,13 +1,12 @@
 # llm/gemini.py
 from __future__ import annotations
-import os
 from collections.abc import Callable, AsyncIterator, Awaitable
 from typing import Any
 from google import genai
 from google.genai import errors
 from google.genai.types import Content, FunctionDeclaration, GenerateContentConfig, Part, Tool
 
-from llm.base import LLM, ReactResult
+from llm.base import LLM
 from llm.gemini_usage import extract_gemini_usage
 from core.types import StreamEvent, ToolCall, Usage
 from config.logging import get_logger
@@ -112,6 +111,8 @@ class GeminiLLM(LLM):
             except errors.APIError as e:
                 if e.code == 429:
                     raise _parse_rate_limit(e, self._current_key_id or "unknown")
+                if e.code == 503:
+                    raise RateLimitError(key_id=self._current_key_id, retry_after=60, is_daily=False)
                 raise
 
             extract_gemini_usage(response, self.usage, logger=logger)
@@ -163,6 +164,8 @@ class GeminiLLM(LLM):
                 except errors.APIError as e:
                     if e.code == 429:
                         raise _parse_rate_limit(e, self._current_key_id or "unknown")
+                    if e.code == 503:
+                        raise RateLimitError(key_id=self._current_key_id, retry_after=60, is_daily=False)
                     raise
 
             # --- Tool-calling iteration ---
@@ -231,6 +234,8 @@ class GeminiLLM(LLM):
         except errors.APIError as e:
             if e.code == 429:
                 raise _parse_rate_limit(e, self._current_key_id or "unknown")
+            if e.code == 503:
+                raise RateLimitError(key_id=self._current_key_id, retry_after=60, is_daily=False)
             raise
 
     def _reduce_tool_outputs(self, contents: list[Content], truncated_indices: set[int], max_chars: int = 500) -> None:
