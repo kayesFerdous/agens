@@ -24,10 +24,8 @@ class APIKeyRepository:
         result = await self.session.execute(
             select(APIKey)
             .options(
-                defer(
-                    APIKey.encrypted_key,
-                    APIKey.key_hash,
-                )
+                defer(APIKey.encrypted_key),
+                defer(APIKey.key_hash)
             )
             .where(APIKey.id == key_id)
         )
@@ -51,10 +49,8 @@ class APIKeyRepository:
         stmt = (
             select(APIKey)
             .options(
-                defer(
-                    APIKey.encrypted_key,
-                    APIKey.key_hash,
-                )
+                defer(APIKey.encrypted_key),
+                defer(APIKey.key_hash),
             )
             .order_by(APIKey.created_at.desc())
             .offset(offset)

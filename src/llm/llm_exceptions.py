@@ -5,3 +5,6 @@ class RateLimitError(Exception):
         self.key_id = key_id
         self.retry_after = retry_after
         self.is_daily = is_daily  # ← new flag
+
+class LLMUnavailable(Exception):
+    pass
