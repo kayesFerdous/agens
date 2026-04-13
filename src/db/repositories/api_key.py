@@ -1,9 +1,11 @@
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql import or_
 
 from db.models import APIKey, KeyStatus
+from config.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class APIKeyRepository:
@@ -80,16 +82,25 @@ class APIKeyRepository:
         )
         await self.session.commit()
 
-    async def get_active_by_provider(self, provider: str) -> list[APIKey]:
+    async def check_cooldown(self, provider: str) -> None:
         now = datetime.now(timezone.utc)
+        await self.session.execute(
+            update(APIKey)
+            .where(
+                APIKey.provider == provider,
+                APIKey.status.not_in([KeyStatus.INACTIVE, KeyStatus.INVALID]),
+                APIKey.cooldown_until <= now,
+            )
+            .values(status = KeyStatus.ACTIVE, cooldown_until = None)
+        )
+        await self.session.commit()
+
+    async def get_active_by_provider(self, provider: str) -> list[APIKey]:
+        await self.check_cooldown(provider=provider)
         result = await self.session.execute(
             select(APIKey).where(
                 APIKey.provider == provider,
                 APIKey.status == KeyStatus.ACTIVE,
-                or_(
-                    APIKey.cooldown_until.is_(None),
-                    APIKey.cooldown_until <= now,        # cooldown expired → eligible again
-                )
             )
         )
         return list(result.scalars().all())
