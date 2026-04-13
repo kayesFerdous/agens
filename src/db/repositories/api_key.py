@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import load_only
 
 from db.models import APIKey, KeyStatus
 from config.logging import get_logger
@@ -21,13 +22,31 @@ class APIKeyRepository:
 
     async def get_by_id(self, key_id: str) -> APIKey | None:
         result = await self.session.execute(
-            select(APIKey).where(APIKey.id == key_id)
+            select(APIKey)
+            .options(
+                load_only(
+                    APIKey.id,
+                    APIKey.label,
+                    APIKey.provider,
+                    APIKey.key_hint,
+                    APIKey.status,
+                    APIKey.consecutive_failures,
+                    APIKey.cooldown_until,
+                    APIKey.last_used_at,
+                    APIKey.total_calls,
+                    APIKey.created_at,
+                    APIKey.updated_at,
+                )
+            )
+            .where(APIKey.id == key_id)
         )
         return result.scalar_one_or_none()
 
     async def get_by_hash(self, key_hash: str) -> APIKey | None:
         result = await self.session.execute(
-            select(APIKey).where(APIKey.key_hash == key_hash)
+            select(APIKey)
+            .options(load_only(APIKey.id))
+            .where(APIKey.key_hash == key_hash)
         )
         return result.scalar_one_or_none()
 
@@ -38,7 +57,27 @@ class APIKeyRepository:
         limit: int = 100,
         offset: int = 0,
     ) -> list[APIKey]:
-        stmt = select(APIKey).order_by(APIKey.created_at.desc()).offset(offset).limit(limit)
+        stmt = (
+            select(APIKey)
+            .options(
+                load_only(
+                    APIKey.id,
+                    APIKey.label,
+                    APIKey.provider,
+                    APIKey.key_hint,
+                    APIKey.status,
+                    APIKey.consecutive_failures,
+                    APIKey.cooldown_until,
+                    APIKey.last_used_at,
+                    APIKey.total_calls,
+                    APIKey.created_at,
+                    APIKey.updated_at,
+                )
+            )
+            .order_by(APIKey.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
 
         if provider:
             stmt = stmt.where(APIKey.provider == provider)
@@ -98,7 +137,9 @@ class APIKeyRepository:
     async def get_active_by_provider(self, provider: str) -> list[APIKey]:
         await self.check_cooldown(provider=provider)
         result = await self.session.execute(
-            select(APIKey).where(
+            select(APIKey)
+            .options(load_only(APIKey.id, APIKey.encrypted_key, APIKey.total_calls))
+            .where(
                 APIKey.provider == provider,
                 APIKey.status == KeyStatus.ACTIVE,
             )
@@ -130,4 +171,4 @@ class APIKeyRepository:
     async def delete_by_id(self, key_id: str) -> bool:
         result = await self.session.execute(delete(APIKey).where(APIKey.id == key_id))
         await self.session.commit()
-        return (result.rowcount or 0) > 0
+        return (getattr(result, "rowcount", 0) or 0) > 0
