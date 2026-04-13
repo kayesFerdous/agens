@@ -4,7 +4,7 @@ import asyncio
 
 from cryptography.fernet import Fernet
 from sqlalchemy.ext.asyncio.session import AsyncSession
-from config import settings
+from config.settings import settings
 from config.logging import get_logger
 from typing import Any, AsyncIterator
 from google.genai import errors
@@ -72,6 +72,10 @@ class Agent:
                             e.key_id, retry_after=e.retry_after, is_daily=e.is_daily
                         )
                         await self._llm.rotate_key(keys)
+                        yield StreamEvent(
+                            type="status",
+                            message="API key rotated. Retrying the request.",
+                        )
                         rotated = True
                     except RuntimeError:
                         yield StreamEvent(type="error", error="All API keys are exhausted.")

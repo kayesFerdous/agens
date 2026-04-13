@@ -25,6 +25,7 @@ async def chat(
         type: "tool_start"  — a tool is about to be executed
         type: "tool_end"    — a tool finished (with result or error)
         type: "token"       — a chunk of the final text answer
+        type: "status"      — a non-error status update for the UI
         type: "error"       — something went wrong
         type: "done"        — stream complete with session_id, usage, tool_history
     """
@@ -75,6 +76,12 @@ async def chat(
 
                 elif event.type == "error":
                     payload = {"type": "error", "error": event.error}
+
+                elif event.type == "status":
+                    payload = {
+                        "type": "status",
+                        "message": event.message,
+                    }
 
                 elif event.type == "done":
                     usage_data = None

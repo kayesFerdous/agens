@@ -2,7 +2,7 @@
 from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
-from typing import Any, TYPE_CHECKING
+from typing import Any, Literal, TYPE_CHECKING
 
 logger = logging.getLogger(__name__)
 
@@ -65,13 +65,17 @@ class StreamEvent:
         tool_start — a tool is about to be executed
         tool_end   — a tool finished (with result or error)
         token      — a chunk of the final text answer
+        status     — a non-error lifecycle update for the UI
         error      — an unrecoverable error occurred
         done       — the stream is complete (carries usage + tool history)
     """
-    type: str  # "tool_start" | "tool_end" | "token" | "error" | "done"
+    type: Literal["tool_start", "tool_end", "token", "status", "error", "done"]
 
     # token events
     content: str | None = None
+
+    # status events
+    message: str | None = None
 
     # tool events
     tool: str | None = None
