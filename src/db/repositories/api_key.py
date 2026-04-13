@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import load_only
+from sqlalchemy.orm import defer, load_only
 
 from db.models import APIKey, KeyStatus
 from config.logging import get_logger
@@ -24,18 +24,9 @@ class APIKeyRepository:
         result = await self.session.execute(
             select(APIKey)
             .options(
-                load_only(
-                    APIKey.id,
-                    APIKey.label,
-                    APIKey.provider,
-                    APIKey.key_hint,
-                    APIKey.status,
-                    APIKey.consecutive_failures,
-                    APIKey.cooldown_until,
-                    APIKey.last_used_at,
-                    APIKey.total_calls,
-                    APIKey.created_at,
-                    APIKey.updated_at,
+                defer(
+                    APIKey.encrypted_key,
+                    APIKey.key_hash,
                 )
             )
             .where(APIKey.id == key_id)
@@ -60,18 +51,9 @@ class APIKeyRepository:
         stmt = (
             select(APIKey)
             .options(
-                load_only(
-                    APIKey.id,
-                    APIKey.label,
-                    APIKey.provider,
-                    APIKey.key_hint,
-                    APIKey.status,
-                    APIKey.consecutive_failures,
-                    APIKey.cooldown_until,
-                    APIKey.last_used_at,
-                    APIKey.total_calls,
-                    APIKey.created_at,
-                    APIKey.updated_at,
+                defer(
+                    APIKey.encrypted_key,
+                    APIKey.key_hash,
                 )
             )
             .order_by(APIKey.created_at.desc())
