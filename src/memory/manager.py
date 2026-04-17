@@ -20,12 +20,11 @@ class MemoryManager:
         await add_message(self.db, session_id, "assistant", assistant_msg, tool_calls)
 
     async def get_history(self, session_id: str, max_history: int = 3) -> list[Message]:
-        messages = await get_messages(self.db, session_id, max_history)
-        return messages[-(max_history * 2):]
+        return await get_messages(self.db, session_id, max_history)
 
     async def get_history_for_gemini(self, session_id: str, max_history: int = 3) -> list[Content]:
         messages = await self.get_history(session_id, max_history)
-        
+
         return [
             Content(
                 role="user" if msg.role == "user" else "model",

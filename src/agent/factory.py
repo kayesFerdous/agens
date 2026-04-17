@@ -1,4 +1,3 @@
-# agent/factory.py — wires up the Agent with its dependencies
 from pathlib import Path
 
 from cryptography.fernet import Fernet
