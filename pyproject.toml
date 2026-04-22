@@ -12,6 +12,7 @@ dependencies = [
     "google-genai>=1.66.0",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
+    "python-telegram-bot>=22.7",
     "sqlalchemy[asyncio]>=2.0.48",
     "uvicorn[standard]>=0.34.0",
 ]
