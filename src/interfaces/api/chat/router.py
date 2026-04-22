@@ -53,7 +53,13 @@ async def chat(
 
     async def event_stream():
         try:
-            async for event in agent.run_stream(body.message, session_id, db, fernet=request.app.state.fernet):
+            async for event in agent.run_stream(
+                body.message,
+                session_id,
+                db,
+                fernet=request.app.state.fernet,
+                model=body.model
+            ):
                 payload = {}
 
                 if event.type == "token":

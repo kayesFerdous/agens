@@ -6,5 +6,7 @@
     "name": "Jarvis",
     "tone": "friendly"
   },
-  "preferences": {}
+  "preferences": {
+    "response_length": "short"
+  }
 }

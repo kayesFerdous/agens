@@ -51,12 +51,16 @@ class GeminiLLM(LLM):
         usage: Usage,
         client: genai.Client,
         current_key_id: str | None = None,
+        model_name: str | None = None
     ) -> None:
         self.usage = usage
-        self._provider = "google"
+        self._provider = "gemini"
         self._client: genai.Client | None = client
         self._current_key_id = current_key_id or ""
-        self._model = settings.DEFAULT_MODEL
+        resolved_model = model_name or settings.DEFAULT_MODEL
+        if not resolved_model:
+            raise LLMUnavailable("Gemini model is not configured")
+        self._model_name: str = resolved_model
 
     @property
     def current_key_id(self):
@@ -104,8 +108,12 @@ class GeminiLLM(LLM):
         tool_executor: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
         max_iterations: int = 10,
         temperature: float = 0,
+        model_name: str | None = None
     ) -> AsyncIterator[StreamEvent]:
         """Streaming ReAct loop. Yields StreamEvent objects in real time."""
+        if model_name:
+            self._model_name = model_name
+
         async for event in self._run_react_loop(
             user_request=user_request,
             system=system,
@@ -170,7 +178,7 @@ class GeminiLLM(LLM):
             try:
                 logger.info("api key id: %s", self._current_key_id)
                 response = await client.aio.models.generate_content(
-                    model=self._model,
+                    model=self._model_name,
                     contents=contents,
                     config=config,
                 )
@@ -198,7 +206,7 @@ class GeminiLLM(LLM):
 
             # --- Final answer (no more tool calls) ---
             if not function_calls:
-                self.usage.log(logger, model=self._model, context="react_stream" if streaming else "react")
+                self.usage.log(logger, model=self._model_name, context="react_stream" if streaming else "react")
                 logger.info("ReAct: final answer at iteration %d (streaming=%s)", iteration + 1, streaming)
 
                 final_config = GenerateContentConfig(
@@ -211,7 +219,7 @@ class GeminiLLM(LLM):
                     client = self._require_client()
                     if streaming:
                         async for chunk in await client.aio.models.generate_content_stream(
-                            model=self._model,
+                            model=self._model_name,
                             contents=contents,
                             config=final_config,
                         ):
@@ -225,7 +233,7 @@ class GeminiLLM(LLM):
                                 )
                     else:
                         final_response = await client.aio.models.generate_content(
-                            model=self._model,
+                            model=self._model_name,
                             contents=contents,
                             config=final_config,
                         )
@@ -238,7 +246,7 @@ class GeminiLLM(LLM):
                 except errors.APIError as e:
                     if e.code == 429:
                         raise _parse_rate_limit(e, self._current_key_id or "unknown")
-                    if e.code == 503:
+                    if e.code in (503, 500):
                         raise RateLimitError(key_id=self._current_key_id, retry_after=60, is_daily=False)
                     raise
 
@@ -297,7 +305,7 @@ class GeminiLLM(LLM):
             client = self._require_client()
             if streaming:
                 async for chunk in await client.aio.models.generate_content_stream(
-                    model=self._model,
+                    model=self._model_name,
                     contents=contents,
                     config=fallback_config,
                 ):
@@ -305,7 +313,7 @@ class GeminiLLM(LLM):
                         yield StreamEvent(type="token", content=chunk.text)
             else:
                 fallback_response = await client.aio.models.generate_content(
-                    model=self._model,
+                    model=self._model_name,
                     contents=contents,
                     config=fallback_config,
                 )
@@ -313,7 +321,7 @@ class GeminiLLM(LLM):
                 if fallback_response.text:
                     yield StreamEvent(type="token", content=fallback_response.text)
 
-            self.usage.log(logger, model=self._model, context="react_fallback")
+            self.usage.log(logger, model=self._model_name, context="react_fallback")
             yield StreamEvent(type="done", usage=self.usage, tool_calls=tool_history)
         except errors.APIError as e:
             if e.code == 429:
@@ -370,13 +378,13 @@ class GeminiLLM(LLM):
     async def _call(self, prompt: str, config: GenerateContentConfig) -> str:
         client = self._require_client()
         response = await client.aio.models.generate_content(
-            model=self._model,
+            model=self._model_name,
             contents=prompt,
             config=config,
         )
 
         extract_gemini_usage(response, self.usage, logger=logger)
-        self.usage.log(logger, model=self._model, context="generate")
+        self.usage.log(logger, model=self._model_name, context="generate")
 
         if response.text is None:
             raise RuntimeError("Gemini returned empty response")

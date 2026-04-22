@@ -56,7 +56,7 @@ async def build_agent(session: AsyncSession, fernet: Fernet) -> Agent:
     config_manager = ConfigManager(_CONFIG_PATH)
     repo = APIKeyRepository(session)
     keys = APIKeyManager(repo, fernet=fernet)
-    key, raw_key = await keys.get_key_for_use("google") #TODO: make it automatic
+    key, raw_key = await keys.get_key_for_use("gemini") #TODO: make it automatic
     registry = build_registry(config_manager, usage, api_key=raw_key)
 
     # Create LLM with key manager for automatic rotation

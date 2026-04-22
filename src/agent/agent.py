@@ -27,14 +27,83 @@ class Agent:
         self._config_manager = config_manager
 
 
-    async def run_stream(self, user_request: str, session_id: str, db: AsyncSession, fernet: Fernet) -> AsyncIterator[StreamEvent]:
+    async def run(self, user_request: str, session_id: str, db: AsyncSession, fernet: Fernet) -> str:
+        """Non-streaming ReAct loop. Returns the final text answer.
+
+        Mirrors the key-rotation and error-handling logic of run_stream() but
+        delegates to llm.react() so there's no SSE overhead.
+        """
         memory_manager = MemoryManager(db)
         config = self._config_manager.load_config()
         system = build_system_prompt(config)
         tool_schemas = self._registry.tool_schemas()
         message_history = await memory_manager.get_history_for_gemini(session_id)
 
-        provider = "google"
+        provider = "gemini"
+        api_key_manager = APIKeyManager(repo=APIKeyRepository(db), fernet=fernet)
+        max_key_rotations = 3
+
+        for attempt in range(max_key_rotations):
+            try:
+                key_usable = await api_key_manager.is_key_usable_now(
+                    key_id=self._llm.current_key_id,
+                    provider=provider,
+                )
+                if not key_usable:
+                    logger.warning("Current key is not usable. Rotating before request.")
+                    await self._llm.rotate_key(api_key_manager)
+
+                answer = await self._llm.react(
+                    user_request,
+                    system=system,
+                    tool_schemas=tool_schemas,
+                    tool_executor=self._execute_tool,
+                    message_history=message_history,
+                )
+
+                await memory_manager.store(session_id, user_request, answer, [])
+                return answer
+
+            except RateLimitError as e:
+                logger.warning("Rate limit on attempt %d: key=%s daily=%s", attempt, e.key_id, e.is_daily)
+                try:
+                    await api_key_manager.on_rate_limit(
+                        e.key_id, retry_after=e.retry_after, is_daily=e.is_daily
+                    )
+                    await self._llm.rotate_key(api_key_manager)
+                except RuntimeError:
+                    raise RuntimeError("All API keys are exhausted.")
+
+            except LLMUnavailable as e:
+                logger.warning(e)
+                try:
+                    await self._llm.rotate_key(api_key_manager)
+                except RuntimeError:
+                    raise RuntimeError("All API keys are exhausted.")
+
+        raise RuntimeError("Max key rotations reached without a successful response.")
+
+    async def run_stream(
+        self,
+        user_request: str,
+        session_id: str,
+        db: AsyncSession,
+        fernet: Fernet,
+        model: str | None = None
+    ) -> AsyncIterator[StreamEvent]:
+        memory_manager = MemoryManager(db)
+        config = self._config_manager.load_config()
+        system = build_system_prompt(config)
+        tool_schemas = self._registry.tool_schemas()
+        message_history = await memory_manager.get_history_for_gemini(session_id)
+        
+
+        # provider = None
+        model_name = None
+        if model:
+            provider, model_name = model.split("/", maxsplit=1)
+
+        provider = "gemini" #TODO: the llm will be changed based on the provider comming from the user
         api_key_manager = APIKeyManager(repo=APIKeyRepository(db), fernet=fernet)
 
         answer_parts: list[str] = []
@@ -65,6 +134,7 @@ class Agent:
                     tool_schemas=tool_schemas,
                     tool_executor=self._execute_tool,
                     message_history=message_history,
+                    model_name=model_name
                 ):
                     if event.type == "token" and event.content:
                         answer_parts.append(event.content)
