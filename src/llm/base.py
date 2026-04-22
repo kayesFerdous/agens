@@ -74,7 +74,7 @@ class LLM(ABC):
         message_history: list[Any] | None = None,
         tool_executor: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
         max_iterations: int = 10,
-        temperature: float = 0,
+        temperature: float = 0, #INFO: Not using model_name coz, only the web interface will be using the model_name or not streaming the model_name will set differently. Maybe via command
     ) -> str:
         """Run a ReAct loop and return the final text answer.
 
@@ -95,6 +95,7 @@ class LLM(ABC):
         tool_executor: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
         max_iterations: int = 10,
         temperature: float = 0,
+        model_name: str | None = None
     ) -> AsyncIterator[StreamEvent]:
         """Streaming variant of react().
 

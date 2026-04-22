@@ -39,7 +39,7 @@ class Agent:
         tool_schemas = self._registry.tool_schemas()
         message_history = await memory_manager.get_history_for_gemini(session_id)
 
-        provider = "google"
+        provider = "gemini"
         api_key_manager = APIKeyManager(repo=APIKeyRepository(db), fernet=fernet)
         max_key_rotations = 3
 
@@ -83,14 +83,27 @@ class Agent:
 
         raise RuntimeError("Max key rotations reached without a successful response.")
 
-    async def run_stream(self, user_request: str, session_id: str, db: AsyncSession, fernet: Fernet) -> AsyncIterator[StreamEvent]:
+    async def run_stream(
+        self,
+        user_request: str,
+        session_id: str,
+        db: AsyncSession,
+        fernet: Fernet,
+        model: str | None = None
+    ) -> AsyncIterator[StreamEvent]:
         memory_manager = MemoryManager(db)
         config = self._config_manager.load_config()
         system = build_system_prompt(config)
         tool_schemas = self._registry.tool_schemas()
         message_history = await memory_manager.get_history_for_gemini(session_id)
+        
 
-        provider = "google"
+        # provider = None
+        model_name = None
+        if model:
+            provider, model_name = model.split("/", maxsplit=1)
+
+        provider = "gemini" #TODO: the llm will be changed based on the provider comming from the user
         api_key_manager = APIKeyManager(repo=APIKeyRepository(db), fernet=fernet)
 
         answer_parts: list[str] = []
@@ -121,6 +134,7 @@ class Agent:
                     tool_schemas=tool_schemas,
                     tool_executor=self._execute_tool,
                     message_history=message_history,
+                    model_name=model_name
                 ):
                     if event.type == "token" and event.content:
                         answer_parts.append(event.content)
