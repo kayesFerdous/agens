@@ -246,7 +246,7 @@ class GeminiLLM(LLM):
                 except errors.APIError as e:
                     if e.code == 429:
                         raise _parse_rate_limit(e, self._current_key_id or "unknown")
-                    if e.code == 503:
+                    if e.code in (503, 500):
                         raise RateLimitError(key_id=self._current_key_id, retry_after=60, is_daily=False)
                     raise
 
