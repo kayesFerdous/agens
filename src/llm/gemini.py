@@ -1,6 +1,6 @@
 # llm/gemini.py
 from __future__ import annotations
-from collections.abc import Callable, AsyncIterator, Awaitable
+from collections.abc import Callable, AsyncGenerator, AsyncIterator, Awaitable
 from typing import Any
 from google import genai
 from google.genai import errors
@@ -63,6 +63,37 @@ class GeminiLLM(LLM):
         return self._current_key_id
 
 
+    async def react(
+        self,
+        user_request: str,
+        *,
+        system: str = "",
+        tool_schemas: list[dict],
+        message_history: list[Any] | None = None,
+        tool_executor: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
+        max_iterations: int = 10,
+        temperature: float = 0,
+    ) -> str:
+        """Non-streaming ReAct loop. Returns the final text response."""
+        final_text: list[str] = []
+
+        async for event in self._run_react_loop(
+            user_request=user_request,
+            system=system,
+            tool_schemas=tool_schemas,
+            message_history=message_history,
+            tool_executor=tool_executor,
+            max_iterations=max_iterations,
+            temperature=temperature,
+            streaming=False,
+        ):
+            if event.type == "token" and event.content:
+                final_text.append(event.content)
+            elif event.type == "error":
+                raise RuntimeError(event.error or "Unknown ReAct error")
+
+        return "".join(final_text)
+
     async def react_stream(
         self,
         user_request: str,
@@ -74,7 +105,38 @@ class GeminiLLM(LLM):
         max_iterations: int = 10,
         temperature: float = 0,
     ) -> AsyncIterator[StreamEvent]:
-        """Streaming variant of react(). Yields StreamEvent objects in real time."""
+        """Streaming ReAct loop. Yields StreamEvent objects in real time."""
+        async for event in self._run_react_loop(
+            user_request=user_request,
+            system=system,
+            tool_schemas=tool_schemas,
+            message_history=message_history,
+            tool_executor=tool_executor,
+            max_iterations=max_iterations,
+            temperature=temperature,
+            streaming=True,
+        ):
+            yield event
+
+    async def _run_react_loop(
+        self,
+        user_request: str,
+        *,
+        system: str = "",
+        tool_schemas: list[dict],
+        message_history: list[Any] | None = None,
+        tool_executor: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
+        max_iterations: int = 10,
+        temperature: float = 0,
+        streaming: bool = True,
+    ) -> AsyncGenerator[StreamEvent, None]:
+        """Shared ReAct loop used by both react() and react_stream().
+
+        When *streaming* is True the final answer is returned token-by-token via
+        generate_content_stream; when False a single generate_content call is
+        used so the caller receives all tokens at once (still as StreamEvent
+        objects for a uniform interface).
+        """
         message_history = message_history or []
 
         func_decls = [
@@ -101,13 +163,11 @@ class GeminiLLM(LLM):
         truncated_indices: set[int] = set()
 
         for iteration in range(max_iterations):
-            logger.info("ReAct stream iteration %d", iteration + 1)
+            logger.info("ReAct iteration %d (streaming=%s)", iteration + 1, streaming)
             self._reduce_tool_outputs(contents, truncated_indices)
 
-            # Use non-streaming to check if the model wants tools or text
             client = self._require_client()
             try:
-                # logger.info("Message History: \n", contents)
                 logger.info("api key id: %s", self._current_key_id)
                 response = await client.aio.models.generate_content(
                     model=self._model,
@@ -136,13 +196,12 @@ class GeminiLLM(LLM):
             content_parts = candidate.content.parts
             function_calls = [p for p in content_parts if p.function_call]
 
-            # --- Final text answer: re-request with streaming ---
+            # --- Final answer (no more tool calls) ---
             if not function_calls:
-                self.usage.log(logger, model=self._model, context="react_stream")
-                logger.info("ReAct stream: final answer at iteration %d — streaming text", iteration + 1)
+                self.usage.log(logger, model=self._model, context="react_stream" if streaming else "react")
+                logger.info("ReAct: final answer at iteration %d (streaming=%s)", iteration + 1, streaming)
 
-                # Stream the final answer using generate_content_stream
-                stream_config = GenerateContentConfig(
+                final_config = GenerateContentConfig(
                     system_instruction=system or None,
                     temperature=temperature,
                     # No tools — force a text-only response
@@ -150,20 +209,29 @@ class GeminiLLM(LLM):
 
                 try:
                     client = self._require_client()
-                    async for chunk in await client.aio.models.generate_content_stream(
-                        model=self._model,
-                        contents=contents,
-                        config=stream_config,
-                    ):
-                        if chunk.text:
-                            yield StreamEvent(type="token", content=chunk.text)
-                        # Capture usage from the last chunk
-                        if chunk.usage_metadata:
-                            self.usage.record(
-                                prompt_tokens=chunk.usage_metadata.prompt_token_count or 0,
-                                completion_tokens=getattr(chunk.usage_metadata, "candidates_token_count", None) or 0,
-                                total_tokens=chunk.usage_metadata.total_token_count or 0,
-                            )
+                    if streaming:
+                        async for chunk in await client.aio.models.generate_content_stream(
+                            model=self._model,
+                            contents=contents,
+                            config=final_config,
+                        ):
+                            if chunk.text:
+                                yield StreamEvent(type="token", content=chunk.text)
+                            if chunk.usage_metadata:
+                                self.usage.record(
+                                    prompt_tokens=chunk.usage_metadata.prompt_token_count or 0,
+                                    completion_tokens=getattr(chunk.usage_metadata, "candidates_token_count", None) or 0,
+                                    total_tokens=chunk.usage_metadata.total_token_count or 0,
+                                )
+                    else:
+                        final_response = await client.aio.models.generate_content(
+                            model=self._model,
+                            contents=contents,
+                            config=final_config,
+                        )
+                        extract_gemini_usage(final_response, self.usage, logger=logger)
+                        if final_response.text:
+                            yield StreamEvent(type="token", content=final_response.text)
 
                     yield StreamEvent(type="done", usage=self.usage, tool_calls=tool_history)
                     return
@@ -186,7 +254,7 @@ class GeminiLLM(LLM):
                 fc_name = fc.name
                 fc_args = dict(fc.args) if fc.args else {}
 
-                logger.info("Tool call (stream): %s(%s)", fc_name, fc_args)
+                logger.info("Tool call: %s(%s)", fc_name, fc_args)
                 yield StreamEvent(type="tool_start", tool=fc_name, arguments=fc_args)
 
                 call_record = ToolCall(tool=fc_name, arguments=fc_args)
@@ -194,13 +262,13 @@ class GeminiLLM(LLM):
                 try:
                     result = await tool_executor(fc_name, fc_args)
                     call_record.result = result
-                    logger.info("Tool result (stream): %s", str(result)[:200])
+                    logger.info("Tool result: %s", str(result)[:200])
                     yield StreamEvent(type="tool_end", tool=fc_name, result=result)
                 except Exception as e:
                     error_msg = f"{type(e).__name__}: {e}"
                     result = {"error": error_msg}
                     call_record.error = error_msg
-                    logger.warning("Tool error (stream): %s", error_msg)
+                    logger.warning("Tool error: %s", error_msg)
                     yield StreamEvent(type="tool_end", tool=fc_name, error=error_msg)
 
                 tool_history.append(call_record)
@@ -210,8 +278,8 @@ class GeminiLLM(LLM):
 
             contents.append(Content(role="tool", parts=func_response_parts))
 
-        # --- Max iterations exhausted: stream fallback answer ---
-        logger.warning("ReAct stream hit max iterations (%d). Requesting final answer.", max_iterations)
+        # --- Max iterations exhausted: fallback answer ---
+        logger.warning("ReAct hit max iterations (%d). Requesting final answer.", max_iterations)
         contents.append(
             Content(
                 role="user",
@@ -227,15 +295,25 @@ class GeminiLLM(LLM):
 
         try:
             client = self._require_client()
-            async for chunk in await client.aio.models.generate_content_stream(
-                model=self._model,
-                contents=contents,
-                config=fallback_config,
-            ):
-                if chunk.text:
-                    yield StreamEvent(type="token", content=chunk.text)
+            if streaming:
+                async for chunk in await client.aio.models.generate_content_stream(
+                    model=self._model,
+                    contents=contents,
+                    config=fallback_config,
+                ):
+                    if chunk.text:
+                        yield StreamEvent(type="token", content=chunk.text)
+            else:
+                fallback_response = await client.aio.models.generate_content(
+                    model=self._model,
+                    contents=contents,
+                    config=fallback_config,
+                )
+                extract_gemini_usage(fallback_response, self.usage, logger=logger)
+                if fallback_response.text:
+                    yield StreamEvent(type="token", content=fallback_response.text)
 
-            self.usage.log(logger, model=self._model, context="react_stream_fallback")
+            self.usage.log(logger, model=self._model, context="react_fallback")
             yield StreamEvent(type="done", usage=self.usage, tool_calls=tool_history)
         except errors.APIError as e:
             if e.code == 429:
