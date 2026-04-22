@@ -64,25 +64,25 @@ class LLM(ABC):
     #     """Yield text chunks as they arrive from the model."""
     #     ...
 
-    # @abstractmethod
-    # async def react(
-    #     self,
-    #     user_request: str,
-    #     *,
-    #     system: str = "",
-    #     tool_schemas: list[dict],
-    #     message_history: list[Any] | None = None,
-    #     tool_executor: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
-    #     max_iterations: int = 10,
-    #     temperature: float = 0,
-    # ) -> ReactResult:
-    #     """Run a ReAct loop using function calling.
-    #
-    #     The LLM generates function calls; *tool_executor* runs them and
-    #     returns structured dicts. The loop continues until the LLM returns
-    #     a text response or *max_iterations* is reached.
-    #     """
-    #     ...
+    @abstractmethod
+    async def react(
+        self,
+        user_request: str,
+        *,
+        system: str = "",
+        tool_schemas: list[dict],
+        message_history: list[Any] | None = None,
+        tool_executor: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
+        max_iterations: int = 10,
+        temperature: float = 0,
+    ) -> str:
+        """Run a ReAct loop and return the final text answer.
+
+        The LLM generates function calls; *tool_executor* runs them and
+        returns structured dicts. The loop continues until the LLM returns
+        a text response or *max_iterations* is reached.
+        """
+        ...
 
     @abstractmethod
     def react_stream(
