@@ -56,6 +56,17 @@ class APIKey(Base):
     label: Mapped[str | None] = mapped_column(Text, index=True)   # e.g., "Prod-Gemini-Main"
     provider: Mapped[str] = mapped_column(Text, nullable=False, index=True)
 
+#------------------------------------------------------------------------
+    model_cooldowns: Mapped[dict | None] = mapped_column(
+        JSON, nullable=True, default=dict
+    )
+    # Stored as:
+    # {
+    #   "gemini-1.5-pro":  {"until": "2026-04-23T10:30:00Z", reason": "rate_limit"},
+    #   "gemini-2.0-flash": {"until": null, reason": null}
+    # }
+#------------------------------------------------------------------------
+
     # 2. Security
     encrypted_key: Mapped[str] = mapped_column(Text, nullable=False)
     key_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True, index=True)
