@@ -77,10 +77,6 @@ class APIKeyRepository:
     async def get_by_id(self, key_id: str) -> APIKey | None:
         result = await self.session.execute(
             select(APIKey)
-            .options(
-                defer(APIKey.encrypted_key),
-                defer(APIKey.key_hash)
-            )
             .where(APIKey.id == key_id)
         )
         return result.scalar_one_or_none()
@@ -170,7 +166,12 @@ class APIKeyRepository:
         await self.check_cooldown(provider=provider)
         result = await self.session.execute(
             select(APIKey)
-            .options(load_only(APIKey.id, APIKey.encrypted_key, APIKey.total_calls))
+            .options(load_only(
+                APIKey.id,
+                APIKey.encrypted_key,
+                APIKey.total_calls,
+                APIKey.model_cooldowns,  # required by is_model_available()
+            ))
             .where(
                 APIKey.provider == provider,
                 APIKey.status == KeyStatus.ACTIVE,
