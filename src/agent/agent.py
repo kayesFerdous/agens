@@ -8,6 +8,7 @@ from config.settings import settings
 from config.logging import get_logger
 from typing import Any, AsyncIterator
 from db.repositories.api_key import APIKeyRepository
+from db.repository import pick_available_key
 from llm.base import LLM
 from core.registry import ToolRegistry
 from core.types import StreamEvent
@@ -30,8 +31,8 @@ class Agent:
     async def run(self, user_request: str, session_id: str, db: AsyncSession, fernet: Fernet) -> str:
         """Non-streaming ReAct loop. Returns the final text answer.
 
-        Mirrors the key-rotation and error-handling logic of run_stream() but
-        delegates to llm.react() so there's no SSE overhead.
+        Uses per-model cooldowns: on RateLimitError, only the failing model is
+        marked on cooldown and we switch to another key that can still serve it.
         """
         memory_manager = MemoryManager(db)
         config = self._config_manager.load_config()
@@ -41,17 +42,13 @@ class Agent:
 
         provider = "gemini"
         api_key_manager = APIKeyManager(repo=APIKeyRepository(db), fernet=fernet)
-        max_key_rotations = 3
+        max_retries = 3
 
-        for attempt in range(max_key_rotations):
+        for attempt in range(max_retries):
             try:
-                key_usable = await api_key_manager.is_key_usable_now(
-                    key_id=self._llm.current_key_id,
-                    provider=provider,
-                )
-                if not key_usable:
-                    logger.warning("Current key is not usable. Rotating before request.")
-                    await self._llm.rotate_key(api_key_manager)
+                # Pre-flight: ensure the current key is usable for this model, and swap if not
+                model = self._llm._model_name  # type: ignore[attr-defined]
+                await self._llm.ensure_model_key(db, model, api_key_manager)
 
                 answer = await self._llm.react(
                     user_request,
@@ -61,27 +58,27 @@ class Agent:
                     message_history=message_history,
                 )
 
+                await self._llm.clear_model_success(db, model)
                 await memory_manager.store(session_id, user_request, answer, [])
                 return answer
 
             except RateLimitError as e:
-                logger.warning("Rate limit on attempt %d: key=%s daily=%s", attempt, e.key_id, e.is_daily)
+                logger.warning(
+                    "Rate limit on attempt %d: key=%s model=%s daily=%s",
+                    attempt, e.key_id, model, e.is_daily,
+                )
                 try:
-                    await api_key_manager.on_rate_limit(
-                        e.key_id, retry_after=e.retry_after, is_daily=e.is_daily
+                    await self._llm.handle_model_error(db, model, e, api_key_manager)
+                except LLMUnavailable:
+                    raise RuntimeError(
+                        f"All API keys are on cooldown for model '{model}'."  
                     )
-                    await self._llm.rotate_key(api_key_manager)
-                except RuntimeError:
-                    raise RuntimeError("All API keys are exhausted.")
 
             except LLMUnavailable as e:
-                logger.warning(e)
-                try:
-                    await self._llm.rotate_key(api_key_manager)
-                except RuntimeError:
-                    raise RuntimeError("All API keys are exhausted.")
+                logger.warning("LLM unavailable on attempt %d: %s", attempt, e)
+                raise RuntimeError(str(e))
 
-        raise RuntimeError("Max key rotations reached without a successful response.")
+        raise RuntimeError("Max retries reached without a successful response.")
 
     async def run_stream(
         self,
@@ -96,37 +93,28 @@ class Agent:
         system = build_system_prompt(config)
         tool_schemas = self._registry.tool_schemas()
         message_history = await memory_manager.get_history_for_gemini(session_id)
-        
 
-        # provider = None
         model_name = None
         if model:
-            provider, model_name = model.split("/", maxsplit=1)
+            _provider, model_name = model.split("/", maxsplit=1)
 
-        provider = "gemini" #TODO: the llm will be changed based on the provider comming from the user
+        provider = "gemini"  # TODO: derive from model prefix when multi-provider support lands
         api_key_manager = APIKeyManager(repo=APIKeyRepository(db), fernet=fernet)
 
         answer_parts: list[str] = []
         last_done_event: StreamEvent | None = None
-        max_key_rotations = 3
+        max_retries = 3
 
-        for attempt in range(max_key_rotations):
+        for attempt in range(max_retries):
             answer_parts.clear()
             last_done_event = None
-            rotated = False
+
+            # The active model may be overridden per-request via the model_name arg.
+            active_model = model_name or self._llm._model_name  # type: ignore[attr-defined]
 
             try:
-                key_usable = await api_key_manager.is_key_usable_now(
-                    key_id=self._llm.current_key_id,
-                    provider=provider,
-                )
-                if not key_usable:
-                    logger.warning("Current key is not usable. Rotating before request.")
-                    await self._llm.rotate_key(api_key_manager)
-                    yield StreamEvent(
-                        type="status",
-                        message="API key rotated before request.",
-                    )
+                # Pre-flight: ensure the current key is usable for this model, and swap if not
+                await self._llm.ensure_model_key(db, active_model, api_key_manager)
 
                 async for event in self._llm.react_stream(
                     user_request,
@@ -134,47 +122,40 @@ class Agent:
                     tool_schemas=tool_schemas,
                     tool_executor=self._execute_tool,
                     message_history=message_history,
-                    model_name=model_name
+                    model_name=model_name,
                 ):
                     if event.type == "token" and event.content:
                         answer_parts.append(event.content)
                     if event.type == "done":
                         last_done_event = event
                     yield event
-                break  # clean exit, no rotation needed
+
+                # ✅ Clean exit — reset any cooldown state for this model.
+                await self._llm.clear_model_success(db, active_model)
+                break
 
             except RateLimitError as e:
-                logger.warning("Stream rate limit on attempt %d: key=%s daily=%s", attempt, e.key_id, e.is_daily)
-
+                logger.warning(
+                    "Stream rate limit on attempt %d: key=%s model=%s daily=%s",
+                    attempt, e.key_id, active_model, e.is_daily,
+                )
                 try:
-                    await api_key_manager.on_rate_limit(
-                        e.key_id, retry_after=e.retry_after, is_daily=e.is_daily
-                    )
-                    await self._llm.rotate_key(api_key_manager)
+                    await self._llm.handle_model_error(db, active_model, e, api_key_manager)
                     yield StreamEvent(
                         type="status",
-                        message="API key rotated. Retrying the request.",
+                        message="API key rotated for this model. Retrying the request.",
                     )
-                    rotated = True
-                except RuntimeError:
-                    yield StreamEvent(type="error", error="All API keys are exhausted.")
+                except LLMUnavailable:
+                    yield StreamEvent(
+                        type="error",
+                        error=f"All API keys are on cooldown for model '{active_model}'.",
+                    )
                     return
 
-                if not rotated:
-                    yield StreamEvent(type="error", error="Rate limit hit, could not rotate key.")
-                    return
             except LLMUnavailable as e:
-                logger.warning(e)
-
-                try:
-                    await self._llm.rotate_key(api_key_manager)
-                    yield StreamEvent(
-                        type="status",
-                        message="API key rotated after availability error. Retrying the request.",
-                    )
-                except RuntimeError:
-                    yield StreamEvent(type="error", error="All API keys are exhausted.")
-                    return
+                logger.warning("LLM unavailable on attempt %d: %s", attempt, e)
+                yield StreamEvent(type="error", error=str(e))
+                return
 
             except Exception as e:
                 logger.error("Streaming ReAct loop failed: %s", e)

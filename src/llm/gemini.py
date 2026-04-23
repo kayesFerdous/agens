@@ -5,6 +5,7 @@ from typing import Any
 from google import genai
 from google.genai import errors
 from google.genai.types import Content, FunctionDeclaration, GenerateContentConfig, Part, Tool
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from llm.base import LLM
 from llm.gemini_usage import extract_gemini_usage
@@ -13,6 +14,7 @@ from config.logging import get_logger
 from config.settings import settings
 from llm.llm_exceptions import RateLimitError, LLMUnavailable
 from services.api_key_manager import APIKeyManager
+from db.repository import set_model_cooldown, clear_model_cooldown, pick_available_key, get_api_key, is_model_available
 
 logger = get_logger(__name__)
 
@@ -360,12 +362,74 @@ class GeminiLLM(LLM):
             truncated_indices.add(i)
 
 
-    async def rotate_key(self, api_key_manager: APIKeyManager) -> None:
-        """Invalidate current client so next _get_client() picks a fresh key."""
-        self._client = None
-        key, raw_key = await api_key_manager.get_key_for_use(self._provider)
-        self._current_key_id = key.id
+    async def handle_model_error(
+        self,
+        db: AsyncSession,
+        model: str,
+        error: RateLimitError,
+        api_key_manager: APIKeyManager,
+    ) -> None:
+        """Set a per-model cooldown and switch to another key+model if available.
+
+        Strategy:
+        - Mark only *model* on the current key as cooling down (not the whole key).
+        - Call pick_available_key to find any ACTIVE key with no cooldown for this model.
+        - If found, swap the client to that key.
+        - If none found, raise LLMUnavailable so the caller can surface a clear error.
+        """
+        reason = "exhausted" if error.is_daily else "rate_limit"
+        logger.warning(
+            "Model cooldown: key=%s model=%s reason=%s",
+            self._current_key_id, model, reason,
+        )
+        await set_model_cooldown(db, self._current_key_id, model, reason)
+
+        available_key = await pick_available_key(db, self._provider, model)
+        if available_key is None:
+            raise LLMUnavailable(
+                f"All active keys have a cooldown for model '{model}'. "
+                "Try again later or add another API key."
+            )
+
+        raw_key = api_key_manager.fernet.decrypt(
+            available_key.encrypted_key.encode()
+        ).decode()
+        self._current_key_id = available_key.id
         self._client = genai.Client(api_key=raw_key)
+        logger.info("Switched to key=%s for model=%s", self._current_key_id, model)
+
+    async def clear_model_success(
+        self,
+        db: AsyncSession,
+        model: str,
+    ) -> None:
+        """Clear any per-model cooldown after a successful API call."""
+        await clear_model_cooldown(db, self._current_key_id, model)
+
+    async def ensure_model_key(
+        self,
+        db: AsyncSession,
+        model: str,
+        api_key_manager: APIKeyManager,
+    ) -> None:
+        """Check if the current key is on cooldown for this model. If so, swap it out."""
+        if self._current_key_id:
+            current = await get_api_key(db, self._current_key_id)
+            if current and is_model_available(current, model):
+                return  # Current key is completely fine
+
+        # If we reach here, we need to swap!
+        logger.info("Current key %s is not available for model %s. Searching for backup...", self._current_key_id, model)
+        available_key = await pick_available_key(db, self._provider, model)
+        if available_key is None:
+            raise LLMUnavailable(f"No active keys available for model '{model}'. All are on cooldown.")
+
+        raw_key = api_key_manager.fernet.decrypt(
+            available_key.encrypted_key.encode()
+        ).decode()
+        self._current_key_id = available_key.id
+        self._client = genai.Client(api_key=raw_key)
+        logger.info("Pre-flight: Switched to backup key=%s for model=%s", self._current_key_id, model)
 
 
     # ----- shared helper -----

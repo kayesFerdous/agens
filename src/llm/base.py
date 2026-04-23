@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, AsyncIterator, Awaitable
 from dataclasses import dataclass, field
 from typing import Any
+from sqlalchemy.ext.asyncio import AsyncSession
 from core.types import StreamEvent, ToolCall, Usage
 from services.api_key_manager import APIKeyManager
 
@@ -107,6 +108,20 @@ class LLM(ABC):
         ...
 
 
-    async def rotate_key(self, api_key_manager: APIKeyManager) -> None:
-        """Invalidate current client so next _get_client() picks a fresh key."""
+    async def handle_model_error(
+        self,
+        db: AsyncSession,
+        model: str,
+        error: "RateLimitError",  # noqa: F821 — avoid circular import at module level
+        api_key_manager: APIKeyManager,
+    ) -> None:
+        """Set a per-model cooldown and rotate to another key if one is available."""
+        ...
+
+    async def clear_model_success(self, db: AsyncSession, model: str) -> None:
+        """Clear the model's cooldown state after a successful API call."""
+        ...
+
+    async def ensure_model_key(self, db: AsyncSession, model: str, api_key_manager: APIKeyManager) -> None:
+        """Ensure the current key is available for the given model, swapping if necessary."""
         ...
