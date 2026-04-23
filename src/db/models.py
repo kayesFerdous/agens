@@ -62,8 +62,8 @@ class APIKey(Base):
     )
     # Stored as:
     # {
-    #   "gemini-1.5-pro":  {"until": "2026-04-23T10:30:00Z", reason": "rate_limit"},
-    #   "gemini-2.0-flash": {"until": null, reason": null}
+    #   "gemini-1.5-pro":  {"until": "2026-04-23T10:30:00Z", "reason": "rate_limit"},
+    #   "gemini-2.0-flash": {"until": "2026-04-23T11:00:00Z", "reason": "exhausted"}
     # }
 #------------------------------------------------------------------------
 

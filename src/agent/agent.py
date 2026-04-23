@@ -8,7 +8,6 @@ from config.settings import settings
 from config.logging import get_logger
 from typing import Any, AsyncIterator
 from db.repositories.api_key import APIKeyRepository
-from db.repository import pick_available_key
 from llm.base import LLM
 from core.registry import ToolRegistry
 from core.types import StreamEvent
@@ -47,7 +46,7 @@ class Agent:
         for attempt in range(max_retries):
             try:
                 # Pre-flight: ensure the current key is usable for this model, and swap if not
-                model = self._llm._model_name  # type: ignore[attr-defined]
+                model = self._llm.model_name
                 await self._llm.ensure_model_key(db, model, api_key_manager)
 
                 answer = await self._llm.react(
@@ -57,8 +56,7 @@ class Agent:
                     tool_executor=self._execute_tool,
                     message_history=message_history,
                 )
-
-                await self._llm.clear_model_success(db, model)
+                await api_key_manager.on_success(self._llm.current_key_id)
                 await memory_manager.store(session_id, user_request, answer, [])
                 return answer
 
@@ -110,7 +108,7 @@ class Agent:
             last_done_event = None
 
             # The active model may be overridden per-request via the model_name arg.
-            active_model = model_name or self._llm._model_name  # type: ignore[attr-defined]
+            active_model = model_name or self._llm.model_name
 
             try:
                 # Pre-flight: ensure the current key is usable for this model, and swap if not
@@ -130,8 +128,8 @@ class Agent:
                         last_done_event = event
                     yield event
 
-                # ✅ Clean exit — reset any cooldown state for this model.
-                await self._llm.clear_model_success(db, active_model)
+                # ✅ Clean exit — record usage and reset failure counters.
+                await api_key_manager.on_success(self._llm.current_key_id)
                 break
 
             except RateLimitError as e:

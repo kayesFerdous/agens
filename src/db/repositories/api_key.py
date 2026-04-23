@@ -9,6 +9,39 @@ from config.logging import get_logger
 
 logger = get_logger(__name__)
 
+COOLDOWN_SECONDS = {
+    "rate_limit": 60,      # 1 minute
+    "exhausted":  86400,   # 24 hours
+}
+
+
+def is_model_available(key: APIKey, model: str) -> bool:
+    """Pure helper — no DB call needed."""
+    if not key.model_cooldowns:
+        return True
+    entry = key.model_cooldowns.get(model)
+    if not entry or entry.get("until") is None:
+        return True
+    return datetime.fromisoformat(entry["until"]) <= datetime.now(timezone.utc)
+
+
+def get_model_cooldown_info(key: APIKey, model: str) -> dict | None:
+    """Returns cooldown entry if the model is currently blocked, else None."""
+    if not key.model_cooldowns:
+        return None
+    entry = key.model_cooldowns.get(model)
+    if not entry or entry.get("until") is None:
+        return True
+    until = datetime.fromisoformat(entry["until"])
+    if until <= datetime.now(timezone.utc):
+        return None
+    return {
+        "model": model,
+        "available_at": until,
+        "reason": entry.get("reason"),
+        "wait_seconds": int((until - datetime.now(timezone.utc)).total_seconds()),
+    }
+
 
 class APIKeyRepository:
 
@@ -171,3 +204,34 @@ class APIKeyRepository:
         result = await self.session.execute(delete(APIKey).where(APIKey.id == key_id))
         await self.session.commit()
         return (getattr(result, "rowcount", 0) or 0) > 0
+
+    # --- Model Cooldowns ---
+
+    async def set_model_cooldown(
+        self,
+        key_id: str,
+        model: str,
+        reason: str,  # "rate_limit" | "exhausted"
+    ) -> APIKey | None:
+        key = await self.get_by_id(key_id)
+        if not key:
+            return None
+
+        delay = COOLDOWN_SECONDS.get(reason, 60)
+        cooldowns: dict = dict(key.model_cooldowns or {})
+        cooldowns[model] = {
+            "until": (datetime.now(timezone.utc) + timedelta(seconds=delay)).isoformat(),
+            "reason": reason,
+        }
+        key.model_cooldowns = cooldowns  # reassign so SQLAlchemy tracks the change
+        await self.session.commit()
+        return key
+
+
+    async def pick_available_key(self, provider: str, model: str) -> APIKey | None:
+        """Returns the first ACTIVE key that has no cooldown for the given model."""
+        keys = await self.get_active_by_provider(provider)
+        for key in keys:
+            if is_model_available(key, model):
+                return key
+        return None

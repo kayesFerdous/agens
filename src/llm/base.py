@@ -31,6 +31,11 @@ class LLM(ABC):
     @abstractmethod
     def current_key_id(self) -> str:
         ...
+
+    @property
+    @abstractmethod
+    def model_name(self) -> str:
+        ...
     # @abstractmethod
     # async def generate(
     #     self,
@@ -116,10 +121,6 @@ class LLM(ABC):
         api_key_manager: APIKeyManager,
     ) -> None:
         """Set a per-model cooldown and rotate to another key if one is available."""
-        ...
-
-    async def clear_model_success(self, db: AsyncSession, model: str) -> None:
-        """Clear the model's cooldown state after a successful API call."""
         ...
 
     async def ensure_model_key(self, db: AsyncSession, model: str, api_key_manager: APIKeyManager) -> None:
