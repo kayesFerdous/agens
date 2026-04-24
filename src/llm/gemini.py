@@ -14,7 +14,7 @@ from config.logging import get_logger
 from config.settings import settings
 from llm.llm_exceptions import RateLimitError, LLMUnavailable
 from services.api_key_manager import APIKeyManager
-from db.repository import set_model_cooldown, clear_model_cooldown, pick_available_key, get_api_key, is_model_available
+from db.repositories.api_key import APIKeyRepository, is_model_available
 
 logger = get_logger(__name__)
 
@@ -67,6 +67,10 @@ class GeminiLLM(LLM):
     @property
     def current_key_id(self):
         return self._current_key_id
+
+    @property
+    def model_name(self):
+        return self._model_name
 
 
     async def react(
@@ -382,9 +386,10 @@ class GeminiLLM(LLM):
             "Model cooldown: key=%s model=%s reason=%s",
             self._current_key_id, model, reason,
         )
-        await set_model_cooldown(db, self._current_key_id, model, reason)
+        repo = APIKeyRepository(db)
+        await repo.set_model_cooldown(self._current_key_id, model, reason)
 
-        available_key = await pick_available_key(db, self._provider, model)
+        available_key = await repo.pick_available_key(self._provider, model)
         if available_key is None:
             raise LLMUnavailable(
                 f"All active keys have a cooldown for model '{model}'. "
@@ -398,14 +403,6 @@ class GeminiLLM(LLM):
         self._client = genai.Client(api_key=raw_key)
         logger.info("Switched to key=%s for model=%s", self._current_key_id, model)
 
-    async def clear_model_success(
-        self,
-        db: AsyncSession,
-        model: str,
-    ) -> None:
-        """Clear any per-model cooldown after a successful API call."""
-        await clear_model_cooldown(db, self._current_key_id, model)
-
     async def ensure_model_key(
         self,
         db: AsyncSession,
@@ -413,14 +410,15 @@ class GeminiLLM(LLM):
         api_key_manager: APIKeyManager,
     ) -> None:
         """Check if the current key is on cooldown for this model. If so, swap it out."""
+        repo = APIKeyRepository(db)
         if self._current_key_id:
-            current = await get_api_key(db, self._current_key_id)
+            current = await repo.get_by_id(self._current_key_id)
             if current and is_model_available(current, model):
                 return  # Current key is completely fine
 
         # If we reach here, we need to swap!
         logger.info("Current key %s is not available for model %s. Searching for backup...", self._current_key_id, model)
-        available_key = await pick_available_key(db, self._provider, model)
+        available_key = await repo.pick_available_key(self._provider, model)
         if available_key is None:
             raise LLMUnavailable(f"No active keys available for model '{model}'. All are on cooldown.")
 
