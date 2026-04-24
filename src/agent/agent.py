@@ -112,7 +112,12 @@ class Agent:
 
             try:
                 # Pre-flight: ensure the current key is usable for this model, and swap if not
-                await self._llm.ensure_model_key(db, active_model, api_key_manager)
+                swapped = await self._llm.ensure_model_key(db, active_model, api_key_manager)
+                if swapped:
+                    yield StreamEvent(
+                        type="status",
+                        message="API key rotated. Proceeding with the request.",
+                    )
 
                 async for event in self._llm.react_stream(
                     user_request,

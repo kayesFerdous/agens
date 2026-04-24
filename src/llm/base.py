@@ -123,6 +123,6 @@ class LLM(ABC):
         """Set a per-model cooldown and rotate to another key if one is available."""
         ...
 
-    async def ensure_model_key(self, db: AsyncSession, model: str, api_key_manager: APIKeyManager) -> None:
+    async def ensure_model_key(self, db: AsyncSession, model: str, api_key_manager: APIKeyManager) -> bool:
         """Ensure the current key is available for the given model, swapping if necessary."""
         ...
