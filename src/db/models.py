@@ -77,15 +77,10 @@ class APIKey(Base):
         Enum(KeyStatus), nullable=False, default=KeyStatus.ACTIVE, index=True
     )
 
-    # 4. Failover & Circuit-Breaking
-    consecutive_failures: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    cooldown_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-    # 5. Usage Metrics
+    # 4. Usage Metrics
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    total_calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    # 6. Timestamps
+    # 5. Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
