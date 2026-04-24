@@ -15,3 +15,6 @@ test.py
 example.py
 data/config.json
 app.db
+
+# Review notes (local only)
+.review-todos.md

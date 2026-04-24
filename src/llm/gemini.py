@@ -408,13 +408,13 @@ class GeminiLLM(LLM):
         db: AsyncSession,
         model: str,
         api_key_manager: APIKeyManager,
-    ) -> None:
+    ) -> bool:
         """Check if the current key is on cooldown for this model. If so, swap it out."""
         repo = APIKeyRepository(db)
         if self._current_key_id:
             current = await repo.get_by_id(self._current_key_id)
             if current and is_model_available(current, model):
-                return  # Current key is completely fine
+               return  False# Current key is completely fine
 
         # If we reach here, we need to swap!
         logger.info("Current key %s is not available for model %s. Searching for backup...", self._current_key_id, model)
@@ -428,6 +428,7 @@ class GeminiLLM(LLM):
         self._current_key_id = available_key.id
         self._client = genai.Client(api_key=raw_key)
         logger.info("Pre-flight: Switched to backup key=%s for model=%s", self._current_key_id, model)
+        return True
 
 
     # ----- shared helper -----
