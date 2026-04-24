@@ -31,7 +31,7 @@ def get_model_cooldown_info(key: APIKey, model: str) -> dict | None:
         return None
     entry = key.model_cooldowns.get(model)
     if not entry or entry.get("until") is None:
-        return True
+        return None
     until = datetime.fromisoformat(entry["until"])
     if until <= datetime.now(timezone.utc):
         return None
