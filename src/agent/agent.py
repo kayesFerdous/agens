@@ -4,7 +4,6 @@ import asyncio
 
 from cryptography.fernet import Fernet
 from sqlalchemy.ext.asyncio.session import AsyncSession
-from config.settings import settings
 from config.logging import get_logger
 from typing import Any, AsyncIterator
 from db.repositories.api_key import APIKeyRepository
