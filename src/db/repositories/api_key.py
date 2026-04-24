@@ -2,7 +2,6 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer, load_only
-from sqlalchemy.sql import or_
 
 from db.models import APIKey, KeyStatus
 from config.logging import get_logger
@@ -49,15 +48,9 @@ class APIKeyRepository:
         self.session = session
 
     async def is_key_usable_now(self, key_id: str, provider: str | None = None) -> bool:
-        now = datetime.now(timezone.utc)
-
         conditions = [
             APIKey.id == key_id,
             APIKey.status == KeyStatus.ACTIVE,
-            or_(
-                APIKey.cooldown_until.is_(None),
-                APIKey.cooldown_until <= now,
-            ),
         ]
 
         if provider:
@@ -130,37 +123,22 @@ class APIKeyRepository:
             .where(APIKey.id == key_id)
             .values(
                 last_used_at=datetime.now(timezone.utc),
-                total_calls=APIKey.total_calls + 1,
             )
         )
         await self.session.commit()
 
     async def increment_failure(self, key_id: str) -> int:
-        key = await self.get_by_id(key_id)
-        key.consecutive_failures += 1 #type: ignore
-        await self.session.commit()
-        return key.consecutive_failures #type: ignore
+        # Legacy compatibility: failure counters were removed from the schema.
+        return 0
 
     async def reset_failures(self, key_id: str) -> None:
-        await self.session.execute(
-            update(APIKey)
-            .where(APIKey.id == key_id)
-            .values(consecutive_failures=0)
-        )
-        await self.session.commit()
+        # Legacy compatibility: failure counters were removed from the schema.
+        return None
 
     async def check_cooldown(self, provider: str) -> None:
-        now = datetime.now(timezone.utc)
-        await self.session.execute(
-            update(APIKey)
-            .where(
-                APIKey.provider == provider,
-                APIKey.status.not_in([KeyStatus.INACTIVE, KeyStatus.INVALID]),
-                APIKey.cooldown_until <= now,
-            )
-            .values(status = KeyStatus.ACTIVE, cooldown_until = None)
-        )
-        await self.session.commit()
+        # No global cooldown timestamp exists anymore; model-specific cooldowns are
+        # tracked in `model_cooldowns`. Keep this method as a no-op for callers.
+        return None
 
     async def get_active_by_provider(self, provider: str) -> list[APIKey]:
         await self.check_cooldown(provider=provider)
@@ -169,7 +147,7 @@ class APIKeyRepository:
             .options(load_only(
                 APIKey.id,
                 APIKey.encrypted_key,
-                APIKey.total_calls,
+                APIKey.last_used_at,
                 APIKey.model_cooldowns,  # required by is_model_available()
             ))
             .where(
@@ -187,7 +165,6 @@ class APIKeyRepository:
             .where(APIKey.id == key_id)
             .values(
                 status=status,
-                cooldown_until=datetime.now(timezone.utc) + timedelta(seconds=seconds),
             )
         )
         await self.session.commit()
@@ -197,7 +174,7 @@ class APIKeyRepository:
         await self.session.execute(
             update(APIKey)
             .where(APIKey.id == key_id)
-            .values(status=KeyStatus.ACTIVE, cooldown_until=None)
+            .values(status=KeyStatus.ACTIVE)
         )
         await self.session.commit()
 

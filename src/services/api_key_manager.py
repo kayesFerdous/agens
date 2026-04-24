@@ -1,12 +1,11 @@
 import hashlib
+from datetime import timezone
 from uuid import uuid4
 from cryptography.fernet import Fernet
 
 from db.models import APIKey, KeyStatus
 from db.repositories.api_key import APIKeyRepository
 
-
-MAX_FAILURES = 3
 
 SHORT_COOLDOWN = 60        # fallback for minute-level limits with no header
 DAY_IN_SECONDS = 86400
@@ -37,13 +36,24 @@ class APIKeyManager:
 
     # --- Read ---
 
+    @staticmethod
+    def _last_used_sort_value(key: APIKey) -> float:
+        if key.last_used_at is None:
+            return float("-inf")
+
+        last_used = key.last_used_at
+        if last_used.tzinfo is None:
+            last_used = last_used.replace(tzinfo=timezone.utc)
+        return last_used.timestamp()
+
     async def get_key_for_use(self, provider: str) -> tuple[APIKey, str]:
         """Returns (model, decrypted_raw_key). Use raw_key to call the LLM."""
         keys = await self.repo.get_active_by_provider(provider)
         if not keys:
             raise RuntimeError(f"No active API keys for provider: {provider}")
 
-        key = min(keys, key=lambda k: k.total_calls)
+        # Prefer never-used keys first, then the least recently used key.
+        key = min(keys, key=self._last_used_sort_value)
         raw_key = self.fernet.decrypt(key.encrypted_key.encode()).decode()
         return key, raw_key
 
@@ -56,9 +66,8 @@ class APIKeyManager:
     # --- Lifecycle ---
 
     async def on_failure(self, key_id: str) -> None:
-        failures = await self.repo.increment_failure(key_id)
-        if failures >= MAX_FAILURES:
-            await self.repo.update_status(key_id, KeyStatus.INVALID)
+        # Failure counters were removed from the schema; keep this for API compatibility.
+        await self.repo.increment_failure(key_id)
 
     async def deactivate(self, key_id: str) -> None:
         await self.repo.update_status(key_id, KeyStatus.INACTIVE)
@@ -77,5 +86,4 @@ class APIKeyManager:
 
     async def on_success(self, key_id: str) -> None:
         await self.repo.clear_cooldown(key_id)   # revive if it was rate-limited
-        await self.repo.reset_failures(key_id)
         await self.repo.record_usage(key_id)
