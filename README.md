@@ -17,6 +17,6 @@ env PYTHONPATH=src uv run uvicorn interfaces.api.app:app --reload --log-level in
 ```
 env PYTHONPATH=src uv run -m db.init
 ```
-
+test
 
 
