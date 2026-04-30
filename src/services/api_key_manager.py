@@ -1,5 +1,5 @@
 import hashlib
-from datetime import timezone
+from datetime import datetime, timezone
 from uuid import uuid4
 from cryptography.fernet import Fernet
 
@@ -62,6 +62,22 @@ class APIKeyManager:
             return False
         await self.repo.check_cooldown(provider=provider)
         return await self.repo.is_key_usable_now(key_id=key_id, provider=provider)
+
+    async def is_model_available_for_key(self, key_id: str, model: str) -> bool:
+        key = await self.repo.get_by_id(key_id)
+
+        if key: 
+            if not key.model_cooldowns:
+                return True
+            entry = key.model_cooldowns.get(model)
+            if not entry or entry.get("until") is None:
+                return True
+            if datetime.fromisoformat(entry["until"]) <= datetime.now(timezone.utc):
+                await self.repo.clear_model_cooldown(key, model) 
+                return True
+
+            return False
+        return False
 
     # --- Lifecycle ---
 

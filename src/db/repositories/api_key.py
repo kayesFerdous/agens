@@ -205,6 +205,34 @@ class APIKeyRepository:
         await self.session.commit()
         return key
 
+    async def clear_model_cooldown(
+        self,
+        key: APIKey,
+        model: str,
+    ) -> None:
+        if key and key.model_cooldowns and model in key.model_cooldowns:
+            cooldowns = dict(key.model_cooldowns)
+            del cooldowns[model]
+            key.model_cooldowns = cooldowns
+            await self.session.commit()
+
+    async def cleanup_expired_cooldowns(self, key: APIKey) -> None:
+        """Removes all expired model cooldowns from a key on the go."""
+        if not key.model_cooldowns:
+            return
+            
+        now = datetime.now(timezone.utc)
+        expired = [
+            m for m, entry in key.model_cooldowns.items()
+            if entry.get("until") and datetime.fromisoformat(entry["until"]) <= now
+        ]
+        
+        if expired:
+            cooldowns = dict(key.model_cooldowns)
+            for m in expired:
+                del cooldowns[m]
+            key.model_cooldowns = cooldowns
+            await self.session.commit()
 
     async def pick_available_key(self, provider: str, model: str) -> APIKey | None:
         """Returns the first ACTIVE key that has no cooldown for the given model."""
