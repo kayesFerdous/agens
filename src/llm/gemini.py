@@ -412,8 +412,7 @@ class GeminiLLM(LLM):
         """Check if the current key is on cooldown for this model. If so, swap it out."""
         repo = APIKeyRepository(db)
         if self._current_key_id:
-            current = await repo.get_by_id(self._current_key_id)
-            if current and is_model_available(current, model):
+            if await api_key_manager.is_model_available_for_key(self._current_key_id, model):
                return  False# Current key is completely fine
 
         # If we reach here, we need to swap!
