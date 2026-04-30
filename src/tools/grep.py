@@ -41,12 +41,7 @@ class GrepTool(Tool):
 
     @property
     def description(self) -> str:
-        return (
-            "Search file contents recursively under the workspace. "
-            "Use this to find which file contains a string or pattern — "
-            "do NOT use find_file + read_file loops for this. "
-            "Returns [{path, line_number, line_content}] for every match."
-        )
+        return "Search file contents recursively. Use this instead of find+read_file loops to locate strings across files."
 
     @property
     def parameters(self) -> dict:

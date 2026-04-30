@@ -12,7 +12,7 @@ class FileWriteTool(Tool):
 
     @property
     def description(self) -> str:
-        return "Write content to a file at the given absolute path. Creates or overwrites the file."
+        return "Write content to a file. Creates the file if missing, overwrites if it exists."
 
     @property
     def parameters(self) -> dict:

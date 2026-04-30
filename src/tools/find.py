@@ -27,13 +27,7 @@ class FindTool(Tool):
 
     @property
     def description(self) -> str:
-        return (
-            "Find files and/or directories by name under the workspace. "
-            "Supports substring match (default), exact match, or glob patterns "
-            "like '*.py'. Use type='file' to find files, type='directory' for "
-            "dirs, or type='both' for everything. "
-            "Returns a list of matching absolute paths."
-        )
+        return "Find files/directories by name under the workspace. Default: substring match on filenames."
 
     @property
     def parameters(self) -> dict:

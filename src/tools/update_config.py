@@ -20,13 +20,7 @@ class UpdateConfigTool(Tool):
 
     @property
     def description(self) -> str:
-        return (
-            "Update the assistant's config.json using a partial JSON object. "
-            "Keys are deep-merged into the existing config (not overwritten wholesale). "
-            "Only the top-level keys 'user', 'assistant', and 'preferences' are allowed. "
-            "'user' and 'assistant' must always be objects with their respective fields, "
-            "never plain strings."
-        )
+        return "Update config.json via deep-merge. Allowed top-level keys: user, assistant, preferences. Values must be objects, not scalars. Input: JSON string."
 
     @property
     def parameters(self) -> dict[str, Any]:

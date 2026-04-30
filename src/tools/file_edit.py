@@ -12,7 +12,7 @@ class FileEditTool(Tool):
 
     @property
     def description(self) -> str:
-        return "Find and replace text in a file. Replaces all occurrences of 'find' with 'replace'."
+        return "Find-and-replace in a file. Replaces ALL occurrences."
 
     @property
     def parameters(self) -> dict:
