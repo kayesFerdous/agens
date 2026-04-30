@@ -35,30 +35,30 @@ class FileReadTool(Tool):
     @property
     def parameters(self) -> dict:
         return {
-            "type": "OBJECT",
+            "type": "object",
             "properties": {
                 "path": {
-                    "type": "STRING",
+                    "type": "string",
                     "description": "Absolute path to the file.",
                 },
                 "start_line": {
-                    "type": "INTEGER",
+                    "type": "integer",
                     "description": "1-based start line (inclusive). Requires end_line."
                 },
                 "end_line": {
-                    "type": "INTEGER",
+                    "type": "integer",
                     "description": "1-based end line (inclusive). Requires start_line."
                 },
                 "query": {
-                    "type": "STRING",
+                    "type": "string",
                     "description": "Search string. Returns matching lines + context. Case-insensitive."
                 },
                 "context_lines": {
-                    "type": "INTEGER",
+                    "type": "integer",
                     "description": "Lines of context around each match. Default 3."
                 },
                 "metadata_only": {
-                    "type": "BOOLEAN",
+                    "type": "boolean",
                     "description": "If true, return only file stats. No content."
                 },
             },

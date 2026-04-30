@@ -52,10 +52,10 @@ class WebSearchTool(Tool):
     @property
     def parameters(self) -> dict:
         return {
-            "type": "OBJECT",
+            "type": "object",
             "properties": {
                 "query": {
-                    "type": "STRING",
+                    "type": "string",
                     "description": "The search query to look up on the web.",
                 },
             },

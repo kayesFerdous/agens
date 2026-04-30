@@ -17,18 +17,18 @@ class FileEditTool(Tool):
     @property
     def parameters(self) -> dict:
         return {
-            "type": "OBJECT",
+            "type": "object",
             "properties": {
                 "path": {
-                    "type": "STRING",
+                    "type": "string",
                     "description": "Absolute path to the file to edit.",
                 },
                 "find": {
-                    "type": "STRING",
+                    "type": "string",
                     "description": "The exact text to search for.",
                 },
                 "replace": {
-                    "type": "STRING",
+                    "type": "string",
                     "description": "The text to replace each occurrence with.",
                 },
             },

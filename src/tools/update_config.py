@@ -31,10 +31,10 @@ class UpdateConfigTool(Tool):
     @property
     def parameters(self) -> dict[str, Any]:
         return {
-            "type": "OBJECT",
+            "type": "object",
             "properties": {
                 "partial_config": {
-                    "type": "STRING",
+                    "type": "string",
                     "description": (
                         "A JSON string containing the partial config to merge. "
                         "Example: '{\"user\": {\"name\": \"kayes\"}, "
