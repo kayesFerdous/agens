@@ -131,7 +131,7 @@ class Agent:
                     yield event
 
                 # ✅ Clean exit — record usage and reset failure counters.
-                await api_key_manager.on_success(self._llm.current_key_id)
+                # await api_key_manager.on_success(self._llm.current_key_id) #INFO: Doesn't adding any value right now
                 break
 
             except RateLimitError as e:
