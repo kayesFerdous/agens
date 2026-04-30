@@ -24,41 +24,35 @@ class FileReadTool(Tool):
 
     @property
     def description(self) -> str:
-        return (
-            "Read a file. Three modes:\n"
-            "1. metadata_only=true — file stats only (line count, size). Use first on any unknown file.\n"
-            "2. start_line + end_line — read only that range. Use after a search tells you where to look.\n"
-            "3. query — search for a string, returns matching lines + context.\n"
-            f"Max {_MAX_LINES} lines returned per call. Never call with no params on large files."
-        )
+        return f"Read file content. Modes: metadata_only (stats only — use first on unknown files), start_line+end_line (range), query (search within file). Max {_MAX_LINES} lines/call."
 
     @property
     def parameters(self) -> dict:
         return {
-            "type": "OBJECT",
+            "type": "object",
             "properties": {
                 "path": {
-                    "type": "STRING",
+                    "type": "string",
                     "description": "Absolute path to the file.",
                 },
                 "start_line": {
-                    "type": "INTEGER",
+                    "type": "integer",
                     "description": "1-based start line (inclusive). Requires end_line."
                 },
                 "end_line": {
-                    "type": "INTEGER",
+                    "type": "integer",
                     "description": "1-based end line (inclusive). Requires start_line."
                 },
                 "query": {
-                    "type": "STRING",
+                    "type": "string",
                     "description": "Search string. Returns matching lines + context. Case-insensitive."
                 },
                 "context_lines": {
-                    "type": "INTEGER",
+                    "type": "integer",
                     "description": "Lines of context around each match. Default 3."
                 },
                 "metadata_only": {
-                    "type": "BOOLEAN",
+                    "type": "boolean",
                     "description": "If true, return only file stats. No content."
                 },
             },

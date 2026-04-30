@@ -43,19 +43,15 @@ class WebSearchTool(Tool):
 
     @property
     def description(self) -> str:
-        return (
-            "Search the web for current, real-time information. "
-            "Use this when the question involves recent events, live data, "
-            "or anything beyond your training-data cutoff."
-        )
+        return "Web search for information beyond training data or requiring live/current data."
 
     @property
     def parameters(self) -> dict:
         return {
-            "type": "OBJECT",
+            "type": "object",
             "properties": {
                 "query": {
-                    "type": "STRING",
+                    "type": "string",
                     "description": "The search query to look up on the web.",
                 },
             },

@@ -14,7 +14,7 @@ from config.logging import get_logger
 from config.settings import settings
 from llm.llm_exceptions import RateLimitError, LLMUnavailable
 from services.api_key_manager import APIKeyManager
-from db.repositories.api_key import APIKeyRepository, is_model_available
+from db.repositories.api_key import APIKeyRepository
 
 logger = get_logger(__name__)
 
@@ -35,14 +35,47 @@ def _parse_rate_limit(e: errors.APIError, key_id: str) -> RateLimitError:
                 dt = parsedate_to_datetime(raw)
                 retry_after = int((dt - datetime.now(timezone.utc)).total_seconds())
 
-    # 2. Fall back to message parsing (Gemini's typical behavior)
+    # 2. Try retryDelay from the JSON response body
+    if retry_after is None:
+        retry_after = _extract_retry_delay(e)
+
+    # 3. Fall back to message parsing (Gemini's typical behavior)
     error_msg = str(e).lower()
     is_daily = any(kw in error_msg for kw in DAILY_KEYWORDS)
 
     if retry_after is None:
-        retry_after = DAY_IN_SECONDS if is_daily else None  # short limit: let manager decide
+        retry_after = DAY_IN_SECONDS if is_daily else 60
 
     return RateLimitError(key_id=key_id, retry_after=retry_after, is_daily=is_daily)
+
+
+def _extract_retry_delay(e: errors.APIError) -> int | None:
+    """Parse the retryDelay field from a Gemini error response body.
+
+    Gemini returns errors like:
+      {"error": {"details": [{"retryDelay": "30s", ...}]}}
+    The delay string is typically in the form "<N>s".
+    Returns the delay in seconds, or None if not found.
+    """
+    import json, re
+
+    if not hasattr(e, "response") or e.response is None:
+        return None
+    try:
+        body = e.response.text if hasattr(e.response, "text") else None
+        if not body:
+            return None
+        data = json.loads(body)
+        details = data.get("error", {}).get("details", [])
+        for detail in details:
+            raw_delay = detail.get("retryDelay")
+            if raw_delay:
+                match = re.match(r"(\d+)", str(raw_delay))
+                if match:
+                    return int(match.group(1))
+    except Exception:
+        pass
+    return None
 
 
 class GeminiLLM(LLM):

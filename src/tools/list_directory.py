@@ -32,12 +32,7 @@ class ListDirectoryTool(Tool):
 
     @property
     def description(self) -> str:
-        return (
-            "List the contents of a directory as structured data "
-            "{files: [...], dirs: [...]}. "
-            "Use this instead of shell_command for exploring the project. "
-            "Supports recursive listing up to a configurable depth."
-        )
+        return "List directory contents as structured data. Supports recursive listing."
 
     @property
     def parameters(self) -> dict:

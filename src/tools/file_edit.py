@@ -12,23 +12,23 @@ class FileEditTool(Tool):
 
     @property
     def description(self) -> str:
-        return "Find and replace text in a file. Replaces all occurrences of 'find' with 'replace'."
+        return "Find-and-replace in a file. Replaces ALL occurrences."
 
     @property
     def parameters(self) -> dict:
         return {
-            "type": "OBJECT",
+            "type": "object",
             "properties": {
                 "path": {
-                    "type": "STRING",
+                    "type": "string",
                     "description": "Absolute path to the file to edit.",
                 },
                 "find": {
-                    "type": "STRING",
+                    "type": "string",
                     "description": "The exact text to search for.",
                 },
                 "replace": {
-                    "type": "STRING",
+                    "type": "string",
                     "description": "The text to replace each occurrence with.",
                 },
             },

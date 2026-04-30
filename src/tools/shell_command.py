@@ -52,12 +52,7 @@ class ShellCommandTool(Tool):
 
     @property
     def description(self) -> str:
-        return (
-            "Run a shell command and return stdout, stderr, and exit code. "
-            "Use for tasks no other tool covers. "
-            "Prefer list_directory over 'ls', grep over 'grep -r', "
-            "and read_file over 'cat' — those return structured output."
-        )
+        return "Run a shell command. Returns stdout, stderr, exit_code. Use only when no structured tool fits. Prefer list_directory over ls, grep over grep -r, read_file over cat."
 
     @property
     def parameters(self) -> dict:

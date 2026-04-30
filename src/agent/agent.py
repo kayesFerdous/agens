@@ -33,8 +33,7 @@ class Agent:
         marked on cooldown and we switch to another key that can still serve it.
         """
         memory_manager = MemoryManager(db)
-        config = self._config_manager.load_config()
-        system = build_system_prompt(config)
+        system = build_system_prompt(self._config_manager)
         tool_schemas = self._registry.tool_schemas()
         message_history = await memory_manager.get_history_for_gemini(session_id)
 
@@ -86,16 +85,15 @@ class Agent:
         model: str | None = None
     ) -> AsyncIterator[StreamEvent]:
         memory_manager = MemoryManager(db)
-        config = self._config_manager.load_config()
-        system = build_system_prompt(config)
+        system = build_system_prompt(self._config_manager)
         tool_schemas = self._registry.tool_schemas()
         message_history = await memory_manager.get_history_for_gemini(session_id)
 
         model_name = None
         if model:
-            _provider, model_name = model.split("/", maxsplit=1)
+            _, model_name = model.split("/", maxsplit=1)
 
-        provider = "gemini"  # TODO: derive from model prefix when multi-provider support lands
+        # provider = "gemini"  # TODO: derive from model prefix when multi-provider support lands
         api_key_manager = APIKeyManager(repo=APIKeyRepository(db), fernet=fernet)
 
         answer_parts: list[str] = []
@@ -133,7 +131,7 @@ class Agent:
                     yield event
 
                 # ✅ Clean exit — record usage and reset failure counters.
-                await api_key_manager.on_success(self._llm.current_key_id)
+                # await api_key_manager.on_success(self._llm.current_key_id) #INFO: Doesn't adding any value right now
                 break
 
             except RateLimitError as e:

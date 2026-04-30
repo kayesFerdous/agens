@@ -235,9 +235,13 @@ class APIKeyRepository:
             await self.session.commit()
 
     async def pick_available_key(self, provider: str, model: str) -> APIKey | None:
-        """Returns the first ACTIVE key that has no cooldown for the given model."""
+        """Returns the first ACTIVE key that has no cooldown for the given model.
+
+        Also cleans up any expired cooldown entries so they don't accumulate.
+        """
         keys = await self.get_active_by_provider(provider)
         for key in keys:
+            await self.cleanup_expired_cooldowns(key)
             if is_model_available(key, model):
                 return key
         return None
