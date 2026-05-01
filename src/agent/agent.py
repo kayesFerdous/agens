@@ -204,6 +204,10 @@ class Agent:
 
     async def _execute_tool(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         tool = self._registry.get(name)
-        # Execute the tool safely within a thread pool since tools themselves are synchronous.
+        # Inject the running loop into tools that need to schedule coroutines from
+        # inside the worker thread (e.g. WebSearchTool).  get_running_loop() is
+        # only valid here, on the async thread — not inside to_thread().
+        if hasattr(tool, "_event_loop"):
+            tool._event_loop = asyncio.get_running_loop()
         # SearchUnavailableError is allowed to propagate — run_stream catches it above.
         return await asyncio.to_thread(tool.execute, **args)

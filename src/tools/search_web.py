@@ -72,6 +72,10 @@ class WebSearchTool(Tool):
     def __init__(self, fernet: Fernet, usage: Usage | None = None) -> None:
         self._fernet = fernet
         self.usage = usage or Usage()
+        # Set by _execute_tool() before asyncio.to_thread() is called, so that
+        # _resolve() can schedule coroutines back onto the running loop from the
+        # worker thread (worker threads have no event loop of their own).
+        self._event_loop: asyncio.AbstractEventLoop | None = None
 
     @property
     def name(self) -> str:
@@ -106,8 +110,18 @@ class WebSearchTool(Tool):
             return raw_key, model
 
     def _resolve(self) -> tuple[str, str] | None:
-        """Run _get_search_pair() on the event loop from the worker thread."""
-        loop = asyncio.get_event_loop()
+        """Schedule _get_search_pair() onto the main event loop from the worker thread.
+
+        The loop is injected by the agent via self._event_loop before to_thread()
+        is called.  Worker threads have no event loop of their own, so we must
+        use run_coroutine_threadsafe() with a pre-captured reference.
+        """
+        loop = self._event_loop
+        if loop is None:
+            raise RuntimeError(
+                "WebSearchTool._event_loop is not set. "
+                "The agent must assign it before calling asyncio.to_thread()."
+            )
         future = asyncio.run_coroutine_threadsafe(self._get_search_pair(), loop)
         return future.result()
 
