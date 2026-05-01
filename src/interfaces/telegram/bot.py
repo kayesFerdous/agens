@@ -5,13 +5,15 @@ import logging
 import asyncio
 
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 from agent.agent import Agent
 from config.logging import setup_logging
 from config.settings import settings
 from db.database import async_session
 from db import repository as session_repo
+from db.models import KeyStatus
+from db.repositories.api_key import APIKeyRepository
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -44,6 +46,35 @@ async def _help(update: Update, ctx) -> None:  # type: ignore[type-arg]
     )
 
 
+async def handle_get_keys(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler for /keys command: list registered API keys."""
+    async with async_session() as db:
+        repo = APIKeyRepository(db)
+        keys = await repo.list_keys()
+
+    if not keys:
+        await update.message.reply_text("No API keys found.")  # type: ignore[union-attr]
+        return
+
+    response = "🔑 *Registered API Keys*\n\n"
+    for k in keys:
+        status_emoji = {
+            KeyStatus.ACTIVE: "✅",
+            KeyStatus.RATE_LIMITED: "⏳",
+            KeyStatus.EXHAUSTED: "🛑",
+            KeyStatus.INVALID: "❌",
+            KeyStatus.INACTIVE: "💤",
+        }.get(k.status, "❓")
+
+        response += (
+            f"🆔 `{k.id}`\n"
+            f"🏷 *Name:* {k.label or 'N/A'}\n"
+            f"💡 *Hint:* `{k.key_hint}`\n"
+            f"🚦 *Status:* {status_emoji} {k.status.value}\n"
+            "───────────────────\n"
+        )
+
+    await update.message.reply_markdown(response)  # type: ignore[union-attr]
 # ---------------------------------------------------------------------------
 # Message handler — thin adapter: receive → agent.chat() → reply
 # ---------------------------------------------------------------------------
@@ -123,6 +154,7 @@ async def start_telegram(agent: Agent) -> None:
 
     app.add_handler(CommandHandler("start", _start))
     app.add_handler(CommandHandler("help", _help))
+    app.add_handler(CommandHandler("keys", handle_get_keys))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _handle_message))
 
     # `async with app` calls initialize() on enter and shutdown() on exit.
