@@ -34,7 +34,7 @@ _CONFIG_PATH = Path(__file__).resolve().parent.parent / "data" / "config.json"
 def _build_registry(
     config_manager: ConfigManager,
     usage: Usage,
-    shared_client: genai.Client,
+    fernet: Fernet,
 ) -> ToolRegistry:
     registry = ToolRegistry()
     registry.register(FileReadTool())
@@ -45,8 +45,8 @@ def _build_registry(
     registry.register(GrepTool(workspace_root=settings.WORKSPACE_ROOT))
     registry.register(ListDirectoryTool(workspace_root=settings.WORKSPACE_ROOT))
 
-    # Reuse the shared genai.Client — no second connection pool needed.
-    registry.register(WebSearchTool(shared_client, usage=usage))
+    # WebSearchTool resolves its own key per call — only fernet is needed at construction.
+    registry.register(WebSearchTool(fernet, usage=usage))
 
     registry.register(UpdateConfigTool(config_manager))
     return registry
@@ -72,7 +72,7 @@ async def build_agent(session: AsyncSession) -> Agent:
     # One shared genai.Client for both the LLM and the web-search tool.
     shared_client = genai.Client(api_key=raw_key)
 
-    registry = _build_registry(config_manager, usage, shared_client)
+    registry = _build_registry(config_manager, usage, fernet)
 
     llm = GeminiLLM(
         usage=usage,

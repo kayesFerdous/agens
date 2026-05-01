@@ -15,6 +15,7 @@ from planner.prompt_builder import build_system_prompt
 from memory.manager import MemoryManager
 from llm.llm_exceptions import RateLimitError, LLMUnavailable
 from services.api_key_manager import APIKeyManager
+from tools.search_web import SearchUnavailableError
 from db.database import async_session
 
 logger = get_logger(__name__)
@@ -182,6 +183,11 @@ class Agent:
                 yield StreamEvent(type="error", error=str(e))
                 return
 
+            except SearchUnavailableError as e:
+                # Surface search exhaustion as a plain assistant message, not a crash.
+                yield StreamEvent(type="token", content=str(e))
+                return
+
             except Exception as e:
                 logger.error("Streaming ReAct loop failed: %s", e)
                 yield StreamEvent(type="error", error=str(e))
@@ -198,5 +204,6 @@ class Agent:
 
     async def _execute_tool(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         tool = self._registry.get(name)
-        # Execute the tool safely within a thread pool since tools themselves are synchronous
+        # Execute the tool safely within a thread pool since tools themselves are synchronous.
+        # SearchUnavailableError is allowed to propagate — run_stream catches it above.
         return await asyncio.to_thread(tool.execute, **args)
