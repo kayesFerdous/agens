@@ -15,18 +15,44 @@ from planner.prompt_builder import build_system_prompt
 from memory.manager import MemoryManager
 from llm.llm_exceptions import RateLimitError, LLMUnavailable
 from services.api_key_manager import APIKeyManager
+from db.database import async_session
 
 logger = get_logger(__name__)
 
 
 class Agent:
-    def __init__(self, registry: ToolRegistry, llm: LLM, config_manager: ConfigManager) -> None:
+    def __init__(
+        self,
+        registry: ToolRegistry,
+        llm: LLM,
+        config_manager: ConfigManager,
+        fernet: Fernet,
+    ) -> None:
         self._registry = registry
         self._llm = llm
         self._config_manager = config_manager
+        self._fernet = fernet
+
+    # ------------------------------------------------------------------
+    # Public unified entry point — all interface adapters call this.
+    # ------------------------------------------------------------------
+
+    async def chat(
+        self,
+        message: str,
+        session_id: str,
+        model: str | None = None,
+    ) -> AsyncIterator[StreamEvent]:
+        """Unified streaming entry point for web, telegram, and TUI adapters.
+
+        Opens its own DB session so callers don't manage transactions.
+        """
+        async with async_session() as db:
+            async for event in self.run_stream(message, session_id, db, model=model):
+                yield event
 
 
-    async def run(self, user_request: str, session_id: str, db: AsyncSession, fernet: Fernet) -> str:
+    async def run(self, user_request: str, session_id: str, db: AsyncSession) -> str:
         """Non-streaming ReAct loop. Returns the final text answer.
 
         Uses per-model cooldowns: on RateLimitError, only the failing model is
@@ -38,7 +64,7 @@ class Agent:
         message_history = await memory_manager.get_history_for_gemini(session_id)
 
         provider = "gemini"
-        api_key_manager = APIKeyManager(repo=APIKeyRepository(db), fernet=fernet)
+        api_key_manager = APIKeyManager(repo=APIKeyRepository(db), fernet=self._fernet)
         max_retries = 3
 
         for attempt in range(max_retries):
@@ -81,8 +107,7 @@ class Agent:
         user_request: str,
         session_id: str,
         db: AsyncSession,
-        fernet: Fernet,
-        model: str | None = None
+        model: str | None = None,
     ) -> AsyncIterator[StreamEvent]:
         memory_manager = MemoryManager(db)
         system = build_system_prompt(self._config_manager)
@@ -94,7 +119,7 @@ class Agent:
             _, model_name = model.split("/", maxsplit=1)
 
         # provider = "gemini"  # TODO: derive from model prefix when multi-provider support lands
-        api_key_manager = APIKeyManager(repo=APIKeyRepository(db), fernet=fernet)
+        api_key_manager = APIKeyManager(repo=APIKeyRepository(db), fernet=self._fernet)
 
         answer_parts: list[str] = []
         last_done_event: StreamEvent | None = None

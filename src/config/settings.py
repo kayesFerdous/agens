@@ -23,6 +23,14 @@ class Settings(BaseSettings):
     FERNET_SECRET: str
     TELEGRAM_TOKEN: str
 
+    # Web interface
+    WEB_HOST: str = "0.0.0.0"
+    WEB_PORT: int = 8000
+
+    # Telegram webhook (optional — if unset, falls back to long-polling)
+    WEBHOOK_HOST: str = ""
+    WEBHOOK_PORT: int = 8443
+
     model_config = SettingsConfigDict(env_file=".env", env_prefix="", extra="ignore")
 
 settings = Settings()  # type: ignore
