@@ -13,7 +13,7 @@ wheels/
 .env
 test.py
 example.py
-data/config.json
+src/data/config.json
 /todos
 app.db
 
