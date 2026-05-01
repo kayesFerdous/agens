@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import asyncio
 
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
@@ -104,7 +105,12 @@ async def _handle_message(update: Update, ctx) -> None:  # type: ignore[type-arg
 # ---------------------------------------------------------------------------
 
 async def start_telegram(agent: Agent) -> None:
-    """Build and run the Telegram bot, sharing the provided agent instance."""
+    """Build and run the Telegram bot, sharing the provided agent instance.
+
+    Uses PTB's low-level async API (initialize → start → updater.start_polling)
+    instead of run_polling(), which internally calls loop.run_until_complete()
+    and therefore cannot be used inside an already-running asyncio event loop.
+    """
     app = (
         Application.builder()
         .token(settings.TELEGRAM_TOKEN)
@@ -119,24 +125,27 @@ async def start_telegram(agent: Agent) -> None:
     app.add_handler(CommandHandler("help", _help))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _handle_message))
 
-    webhook_host = getattr(settings, "WEBHOOK_HOST", None)
-    if webhook_host:
-        webhook_url = f"https://{webhook_host}/{settings.TELEGRAM_TOKEN}"
-        logger.info("Starting Telegram bot with webhook: %s", webhook_url)
-        async with app:
-            await app.start()
+    # `async with app` calls initialize() on enter and shutdown() on exit.
+    async with app:
+        await app.start()
+
+        if settings.WEBHOOK_HOST:
+            webhook_url = f"https://{settings.WEBHOOK_HOST}/{settings.TELEGRAM_TOKEN}"
+            logger.info("Starting Telegram bot with webhook: %s", webhook_url)
             await app.updater.start_webhook(  # type: ignore[union-attr]
                 listen="0.0.0.0",
-                port=getattr(settings, "WEBHOOK_PORT", 8443),
+                port=settings.WEBHOOK_PORT,
                 webhook_url=webhook_url,
             )
-            # Block until the bot is stopped (e.g. by KeyboardInterrupt propagated
-            # from the parent asyncio.gather).
-            await app.updater.idle()  # type: ignore[union-attr]
+        else:
+            logger.info("Starting Telegram bot with long-polling")
+            await app.updater.start_polling()  # type: ignore[union-attr]
+
+        try:
+            # Block here until cancelled (KeyboardInterrupt → CancelledError
+            # from asyncio.gather in main.py).
+            await asyncio.Event().wait()
+        finally:
+            # Graceful shutdown — mirrors what run_polling() does internally.
             await app.updater.stop()  # type: ignore[union-attr]
             await app.stop()
-    else:
-        logger.info("Starting Telegram bot with long-polling (no WEBHOOK_HOST set)")
-        # run_polling() is a blocking call that manages its own event loop
-        # internally. We run it via asyncio to integrate with gather().
-        await app.run_polling(close_loop=False)
