@@ -5,7 +5,7 @@ tools/shell_command.py  —  safe, token-efficient shell execution.
 from __future__ import annotations
 
 import re
-import subprocess
+import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -82,7 +82,7 @@ class ShellCommandTool(Tool):
             "required": ["command"],
         }
 
-    def execute(self, **kwargs: Any) -> dict:
+    async def execute(self, **kwargs: Any) -> dict:
         command: str    = kwargs["command"]
         cwd: str        = kwargs.get("cwd") or self._workspace_root
         timeout: int    = min(int(kwargs.get("timeout", DEFAULT_TIMEOUT)), MAX_TIMEOUT)
@@ -124,33 +124,40 @@ class ShellCommandTool(Tool):
 
         # ── execute ───────────────────────────────────────────────────────────
         try:
-            result = subprocess.run(
+            proc = await asyncio.create_subprocess_shell(
                 command,
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
                 cwd=str(cwd_path),
             )
-        except subprocess.TimeoutExpired:
-            return {
-                "status": "error",
-                "error": f"Command timed out after {timeout}s.",
-                "command": command,
-            }
+            try:
+                stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                    proc.communicate(), timeout=timeout
+                )
+                result_stdout = stdout_bytes.decode(errors='replace')
+                result_stderr = stderr_bytes.decode(errors='replace')
+                result_returncode = proc.returncode
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.wait()
+                return {
+                    "status": "error",
+                    "error": f"Command timed out after {timeout}s.",
+                    "command": command,
+                }
         except Exception as exc:
             return {"status": "error", "error": str(exc), "command": command}
 
         # ── truncate output ───────────────────────────────────────────────────
-        stdout, stdout_truncated = _truncate(result.stdout)
-        stderr, stderr_truncated = _truncate(result.stderr)
+        stdout, stdout_truncated = _truncate(result_stdout)
+        stderr, stderr_truncated = _truncate(result_stderr)
 
         return {
-            "status": "ok" if result.returncode == 0 else "error",
+            "status": "ok" if result_returncode == 0 else "error",
             "command": command,
             "stdout": stdout,
             "stderr": stderr,
-            "exit_code": result.returncode,
+            "exit_code": result_returncode,
             "stdout_truncated": stdout_truncated,
             "stderr_truncated": stderr_truncated,
         }
