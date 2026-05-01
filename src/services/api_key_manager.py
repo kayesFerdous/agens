@@ -4,11 +4,17 @@ from uuid import uuid4
 from cryptography.fernet import Fernet
 
 from db.models import APIKey, KeyStatus
-from db.repositories.api_key import APIKeyRepository
+from db.repositories.api_key import APIKeyRepository, is_model_available
 
 
 SHORT_COOLDOWN = 60        # fallback for minute-level limits with no header
 DAY_IN_SECONDS = 86400
+
+# Canonical ordered list — search tool imports this, never redefines it.
+SEARCH_MODELS: list[str] = [
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+]
 
 class APIKeyManager:
 
@@ -56,6 +62,29 @@ class APIKeyManager:
         key = min(keys, key=self._last_used_sort_value)
         raw_key = self.fernet.decrypt(key.encrypted_key.encode()).decode()
         return key, raw_key
+
+    async def get_key_for_model(self, model: str) -> APIKey | None:
+        """Returns the best active key that has no cooldown for *model*, or None."""
+        keys = await self.repo.get_active_by_provider("gemini")
+        available = [
+            k for k in keys
+            if is_model_available(k, model)
+        ]
+        if not available:
+            return None
+        return min(available, key=self._last_used_sort_value)
+
+    async def get_search_key_and_model(self) -> tuple[APIKey, str] | None:
+        """
+        Tries each model in SEARCH_MODELS priority order.
+        For each model, tries to find an active API key that supports it.
+        Returns the first (key, model) pair found, or None if nothing is available.
+        """
+        for model in SEARCH_MODELS:
+            key = await self.get_key_for_model(model)
+            if key is not None:
+                return key, model
+        return None
 
     async def is_key_usable_now(self, key_id: str | None, provider: str) -> bool:
         if not key_id:
