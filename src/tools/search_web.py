@@ -72,10 +72,6 @@ class WebSearchTool(Tool):
     def __init__(self, fernet: Fernet, usage: Usage | None = None) -> None:
         self._fernet = fernet
         self.usage = usage or Usage()
-        # Set by _execute_tool() before asyncio.to_thread() is called, so that
-        # _resolve() can schedule coroutines back onto the running loop from the
-        # worker thread (worker threads have no event loop of their own).
-        self._event_loop: asyncio.AbstractEventLoop | None = None
 
     @property
     def name(self) -> str:
@@ -109,34 +105,18 @@ class WebSearchTool(Tool):
             raw_key = self._fernet.decrypt(key.encrypted_key.encode()).decode()
             return raw_key, model
 
-    def _resolve(self) -> tuple[str, str] | None:
-        """Schedule _get_search_pair() onto the main event loop from the worker thread.
-
-        The loop is injected by the agent via self._event_loop before to_thread()
-        is called.  Worker threads have no event loop of their own, so we must
-        use run_coroutine_threadsafe() with a pre-captured reference.
-        """
-        loop = self._event_loop
-        if loop is None:
-            raise RuntimeError(
-                "WebSearchTool._event_loop is not set. "
-                "The agent must assign it before calling asyncio.to_thread()."
-            )
-        future = asyncio.run_coroutine_threadsafe(self._get_search_pair(), loop)
-        return future.result()
-
-    def execute(self, **kwargs: Any) -> dict:
+    async def execute(self, **kwargs: Any) -> dict:
         query: str = kwargs["query"]
         logger.info("Web search: %s", query)
 
-        resolved = self._resolve()
+        resolved = await self._get_search_pair()
         if resolved is None:
             raise SearchUnavailableError(_EXHAUSTED_MSG)
 
         raw_key, model = resolved
 
         try:
-            result = _do_search(raw_key, model, query, self.usage)
+            result = await asyncio.to_thread(_do_search, raw_key, model, query, self.usage)
             logger.info("Search succeeded (model=%s)", model)
             return result
 
@@ -147,14 +127,14 @@ class WebSearchTool(Tool):
             )
 
         # --- One retry: ask the manager for the next available (key, model) pair ---
-        retry = self._resolve()
+        retry = await self._get_search_pair()
         if retry is None:
             raise SearchUnavailableError(_EXHAUSTED_MSG)
 
         retry_raw, retry_model = retry
 
         try:
-            result = _do_search(retry_raw, retry_model, query, self.usage)
+            result = await asyncio.to_thread(_do_search, retry_raw, retry_model, query, self.usage)
             logger.info("Search retry succeeded (model=%s)", retry_model)
             return result
 
