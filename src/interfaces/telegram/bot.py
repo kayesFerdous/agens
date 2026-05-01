@@ -9,6 +9,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from agent.agent import Agent
 from config.logging import setup_logging
 from config.settings import settings
+from config.config_manager import ConfigManager
 from . import handlers
 
 setup_logging()
@@ -26,9 +27,17 @@ async def start_telegram(agent: Agent) -> None:
     instead of run_polling(), which internally calls loop.run_until_complete()
     and therefore cannot be used inside an already-running asyncio event loop.
     """
+
+    config_mgr = ConfigManager(settings.CONFIG_PATH)
+    config = config_mgr.load_config()
+
+    if not config.telegram_token:
+        logger.error("No Telegram token configured in config.json. Bot will not start.")
+        return
+
     app = (
         Application.builder()
-        .token(settings.TELEGRAM_TOKEN)
+        .token(config.telegram_token)
         .post_init(handlers.on_startup)
         .build()
     )
@@ -46,7 +55,7 @@ async def start_telegram(agent: Agent) -> None:
         await app.start()
 
         if settings.WEBHOOK_HOST:
-            webhook_url = f"https://{settings.WEBHOOK_HOST}/{settings.TELEGRAM_TOKEN}"
+            webhook_url = f"https://{settings.WEBHOOK_HOST}/{config.telegram_token}"
             logger.info("Starting Telegram bot with webhook: %s", webhook_url)
             await app.updater.start_webhook(  # type: ignore[union-attr]
                 listen="0.0.0.0",
