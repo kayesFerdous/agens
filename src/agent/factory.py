@@ -27,9 +27,6 @@ from tools.grep import GrepTool
 from tools.list_directory import ListDirectoryTool
 
 
-# Canonical path for the assistant's config file.
-_CONFIG_PATH = Path(__file__).resolve().parent.parent / "data" / "config.json"
-
 
 def _build_registry(
     config_manager: ConfigManager,
@@ -63,7 +60,7 @@ async def build_agent(session: AsyncSession) -> Agent:
     """
     fernet = Fernet(settings.FERNET_SECRET)
     usage = Usage()
-    config_manager = ConfigManager(_CONFIG_PATH)
+    config_manager = ConfigManager(settings.CONFIG_PATH)
 
     repo = APIKeyRepository(session)
     key_manager = APIKeyManager(repo, fernet=fernet)

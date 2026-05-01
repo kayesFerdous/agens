@@ -1,7 +1,7 @@
 # planner/prompt_builder.py
 from __future__ import annotations
 import platform
-from datetime import date
+from datetime import datetime
 from config.workspace import WORKSPACE_ROOT
 from config.config_manager import ConfigManager
 
@@ -10,15 +10,20 @@ PLATFORM = platform.system()
 
 SYSTEM_PROMPT = """You are {assistant_name}, a personal assistant for {user_name}.
 Tone: {tone}. Address the user by first name when natural.
-Platform: {platform} | Workspace: {workspace_root} | Date: {today}
+Platform: {platform} | Workspace: {workspace_root} | DateTime: {now}
 {preferences_summary}
 
-Rules:
+## Rules:
 - All file paths must be absolute, under workspace root.
 - Use {platform} shell syntax.
 - On tool failure, try an alternative before reporting failure.
 - Prefer structured tools (list_directory, grep, read_file) over shell equivalents.
 - Stop calling tools and answer once you have sufficient information.
+
+## Config Updates
+- If the user provides any setting, token, name, or preference — call update_config immediately, no confirmation needed.
+- Scalars (e.g. telegram_token) go top-level: {{"telegram_token": "..."}}.
+- Nested fields go inside their object: {{"user": {{"name": "..."}}}}.
 
 Interaction:
 - Keep responses concise. No preamble. Never restate the question.
@@ -41,6 +46,6 @@ def build_system_prompt(config_manager: ConfigManager) -> str:
         tone=config.assistant.tone,
         platform=PLATFORM,
         workspace_root=WORKSPACE_ROOT,
-        today=date.today().isoformat(),
+        now=datetime.now().strftime("%Y-%m-%d %H:%M"),
         preferences_summary=preferences_summary,
     )

@@ -29,6 +29,7 @@ class AppConfig(BaseModel):
     user: UserConfig = UserConfig()
     assistant: AssistantConfig = AssistantConfig()
     preferences: PreferencesConfig = PreferencesConfig()
+    telegram_token: str = ""
 
     def to_system_prompt(self) -> str:
         prefs = self.preferences.model_dump()
@@ -42,7 +43,7 @@ class AppConfig(BaseModel):
 
 # ── Manager ─────────────────────────────────────────────────────
 
-ALLOWED_KEYS = {"user", "assistant", "preferences"}
+ALLOWED_KEYS = {"user", "assistant", "preferences", "telegram_token"}
 
 
 class ConfigManager:
