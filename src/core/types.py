@@ -4,7 +4,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Literal, TYPE_CHECKING
 
-CONFIRMATION_TTL_SECONDS: int = 300  # 5 minutes
+CONFIRMATION_TTL_SECONDS: int = 300      # 5 minutes
+SUDO_AUTHORIZATION_TTL_SECONDS: int = 300  # 5 minutes, single-use per sudo command
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,7 @@ class PendingConfirmation:
     command_preview: str   # Human-readable preview of exactly what will run
     created_at: float      # time.time() snapshot — used for TTL checks
     session_id: str
+    requires_sudo_auth: bool = False  # True when safety mode is OFF and command needs sudo
 
 
 @dataclass
@@ -91,6 +93,7 @@ class StreamEvent:
         "tool_start", "tool_end", "token", "status", "error", "done",
         "confirmation_required",  # agent is paused, waiting for user YES/NO
         "confirmation_result",    # confirmed command finished (or was cancelled)
+        "sudo_auth_required",     # YES received but session lacks sudo authorization
     ]
 
     # token events

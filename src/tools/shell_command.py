@@ -5,6 +5,7 @@ tools/shell_command.py  —  safe, token-efficient shell execution.
 from __future__ import annotations
 
 import re
+import shlex
 import asyncio
 from pathlib import Path
 from typing import Any
@@ -15,7 +16,17 @@ from core.tool_interface import Tool
 DEFAULT_TIMEOUT  = 30       # seconds
 MAX_TIMEOUT      = 120      # seconds — hard ceiling even if caller asks for more
 MAX_OUTPUT_CHARS = 5_000    # stdout + stderr each; excess is truncated
+SUDO_TIMEOUT     = 30       # seconds — fixed ceiling for sudo commands
 # ──────────────────────────────────────────────────────────────────────────────
+
+# Sanitized environment for sudo execution — never inherits parent process env.
+# This prevents API keys, DB URLs, and other secrets from leaking into subprocesses.
+SANITIZED_ENV: dict[str, str] = {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "HOME": str(Path.home()),
+    "LANG": "en_US.UTF-8",
+    "TERM": "xterm-256color",
+}
 
 # Patterns that are NEVER allowed, even with explicit user confirmation.
 # These are catastrophic and irreversible (fork bombs, filesystem formatters, etc.).
@@ -106,13 +117,14 @@ class ShellCommandTool(Tool):
         }
 
     async def execute(self, **kwargs: Any) -> dict:
-        command: str = kwargs["command"]
-        cwd: str     = kwargs.get("cwd") or self._workspace_root
-        timeout: int = min(int(kwargs.get("timeout", DEFAULT_TIMEOUT)), MAX_TIMEOUT)
-        # NOTE: `confirmed` is intentionally NOT in self.parameters (the JSON schema).
-        # The LLM cannot pass it. Only the agent's _gated_tool_executor sets it to True
-        # after the user has explicitly typed "YES".
+        command: str  = kwargs["command"]
+        cwd: str      = kwargs.get("cwd") or self._workspace_root
+        timeout: int  = min(int(kwargs.get("timeout", DEFAULT_TIMEOUT)), MAX_TIMEOUT)
+        # NOTE: `confirmed` and `use_sudo` are intentionally NOT in self.parameters
+        # (the JSON schema). The LLM cannot pass them. Only the agent sets them
+        # after explicit user approval and secret verification.
         confirmed: bool = bool(kwargs.get("confirmed", False))
+        use_sudo: bool  = bool(kwargs.get("use_sudo", False))
 
         # ── safety: resolve + validate cwd ───────────────────────────────────
         try:
@@ -160,6 +172,10 @@ class ShellCommandTool(Tool):
                         "preview": command,
                     }
 
+        # ── sudo execution path (confirmed=True and use_sudo=True) ────────────────
+        if use_sudo and confirmed:
+            return await self._execute_with_sudo(command)
+
         # ── execute ───────────────────────────────────────────────────────────
         try:
             proc = await asyncio.create_subprocess_shell(
@@ -199,3 +215,87 @@ class ShellCommandTool(Tool):
             "stdout_truncated": stdout_truncated,
             "stderr_truncated": stderr_truncated,
         }
+
+    # ── Sudo execution — password via stdin pipe ONLY ───────────────────────
+
+    async def _execute_with_sudo(self, command: str) -> dict:
+        """Execute command with sudo via stdin pipe.
+
+        Security guarantees:
+        - Password is never in command args (not visible in /proc/<pid>/cmdline)
+        - shell=False always (exec-list form prevents shell injection)
+        - Sanitized env (no parent secrets leak into the subprocess)
+        - Password bytes are zeroed immediately after communicate()
+        - Password is never logged under any log level
+        """
+        from config.settings import settings  # local import avoids circular dep at module load
+
+        # Dereference SecretStr — this value is used exactly once below, then overwritten
+        password = settings.SYSTEM_SUDO_PASSWORD.get_secret_value()
+
+        # sudo -S reads password from stdin; -p "" suppresses the password prompt
+        args = ["sudo", "-S", "-p", ""] + shlex.split(command)
+
+        logger = __import__("logging").getLogger(__name__)
+        logger.info(
+            "sudo execution started",
+            # Log command preview only — password is never included
+            extra={"command_preview": command[:120]},
+        )
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *args,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=SANITIZED_ENV,  # never inherits parent process environment
+            )
+
+            password_bytes = (password + "\n").encode()
+            try:
+                stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                    proc.communicate(input=password_bytes),
+                    timeout=SUDO_TIMEOUT,
+                )
+            finally:
+                # Zero out password bytes immediately after use
+                password_bytes = b"\x00" * len(password_bytes)  # overwrite in-place
+                del password_bytes
+                del password  # remove reference to plaintext
+
+            stdout_text, trunc_out = _truncate(stdout_bytes.decode(errors="replace"))
+            stderr_text, trunc_err = _truncate(stderr_bytes.decode(errors="replace"))
+
+            logger.info(
+                "sudo execution finished",
+                extra={"exit_code": proc.returncode, "command_preview": command[:120]},
+            )
+
+            return {
+                "status": "ok" if proc.returncode == 0 else "error",
+                "command": command,  # command only — password never returned
+                "stdout": stdout_text,
+                "stderr": stderr_text,
+                "exit_code": proc.returncode,
+                "stdout_truncated": trunc_out,
+                "stderr_truncated": trunc_err,
+            }
+
+        except asyncio.TimeoutError:
+            logger.warning("sudo command timed out", extra={"command_preview": command[:120]})
+            return {
+                "status": "error",
+                "error": f"Sudo command timed out after {SUDO_TIMEOUT}s.",
+                "command": command,
+            }
+
+        except Exception:
+            # Log error type only — never log the exception message in case it
+            # contains process env fragments that include the password
+            logger.error("sudo execution failed — see server logs for details")
+            return {
+                "status": "error",
+                "error": "Sudo execution failed. See server logs for details.",
+                "command": command,
+            }

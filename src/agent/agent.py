@@ -11,7 +11,13 @@ from typing import Any, AsyncIterator
 from db.repositories.api_key import APIKeyRepository
 from llm.base import LLM
 from core.registry import ToolRegistry
-from core.types import CONFIRMATION_TTL_SECONDS, PendingConfirmation, StreamEvent
+from core.types import (
+    CONFIRMATION_TTL_SECONDS,
+    SUDO_AUTHORIZATION_TTL_SECONDS,
+    PendingConfirmation,
+    StreamEvent,
+)
+from config.settings import settings
 from config.config_manager import ConfigManager
 from planner.prompt_builder import build_system_prompt
 from memory.manager import MemoryManager
@@ -38,6 +44,27 @@ class Agent:
         # Keyed by session_id. One pending confirmation per session at a time.
         # In-memory only — cleared on server restart (by design).
         self._pending_confirmations: dict[str, PendingConfirmation] = {}
+        # Keyed by session_id, value is time.time() when authorized.
+        # Single-use: consumed immediately after one sudo command executes.
+        self._sudo_authorized_sessions: dict[str, float] = {}
+
+    # ------------------------------------------------------------------
+    # Sudo authorization helpers (never touch LLM context or message history)
+    # ------------------------------------------------------------------
+
+    def _is_sudo_authorized(self, session_id: str) -> bool:
+        """True if session has a valid, non-expired sudo authorization."""
+        authorized_at = self._sudo_authorized_sessions.get(session_id)
+        if authorized_at is None:
+            return False
+        if time.time() - authorized_at > SUDO_AUTHORIZATION_TTL_SECONDS:
+            self._sudo_authorized_sessions.pop(session_id, None)  # prune stale entry
+            return False
+        return True
+
+    def _consume_sudo_authorization(self, session_id: str) -> None:
+        """Single-use: remove authorization immediately after one sudo command executes."""
+        self._sudo_authorized_sessions.pop(session_id, None)
 
     # ------------------------------------------------------------------
     # Public unified entry point — all interface adapters call this.
@@ -136,15 +163,35 @@ class Agent:
                 return
 
             if user_request.strip().upper() == "YES":
-                # User explicitly approved — execute with the bypass flag.
+                # User explicitly approved — but sudo commands need a second factor.
+                if pending.requires_sudo_auth:
+                    if not self._is_sudo_authorized(session_id):
+                        # Authorization not present or expired — ask frontend to prompt.
+                        logger.info(
+                            "sudo_auth_required: session=%s command=%r",
+                            session_id, pending.command_preview,
+                        )
+                        # Re-store the pending confirmation so the user can retry after authorizing.
+                        self._pending_confirmations[session_id] = pending
+                        yield StreamEvent(
+                            type="sudo_auth_required",
+                            confirmation_preview=pending.command_preview,
+                        )
+                        yield StreamEvent(type="done", tool_calls=[])
+                        return
+
+                    # Authorization valid — consume it (single-use) before executing.
+                    self._consume_sudo_authorization(session_id)
+                    confirmed_args = {**pending.arguments, "confirmed": True, "use_sudo": True}
+                else:
+                    confirmed_args = {**pending.arguments, "confirmed": True}
+
                 logger.info(
                     "User confirmed dangerous command: tool=%s session=%s",
                     pending.tool_name, session_id,
                 )
                 status_msg = f"Executing confirmed command: `{pending.command_preview}`"
                 yield StreamEvent(type="status", message=status_msg)
-
-                confirmed_args = {**pending.arguments, "confirmed": True}
                 try:
                     result = await self._execute_tool(pending.tool_name, confirmed_args)
                     yield StreamEvent(
@@ -214,6 +261,31 @@ class Agent:
             result = await self._execute_tool(name, args)
 
             if result.get("status") == "needs_confirmation":
+                if settings.SAFETY_MODE_ENABLED:
+                    # Safety mode ON — permanently block; no path to execution.
+                    logger.info(
+                        "sudo blocked by safety mode: tool=%s session=%s",
+                        name, session_id,
+                    )
+                    return {
+                        "status": "blocked",
+                        "message": (
+                            "Safety mode is ON. This command is blocked and cannot be executed "
+                            "through the assistant. Disable safety mode in .env to enable "
+                            "the authorization flow."
+                        ),
+                    }
+
+                # Safety mode OFF — flag whether this command needs sudo authorization.
+                # Re-use _NEEDS_CONFIRMATION from the tool module so detection stays
+                # consistent — one source of truth for which patterns need sudo.
+                from tools.shell_command import _NEEDS_CONFIRMATION as _sudo_patterns
+                cmd_str = args.get("command", "")
+                is_sudo_command = any(
+                    pat.search(cmd_str) for pat, _ in _sudo_patterns
+                    if pat.pattern in (r"\bsudo\b", r"\bsu\s+-")
+                )
+
                 confirmation = PendingConfirmation(
                     tool_name=name,
                     arguments=args,
@@ -221,11 +293,12 @@ class Agent:
                     command_preview=result["preview"],
                     created_at=time.time(),
                     session_id=session_id,
+                    requires_sudo_auth=is_sudo_command,  # sudo commands need extra secret
                 )
                 captured_confirmation.append(confirmation)
                 logger.info(
-                    "Dangerous command intercepted: tool=%s session=%s command=%r",
-                    name, session_id, result["preview"],
+                    "Dangerous command intercepted: tool=%s session=%s command=%r requires_sudo_auth=%s",
+                    name, session_id, result["preview"], is_sudo_command,
                 )
                 # Return a synthetic result to the LLM so it knows to
                 # warn the user and not attempt further tool calls.
