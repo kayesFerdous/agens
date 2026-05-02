@@ -295,6 +295,10 @@ class Agent:
                     session_id=session_id,
                     requires_sudo_auth=is_sudo_command,  # sudo commands need extra secret
                 )
+                # Store immediately — if the LLM's final answer call crashes (e.g.
+                # Gemini 500), this pending confirmation must survive so the user
+                # can still confirm on the next message.
+                self._pending_confirmations[session_id] = confirmation
                 captured_confirmation.append(confirmation)
                 logger.info(
                     "Dangerous command intercepted: tool=%s session=%s command=%r requires_sudo_auth=%s",
@@ -391,24 +395,22 @@ class Agent:
                     ]
                     await memory_manager.store(session_id, user_request, full_answer, tool_calls_json)
 
-        # ── Emit confirmation_required AFTER the ReAct loop has cleanly exited ──────
-        # The LLM has already produced its warning message (streamed above).
-        # This event carries the structured metadata for the UI to render a
-        # confirmation prompt, and stores the action for the next message.
-        if captured_confirmation:
-            pending_conf = captured_confirmation[0]
-            self._pending_confirmations[session_id] = pending_conf
-            logger.info(
-                "Stored pending confirmation: session=%s tool=%s",
-                session_id, pending_conf.tool_name,
-            )
-            yield StreamEvent(
-                type="confirmation_required",
-                tool=pending_conf.tool_name,
-                arguments=pending_conf.arguments,
-                confirmation_reason=pending_conf.reason,
-                confirmation_preview=pending_conf.command_preview,
-            )
+                # Emit confirmation_required in finally so it fires even when the
+                # ReAct loop crashes (e.g. Gemini 500 during final answer streaming).
+                # The PendingConfirmation was already stored eagerly in _gated_tool_executor.
+                if captured_confirmation:
+                    pending_conf = captured_confirmation[0]
+                    logger.info(
+                        "Stored pending confirmation: session=%s tool=%s",
+                        session_id, pending_conf.tool_name,
+                    )
+                    yield StreamEvent(
+                        type="confirmation_required",
+                        tool=pending_conf.tool_name,
+                        arguments=pending_conf.arguments,
+                        confirmation_reason=pending_conf.reason,
+                        confirmation_preview=pending_conf.command_preview,
+                    )
 
     async def _execute_tool(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         tool = self._registry.get(name)
