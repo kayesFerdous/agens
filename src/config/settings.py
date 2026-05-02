@@ -1,6 +1,7 @@
 # config/settings.py
 from __future__ import annotations
 from pathlib import Path
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -19,6 +20,15 @@ class Settings(BaseSettings):
     RATE_LIMIT_COOLDOWN: float = 60.0  # seconds
     QUOTA_EXHAUSTED_COOLDOWN: float = 86400.0  # seconds (24 hours - Google quota resets daily)
     FERNET_SECRET: str
+
+    # ── Sudo authorization settings ───────────────────────────────────────────
+    # true  = sudo commands are permanently blocked (safe default)
+    # false = sudo allowed after confirmation + app secret verification
+    SAFETY_MODE_ENABLED: bool = True
+    # App-level secret users supply via /api/chat/authorize-sudo — NOT the OS password
+    AGENT_SUDO_SECRET: str = ""
+    # OS sudo password for the agent user — piped to stdin, never logged or in args
+    SYSTEM_SUDO_PASSWORD: SecretStr = SecretStr("")  # type: ignore[assignment]
 
     # Web interface
     WEB_HOST: str = "0.0.0.0"
