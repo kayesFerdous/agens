@@ -17,19 +17,42 @@ MAX_TIMEOUT      = 120      # seconds — hard ceiling even if caller asks for m
 MAX_OUTPUT_CHARS = 5_000    # stdout + stderr each; excess is truncated
 # ──────────────────────────────────────────────────────────────────────────────
 
-# Patterns that are almost never legitimate in an AI coding assistant context.
-# Checked against the raw command string before execution.
-_BLOCKLIST: list[re.Pattern] = [
-    re.compile(r"\brm\s+-[a-z]*r[a-z]*f\b"),   # rm -rf variants
-    re.compile(r"\brm\s+-[a-z]*f[a-z]*r\b"),   # rm -fr variants
+# Patterns that are NEVER allowed, even with explicit user confirmation.
+# These are catastrophic and irreversible (fork bombs, filesystem formatters, etc.).
+_HARD_BLOCK: list[re.Pattern] = [
     re.compile(r":\(\)\{.*\}"),                 # fork bomb
-    re.compile(r"\bsudo\b"),                    # privilege escalation
-    re.compile(r"\bsu\s+-"),                    # switch user
-    re.compile(r"\bchmod\s+777\b"),             # world-writable
     re.compile(r"\bmkfs\b"),                    # format filesystem
     re.compile(r"\bdd\b.*of=/dev/"),            # write raw to device
     re.compile(r">\s*/dev/sd"),                 # overwrite block device
     re.compile(r"\bshutdown\b|\breboot\b|\bhalt\b"),
+]
+
+# Patterns that require explicit user confirmation before execution.
+# Each entry is (pattern, human-readable reason).
+# These are gated — safe to run if the user knowingly approves.
+_NEEDS_CONFIRMATION: list[tuple[re.Pattern, str]] = [
+    (
+        re.compile(r"\bsudo\b"),
+        "This command requires root privileges (sudo) and can modify system-level files, "
+        "install or remove packages, or alter system configuration.",
+    ),
+    (
+        re.compile(r"\bsu\s+-"),
+        "This command switches to another user account, potentially granting elevated access.",
+    ),
+    (
+        re.compile(r"\brm\s+-[a-z]*r[a-z]*f\b"),
+        "This command recursively force-deletes files or directories. Deletion is irreversible.",
+    ),
+    (
+        re.compile(r"\brm\s+-[a-z]*f[a-z]*r\b"),
+        "This command recursively force-deletes files or directories. Deletion is irreversible.",
+    ),
+    (
+        re.compile(r"\bchmod\s+777\b"),
+        "This sets world-readable/writable/executable permissions on a file, "
+        "which is a significant security risk.",
+    ),
 ]
 
 
@@ -83,9 +106,13 @@ class ShellCommandTool(Tool):
         }
 
     async def execute(self, **kwargs: Any) -> dict:
-        command: str    = kwargs["command"]
-        cwd: str        = kwargs.get("cwd") or self._workspace_root
-        timeout: int    = min(int(kwargs.get("timeout", DEFAULT_TIMEOUT)), MAX_TIMEOUT)
+        command: str = kwargs["command"]
+        cwd: str     = kwargs.get("cwd") or self._workspace_root
+        timeout: int = min(int(kwargs.get("timeout", DEFAULT_TIMEOUT)), MAX_TIMEOUT)
+        # NOTE: `confirmed` is intentionally NOT in self.parameters (the JSON schema).
+        # The LLM cannot pass it. Only the agent's _gated_tool_executor sets it to True
+        # after the user has explicitly typed "YES".
+        confirmed: bool = bool(kwargs.get("confirmed", False))
 
         # ── safety: resolve + validate cwd ───────────────────────────────────
         try:
@@ -109,18 +136,29 @@ class ShellCommandTool(Tool):
         except Exception as exc:
             return {"status": "error", "error": str(exc), "command": command}
 
-        # ── safety: blocklist check ───────────────────────────────────────────
-        for pattern in _BLOCKLIST:
+        # ── safety: hard block (permanent, no override) ──────────────────────────
+        for pattern in _HARD_BLOCK:
             if pattern.search(command):
                 return {
                     "status": "error",
                     "error": (
-                        f"Command blocked by safety policy "
-                        f"(matched pattern: {pattern.pattern!r}). "
-                        "If this is intentional, run it manually."
+                        f"Command permanently blocked by safety policy "
+                        f"(matched: {pattern.pattern!r}). "
+                        "This action can never be executed through the assistant."
                     ),
                     "command": command,
                 }
+
+        # ── safety: soft block (requires explicit user confirmation) ──────────────
+        if not confirmed:
+            for pattern, reason in _NEEDS_CONFIRMATION:
+                if pattern.search(command):
+                    return {
+                        "status": "needs_confirmation",
+                        "command": command,
+                        "reason": reason,
+                        "preview": command,
+                    }
 
         # ── execute ───────────────────────────────────────────────────────────
         try:
