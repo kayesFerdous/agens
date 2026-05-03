@@ -5,12 +5,11 @@ import hmac
 import json
 import time
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.database import get_db
+from db.database import async_session
 from db import repository as session_repo
 from interfaces.api.chat.schemas import ChatRequest
 from config.logging import get_logger
@@ -74,7 +73,6 @@ async def authorize_sudo(body: SudoAuthRequest, request: Request):
 async def chat(
     body: ChatRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db),
 ):
     """Send a message and receive the response as an SSE stream.
 
@@ -93,15 +91,22 @@ async def chat(
             detail="No active API key configured. Add one via POST /api-keys.",
         )
 
-    # Auto-create a session if none provided (first message from this client).
-    if body.session_id:
-        session = await session_repo.get_session(db, body.session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
-        session_id = body.session_id
-    else:
-        session = await session_repo.insert_session(db, body.message[:60])
-        session_id = session.id
+    # Resolve the session_id in a short-lived DB connection that is fully
+    # closed BEFORE the StreamingResponse is returned. This prevents the
+    # SQLAlchemy / aiosqlite "Connection closed" crash that occurs when
+    # FastAPI's dependency teardown tries to rollback a session that
+    # outlived a disconnected streaming response.
+    async with async_session() as db:
+        if body.session_id:
+            session = await session_repo.get_session(db, body.session_id)
+            if not session:
+                raise HTTPException(status_code=404, detail="Session not found")
+            session_id = body.session_id
+        else:
+            session = await session_repo.insert_session(db, body.message[:60])
+            session_id = session.id
+    # `db` is now fully closed — the streaming generator below uses
+    # agent.chat(), which opens its own independent session internally.
 
     async def event_stream():
         try:
@@ -170,6 +175,7 @@ async def chat(
                         "type": "done",
                         "session_id": session_id,
                         "usage": usage_data,
+                        "next_action": event.next_action,
                         "tool_history": [
                             {
                                 "tool": tc.tool,
