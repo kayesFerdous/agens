@@ -78,11 +78,51 @@ class Agent:
     ) -> AsyncIterator[StreamEvent]:
         """Unified streaming entry point for web, telegram, and TUI adapters.
 
-        Opens its own DB session so callers don't manage transactions.
+        DB lifecycle:
+        - Normal path: session is closed via ``await`` before the terminal
+          ``done``/``error`` event is yielded.  The close runs while the anyio
+          task is still active so it always succeeds.
+        - Cancelled path (client disconnects mid-stream): the ASGI task is
+          cancelled by anyio before we reach a terminal event.  Any ``await``
+          inside the cancelled scope raises ``CancelledError``, including those
+          inside ``anyio.CancelScope(shield=True)`` when the generator is being
+          finalized by the GC outside any anyio task context.  We escape this by
+          scheduling ``db.close()`` as an *independent* asyncio task that is not
+          a child of the ASGI task and is therefore not subject to its cancel
+          scope.
         """
-        async with async_session() as db:
+        db = async_session()
+        session_closed = False
+
+        async def _close_db() -> None:
+            nonlocal session_closed
+            if not session_closed:
+                session_closed = True
+                try:
+                    await db.close()
+                except Exception:
+                    pass  # Nothing useful we can do here; NullPool discards it
+
+        try:
             async for event in self.run_stream(message, session_id, db, model=model):
+                if event.type in ("done", "error"):
+                    # Eagerly close BEFORE yielding the terminal event.
+                    # The anyio task is still active at this point, so the await
+                    # works normally. After the frontend receives 'done' it closes
+                    # the SSE connection which cancels the task — by then there is
+                    # nothing left to clean up.
+                    await _close_db()
                 yield event
+        finally:
+            if not session_closed:
+                # Cancelled path: we are inside a dead anyio scope — any await
+                # here will raise CancelledError immediately.  Detach the close
+                # onto an independent asyncio task that the event loop will run
+                # after the current (cancelled) task is torn down.
+                try:
+                    asyncio.get_running_loop().create_task(_close_db())
+                except RuntimeError:
+                    pass  # No running loop at all (server shutting down)
 
 
     async def run(self, user_request: str, session_id: str, db: AsyncSession) -> str:
@@ -158,7 +198,8 @@ class Agent:
                 )
                 logger.info("Confirmation TTL expired for session=%s", session_id)
                 yield StreamEvent(type="confirmation_result", message=msg)
-                yield StreamEvent(type="done", tool_calls=[])
+                yield StreamEvent(type="token", content=msg)
+                yield StreamEvent(type="done", tool_calls=[], next_action=None)
                 await memory_manager.store(session_id, user_request, msg, [])
                 return
 
@@ -177,7 +218,7 @@ class Agent:
                             type="sudo_auth_required",
                             confirmation_preview=pending.command_preview,
                         )
-                        yield StreamEvent(type="done", tool_calls=[])
+                        yield StreamEvent(type="done", tool_calls=[], next_action="await_sudo_auth")
                         return
 
                     # Authorization valid — consume it (single-use) before executing.
@@ -215,7 +256,8 @@ class Agent:
                     )
                     answer = f"Confirmed command failed: {error_msg}"
 
-                yield StreamEvent(type="done", tool_calls=[])
+                yield StreamEvent(type="token", content=answer)
+                yield StreamEvent(type="done", tool_calls=[], next_action=None)
                 await memory_manager.store(session_id, user_request, answer, [])
                 return
 
@@ -230,7 +272,8 @@ class Agent:
                     session_id, user_request[:50],
                 )
                 yield StreamEvent(type="confirmation_result", message=cancel_msg)
-                yield StreamEvent(type="done", tool_calls=[])
+                yield StreamEvent(type="token", content=cancel_msg)
+                yield StreamEvent(type="done", tool_calls=[], next_action=None)
                 await memory_manager.store(session_id, user_request, cancel_msg, [])
                 return
         # ── End confirmation gate ──────────────────────────────────────────────────
@@ -348,10 +391,40 @@ class Agent:
                         answer_parts.append(event.content)
                     if event.type == "done":
                         last_done_event = event
+                        continue
                     yield event
 
-                # ✅ Clean exit — record usage and reset failure counters.
-                # await api_key_manager.on_success(self._llm.current_key_id) #INFO: Doesn't adding any value right now
+                if captured_confirmation:
+                    pending_conf = captured_confirmation[0]
+                    logger.info(
+                        "Stored pending confirmation: session=%s tool=%s",
+                        session_id, pending_conf.tool_name,
+                    )
+                    yield StreamEvent(
+                        type="confirmation_required",
+                        tool=pending_conf.tool_name,
+                        arguments=pending_conf.arguments,
+                        confirmation_reason=pending_conf.reason,
+                        confirmation_preview=pending_conf.command_preview,
+                    )
+                    if last_done_event:
+                        last_done_event.next_action = "await_confirmation"
+                
+                # Persist the conversation BEFORE yielding done so that
+                # chat() can close the DB session right after this yield
+                # (and before the frontend disconnects + cancels the task).
+                full_answer = "".join(answer_parts)
+                if full_answer and last_done_event:
+                    tool_calls_json = [
+                        {"tool": tc.tool, "arguments": tc.arguments, "result": tc.result, "error": tc.error}
+                        for tc in last_done_event.tool_calls
+                    ]
+                    await memory_manager.store(session_id, user_request, full_answer, tool_calls_json)
+
+                if last_done_event:
+                    yield last_done_event
+
+                # ✅ Clean exit.
                 break
 
             except RateLimitError as e:
@@ -387,30 +460,13 @@ class Agent:
                 return
 
             finally:
-                full_answer = "".join(answer_parts)
-                if full_answer and last_done_event:
-                    tool_calls_json = [
-                        {"tool": tc.tool, "arguments": tc.arguments, "result": tc.result, "error": tc.error}
-                        for tc in last_done_event.tool_calls
-                    ]
-                    await memory_manager.store(session_id, user_request, full_answer, tool_calls_json)
-
-                # Emit confirmation_required in finally so it fires even when the
-                # ReAct loop crashes (e.g. Gemini 500 during final answer streaming).
-                # The PendingConfirmation was already stored eagerly in _gated_tool_executor.
-                if captured_confirmation:
-                    pending_conf = captured_confirmation[0]
-                    logger.info(
-                        "Stored pending confirmation: session=%s tool=%s",
-                        session_id, pending_conf.tool_name,
-                    )
-                    yield StreamEvent(
-                        type="confirmation_required",
-                        tool=pending_conf.tool_name,
-                        arguments=pending_conf.arguments,
-                        confirmation_reason=pending_conf.reason,
-                        confirmation_preview=pending_conf.command_preview,
-                    )
+                # memory_manager.store() has already been called above (before
+                # yielding done) for the normal completion path.  The finally
+                # block is intentionally left empty: for mid-stream cancellations
+                # last_done_event is None so there is nothing to persist, and
+                # attempting an async store here would fail inside the cancelled
+                # anyio scope anyway.
+                pass
 
     async def _execute_tool(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         tool = self._registry.get(name)

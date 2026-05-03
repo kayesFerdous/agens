@@ -115,3 +115,7 @@ class StreamEvent:
     # confirmation_required event
     confirmation_reason: str | None = None
     confirmation_preview: str | None = None
+
+    # explicit frontend transition hint (e.g. "await_confirmation", "await_sudo_auth")
+    next_action: str | None = None
+
