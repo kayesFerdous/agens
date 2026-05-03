@@ -199,8 +199,10 @@ class Agent:
                 logger.info("Confirmation TTL expired for session=%s", session_id)
                 yield StreamEvent(type="confirmation_result", message=msg)
                 yield StreamEvent(type="token", content=msg)
-                yield StreamEvent(type="done", tool_calls=[], next_action=None)
+                # Store BEFORE yielding done — chat() closes the DB the moment
+                # it sees the done event, so any await after that is on a dead session.
                 await memory_manager.store(session_id, user_request, msg, [])
+                yield StreamEvent(type="done", tool_calls=[], next_action=None)
                 return
 
             if user_request.strip().upper() == "YES":
@@ -233,32 +235,52 @@ class Agent:
                 )
                 status_msg = f"Executing confirmed command: `{pending.command_preview}`"
                 yield StreamEvent(type="status", message=status_msg)
+                tool_call_record: dict = {
+                    "tool": pending.tool_name,
+                    "arguments": pending.arguments,
+                    "result": None,
+                    "error": None,
+                }
                 try:
                     result = await self._execute_tool(pending.tool_name, confirmed_args)
+                    tool_call_record["result"] = result
                     yield StreamEvent(
                         type="confirmation_result",
                         tool=pending.tool_name,
                         result=result,
                     )
+                    stdout = result.get("stdout", "").strip()
+                    stderr = result.get("stderr", "").strip()
+                    exit_code = result.get("exit_code", "n/a")
+                    output_section = stdout or stderr or "_No output._"
                     answer = (
-                        f"Confirmed command executed.\n"
-                        f"Command: `{pending.command_preview}`\n"
-                        f"Exit code: {result.get('exit_code', 'n/a')}\n"
-                        f"Output: {result.get('stdout', '') or result.get('error', '')}"
+                        f"✅ **Command executed successfully.**\n\n"
+                        f"```\n$ {pending.command_preview}\n```\n\n"
+                        f"**Exit code:** `{exit_code}`\n\n"
+                        f"**Output:**\n```\n{output_section}\n```"
                     )
                 except Exception as e:
                     error_msg = f"{type(e).__name__}: {e}"
+                    tool_call_record["error"] = error_msg
                     logger.error("Confirmed command failed: %s", error_msg)
                     yield StreamEvent(
                         type="confirmation_result",
                         tool=pending.tool_name,
                         error=error_msg,
                     )
-                    answer = f"Confirmed command failed: {error_msg}"
+                    answer = (
+                        f"❌ **Command failed.**\n\n"
+                        f"```\n$ {pending.command_preview}\n```\n\n"
+                        f"**Error:** `{error_msg}`"
+                    )
 
                 yield StreamEvent(type="token", content=answer)
+                # Store BEFORE yielding done — chat() closes the DB the moment it
+                # sees the done event, so any await after that is on a dead session.
+                await memory_manager.store(
+                    session_id, user_request, answer, [tool_call_record]
+                )
                 yield StreamEvent(type="done", tool_calls=[], next_action=None)
-                await memory_manager.store(session_id, user_request, answer, [])
                 return
 
             else:
@@ -273,8 +295,9 @@ class Agent:
                 )
                 yield StreamEvent(type="confirmation_result", message=cancel_msg)
                 yield StreamEvent(type="token", content=cancel_msg)
-                yield StreamEvent(type="done", tool_calls=[], next_action=None)
+                # Store BEFORE yielding done — same DB lifecycle reason as above.
                 await memory_manager.store(session_id, user_request, cancel_msg, [])
+                yield StreamEvent(type="done", tool_calls=[], next_action=None)
                 return
         # ── End confirmation gate ──────────────────────────────────────────────────
 
