@@ -23,6 +23,7 @@ from planner.prompt_builder import build_system_prompt
 from memory.manager import MemoryManager
 from llm.llm_exceptions import RateLimitError, LLMUnavailable
 from services.api_key_manager import APIKeyManager
+from services.settings_service import SettingsService
 from tools.search_web import SearchUnavailableError
 from db.database import async_session
 
@@ -184,6 +185,11 @@ class Agent:
     ) -> AsyncIterator[StreamEvent]:
         memory_manager = MemoryManager(db)
 
+        # Read safety_mode once per request from DB — allows runtime toggling.
+        settings_service = SettingsService(db)
+        app_settings = await settings_service.get_settings()
+        safety_mode: bool = app_settings.safety_mode
+
         # ── Confirmation gate — evaluated BEFORE the LLM is ever invoked ────────
         # pop() atomically removes the pending entry so a second "YES" is a no-op.
         pending = self._pending_confirmations.pop(session_id, None)
@@ -327,7 +333,7 @@ class Agent:
             result = await self._execute_tool(name, args)
 
             if result.get("status") == "needs_confirmation":
-                if settings.SAFETY_MODE_ENABLED:
+                if safety_mode:
                     # Safety mode ON — permanently block; no path to execution.
                     logger.info(
                         "sudo blocked by safety mode: tool=%s session=%s",
@@ -337,7 +343,7 @@ class Agent:
                         "status": "blocked",
                         "message": (
                             "Safety mode is ON. This command is blocked and cannot be executed "
-                            "through the assistant. Disable safety mode in .env to enable "
+                            "through the assistant. Disable safety mode in Settings to enable "
                             "the authorization flow."
                         ),
                     }
