@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from agent.agent import Channel
 from db.database import async_session
 from db import repository as session_repo
 from interfaces.api.chat.schemas import ChatRequest
@@ -110,7 +111,7 @@ async def chat(
 
     async def event_stream():
         try:
-            async for event in agent.chat(body.message, session_id, model=body.model):
+            async for event in agent.chat(body.message, session_id, model=body.model, channel=Channel.WEB):
                 payload: dict = {}
 
                 if event.type == "token":
