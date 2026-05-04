@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 from enum import Enum as PyEnum
-from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Text, Integer, String, func
+from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Text, String, func, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.database import Base
@@ -92,3 +92,21 @@ class APIKey(Base):
     def __repr__(self) -> str:
         # Intentionally never exposes encrypted_key
         return f"<APIKey id={self.id!r} provider={self.provider!r} hint={self.key_hint!r} status={self.status.value!r}>"
+
+
+
+# ─────────────────────────────────────────
+# Settings
+# ─────────────────────────────────────────
+
+class Settings(Base):
+    __tablename__ = "settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)  # always 1
+    safety_mode: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=_utcnow
+    )
