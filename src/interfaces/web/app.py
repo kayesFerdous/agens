@@ -48,10 +48,12 @@ def _create_app(agent: Agent) -> FastAPI:
     from interfaces.api.sessions.router import router as sessions_router
     from interfaces.api.chat.router import router as chat_router
     from interfaces.api.api_keys.router import router as api_keys_router
+    from interfaces.api.settings.router import router as settings_router
 
     app.include_router(sessions_router, prefix="/sessions", tags=["sessions"])
     app.include_router(chat_router, prefix="/chat", tags=["chat"])
     app.include_router(api_keys_router, prefix="/api-keys", tags=["api-keys"])
+    app.include_router(settings_router, prefix="/settings", tags=["settings"])
 
     return app
 
