@@ -2,7 +2,7 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes, Application
 
-from agent.agent import Agent
+from agent.agent import Agent, Channel
 from db.database import async_session
 from db import repository as session_repo
 from db.models import KeyStatus
@@ -74,19 +74,19 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
 
     try:
         # Retrieve or create a persistent DB session for this Telegram user.
-        if "session_id" not in ctx.user_data:
+        if "session_id" not in ctx.user_data: # type: ignore[union-attr]
             async with async_session() as db:
                 session = await session_repo.insert_session(
                     db, title=f"Telegram user {user_id}"
                 )
-            ctx.user_data["session_id"] = session.id
+            ctx.user_data["session_id"] = session.id # type: ignore[union-attr]
             logger.info("Created DB session %s for Telegram user %d", session.id, user_id)
 
-        session_id: str = ctx.user_data["session_id"]
+        session_id: str = ctx.user_data["session_id"] # type: ignore[union-attr]
 
         # Collect the full answer from the streaming ReAct loop.
         answer_parts: list[str] = []
-        async for event in agent.chat(user_text, session_id):
+        async for event in agent.chat(user_text, session_id, channel=Channel.TELEGRAM):
             if event.type == "token" and event.content:
                 answer_parts.append(event.content)
             elif event.type == "error" and event.error:

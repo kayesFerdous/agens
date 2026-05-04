@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from enum import Enum
 import inspect
 import time
 
@@ -17,7 +18,6 @@ from core.types import (
     PendingConfirmation,
     StreamEvent,
 )
-from config.settings import settings
 from config.config_manager import ConfigManager
 from planner.prompt_builder import build_system_prompt
 from memory.manager import MemoryManager
@@ -28,6 +28,12 @@ from tools.search_web import SearchUnavailableError
 from db.database import async_session
 
 logger = get_logger(__name__)
+
+
+class Channel(str, Enum):
+    TELEGRAM = "telegram"
+    WEB = "web"
+    TUI = "tui"
 
 
 class Agent:
@@ -75,6 +81,7 @@ class Agent:
         self,
         message: str,
         session_id: str,
+        channel: Channel,
         model: str | None = None,
     ) -> AsyncIterator[StreamEvent]:
         """Unified streaming entry point for web, telegram, and TUI adapters.
@@ -105,7 +112,7 @@ class Agent:
                     pass  # Nothing useful we can do here; NullPool discards it
 
         try:
-            async for event in self.run_stream(message, session_id, db, model=model):
+            async for event in self.run_stream(message, session_id, db, channel=channel, model=model):
                 if event.type in ("done", "error"):
                     # Eagerly close BEFORE yielding the terminal event.
                     # The anyio task is still active at this point, so the await
@@ -181,6 +188,7 @@ class Agent:
         user_request: str,
         session_id: str,
         db: AsyncSession,
+        channel: Channel,
         model: str | None = None,
     ) -> AsyncIterator[StreamEvent]:
         memory_manager = MemoryManager(db)
@@ -333,6 +341,19 @@ class Agent:
             result = await self._execute_tool(name, args)
 
             if result.get("status") == "needs_confirmation":
+                if channel == Channel.TELEGRAM:
+                    logger.info(
+                        "Confirmation-required command blocked on telegram: tool=%s session=%s",
+                        name, session_id,
+                    )
+                    return {
+                        "status": "blocked_channel",
+                        "message": (
+                            "This command requires confirmation, which is not supported "
+                            "over Telegram for security reasons. Please use the web or "
+                            "terminal interface to run this command."
+                        ),
+                    }
                 if safety_mode:
                     # Safety mode ON — permanently block; no path to execution.
                     logger.info(
