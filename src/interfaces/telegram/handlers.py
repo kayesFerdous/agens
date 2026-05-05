@@ -35,28 +35,31 @@ async def get_keys_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         keys = await repo.list_keys()
 
     if not keys:
-        await update.message.reply_text("No API keys found.")  # type: ignore[union-attr]
+        await update.message.reply_text("No API keys registered yet.")
         return
 
-    response = "🔑 *Registered API Keys*\n\n"
-    for k in keys:
-        status_emoji = {
-            KeyStatus.ACTIVE: "✅",
-            KeyStatus.RATE_LIMITED: "⏳",
-            KeyStatus.EXHAUSTED: "🛑",
-            KeyStatus.INVALID: "❌",
-            KeyStatus.INACTIVE: "💤",
-        }.get(k.status, "❓")
+    status_badge = {
+        KeyStatus.ACTIVE:       "🟢 Active",
+        KeyStatus.RATE_LIMITED: "🟡 Rate limited",
+        KeyStatus.EXHAUSTED:    "🔴 Exhausted",
+        KeyStatus.INVALID:      "❌ Invalid",
+        KeyStatus.INACTIVE:     "⚪️ Inactive",
+    }
 
-        response += (
-            f"🆔 `{k.id}`\n"
-            f"🏷 *Name:* {k.label or 'N/A'}\n"
-            f"💡 *Hint:* `{k.key_hint}`\n"
-            f"🚦 *Status:* {status_emoji} {k.status.value}\n"
-            "───────────────────\n"
+    lines = [f"🔑 *API Keys* — {len(keys)} registered\n"]
+
+    for k in keys:
+        badge = status_badge.get(k.status, "❓ Unknown")
+        name  = k.label or "Unnamed"
+        hint  = f"`{k.key_hint}`"
+        uid   = f"`...{str(k.id)[-8:]}`"   # show only last 8 chars
+
+        lines.append(
+            f"*{name}* {badge}\n"
+            f"ID {uid}  ·  Hint {hint}\n"
         )
 
-    await update.message.reply_markdown(response)  # type: ignore[union-attr]
+    await update.message.reply_markdown("\n".join(lines))
 
 
 def _format_tool_call(tool_name: str, arguments: dict) -> str:
