@@ -23,9 +23,18 @@ async def start_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def help_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(  # type: ignore[union-attr]
-        "Just send me a message and I'll do my best to help!"
+    help_text = (
+        "🤖 *Assistant Help*\n\n"
+        "I'm an AI assistant with access to various tools to help you out.\n"
+        "Just send me a message and I'll do my best to assist you.\n\n"
+        "🛠 *Available Commands*\n"
+        "• /start — Start a new session with the bot\n"
+        "• /help — Show this help message\n"
+        "• /api_keys — View all registered API keys and their statuses\n\n"
+        "💬 *How to use*\n"
+        "You don't need commands for most things! Just chat with me normally."
     )
+    await update.message.reply_markdown(help_text)  # type: ignore[union-attr]
 
 
 async def get_keys_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -67,7 +76,6 @@ def _format_tool_call(tool_name: str, arguments: dict) -> str:
     lines = [f"🔧 *Calling:* `{tool_name}`"]
     if arguments:
         for key, value in arguments.items():
-            # Truncate long values so the message stays readable.
             display = str(value)
             if len(display) > 200:
                 display = display[:197] + "…"
