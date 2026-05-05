@@ -59,6 +59,19 @@ async def get_keys_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_markdown(response)  # type: ignore[union-attr]
 
 
+def _format_tool_call(tool_name: str, arguments: dict) -> str:
+    """Format a tool_start event into a readable Telegram Markdown message."""
+    lines = [f"🔧 *Calling:* `{tool_name}`"]
+    if arguments:
+        for key, value in arguments.items():
+            # Truncate long values so the message stays readable.
+            display = str(value)
+            if len(display) > 200:
+                display = display[:197] + "…"
+            lines.append(f"  • *{key}:* `{display}`")
+    return "\n".join(lines)
+
+
 async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.message or not update.message.text:
         return
@@ -66,28 +79,33 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     user_text: str = update.message.text
     user_id: int = update.effective_user.id  # type: ignore[union-attr]
     agent: Agent = ctx.bot_data["agent"]
+    chat_id: int = update.effective_chat.id  # type: ignore[union-attr]
 
-    await ctx.bot.send_chat_action(
-        chat_id=update.effective_chat.id,  # type: ignore[union-attr]
-        action="typing",
-    )
+    await ctx.bot.send_chat_action(chat_id=chat_id, action="typing")
 
     try:
         # Retrieve or create a persistent DB session for this Telegram user.
-        if "session_id" not in ctx.user_data: # type: ignore[union-attr]
+        if "session_id" not in ctx.user_data:  # type: ignore[union-attr]
             async with async_session() as db:
                 session = await session_repo.insert_session(
                     db, title=f"Telegram user {user_id}"
                 )
-            ctx.user_data["session_id"] = session.id # type: ignore[union-attr]
+            ctx.user_data["session_id"] = session.id  # type: ignore[union-attr]
             logger.info("Created DB session %s for Telegram user %d", session.id, user_id)
 
-        session_id: str = ctx.user_data["session_id"] # type: ignore[union-attr]
+        session_id: str = ctx.user_data["session_id"]  # type: ignore[union-attr]
 
         # Collect the full answer from the streaming ReAct loop.
         answer_parts: list[str] = []
         async for event in agent.chat(user_text, session_id, channel=Channel.TELEGRAM):
-            if event.type == "token" and event.content:
+            if event.type == "tool_start":
+                await ctx.bot.send_chat_action(chat_id=chat_id, action="typing")
+                tool_msg = _format_tool_call(
+                    event.tool or "unknown",
+                    event.arguments or {},
+                )
+                await update.message.reply_markdown(tool_msg)  # type: ignore[union-attr]
+            elif event.type == "token" and event.content:
                 answer_parts.append(event.content)
             elif event.type == "error" and event.error:
                 logger.error("Agent error: %s", event.error)
