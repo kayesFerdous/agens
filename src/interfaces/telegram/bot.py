@@ -47,7 +47,7 @@ async def start_telegram(agent: Agent) -> None:
 
     app.add_handler(CommandHandler("start", handlers.start_command))
     app.add_handler(CommandHandler("help", handlers.help_command))
-    app.add_handler(CommandHandler("api_keys", handlers.get_keys_command))
+    app.add_handler(CommandHandler("keys", handlers.get_keys_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.handle_message))
 
     # `async with app` calls initialize() on enter and shutdown() on exit.
