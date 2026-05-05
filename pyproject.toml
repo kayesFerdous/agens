@@ -14,5 +14,6 @@ dependencies = [
     "pydantic-settings>=2.13.1",
     "python-telegram-bot>=22.7",
     "sqlalchemy[asyncio]>=2.0.48",
+    "textual>=0.60.0",
     "uvicorn[standard]>=0.34.0",
 ]
