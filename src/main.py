@@ -15,13 +15,14 @@ import sys
 
 from config.logging import get_logger, setup_logging
 
-setup_logging()
+setup_logging("ERROR")
 logger = get_logger(__name__)
 
 VALID_INTERFACES = {"web", "telegram", "tui"}
 
 USAGE = """\
 Usage: python main.py <interface> [<interface> ...]
+       python -m src.main --interface <interface> [<interface> ...]
 
 Available interfaces:
   web        FastAPI + uvicorn REST/SSE server
@@ -37,6 +38,9 @@ Examples:
 
 def _parse_args(argv: list[str]) -> list[str]:
     """Validate and deduplicate interface names, preserving order."""
+    if argv[:1] == ["--interface"]:
+        argv = argv[1:]
+
     if not argv:
         print(USAGE, end="")
         sys.exit(0)
