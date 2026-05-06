@@ -10,9 +10,11 @@ from typing import Any
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.widgets import Static
 
 from .commands import execute_command, parse_command
 from .history import InputHistory
+from .prefs import get_selected_model, set_selected_model
 from .theme import ASSISTANT_CSS
 from .widgets.chat_view import ChatView
 from .widgets.command_palette import CommandPalette
@@ -48,6 +50,7 @@ class AssistantTUI(App):
         self._current_tool_group: ToolGroup | None = None
         self._pending_tool_blocks: dict[str, ToolBlock] = {}
         self._token_count = 0
+        self._selected_model: str | None = get_selected_model()  # restored from prefs
         self.model_name = self._detect_model_name()
 
     def compose(self) -> ComposeResult:
@@ -56,11 +59,14 @@ class AssistantTUI(App):
         yield HorizontalRule()
         yield CommandPalette(id="command-palette")
         yield InputRow(id="input-row")
+        yield Static("", id="model-bar")
 
     async def on_mount(self) -> None:
         await self._ensure_repo_session()
-        self.query_one(AppHeader).update_model(self.model_name)
+        from .widgets.model_select import get_model_label
+        self.query_one(AppHeader).update_model(get_model_label(self.model_name))
         self.query_one(InputRow).focus_input()
+        self._update_model_bar()
         await self._mount_welcome()
 
     def on_key(self, event: events.Key) -> None:
@@ -266,8 +272,47 @@ class AssistantTUI(App):
         if "channel" in params:
             from agent.agent import Channel
 
-            return self.agent.chat(text, self.session_id, Channel.TUI)
+            return self.agent.chat(
+                text,
+                self.session_id,
+                Channel.TUI,
+                model=self._selected_model,
+            )
         return self.agent.chat(text)
+
+    def show_model_selector(self) -> None:
+        """Push the model selection modal; result is applied via callback."""
+        from .widgets.model_select import ModelSelectScreen, get_model_label
+
+        def _on_selected(selected: str | None) -> None:
+            if selected is None:
+                return  # user cancelled
+            self._selected_model = selected
+            set_selected_model(selected)  # persist across restarts
+            label = get_model_label(selected)
+            self.query_one(AppHeader).update_model(label)
+            self._update_model_bar()
+            asyncio.create_task(
+                self.query_one(ChatView).add_system(
+                    f"Model set to [bold]{label}[/bold]. All future messages will use this model."
+                )
+            )
+
+        self.push_screen(ModelSelectScreen(current_model=self._selected_model), callback=_on_selected)
+
+    def _update_model_bar(self) -> None:
+        """Refresh the one-line status bar below the input with the active model."""
+        from .widgets.model_select import get_model_label
+        try:
+            bar = self.query_one("#model-bar", Static)
+            if self._selected_model:
+                label = get_model_label(self._selected_model)
+                bar.update(f"  [dim]model:[/dim] [#cc785c]{label}[/#cc785c]  [dim]· /models to change[/dim]")
+            else:
+                label = get_model_label(self.model_name)
+                bar.update(f"  [dim]model:[/dim] {label}  [dim]· /models to change[/dim]")
+        except Exception:
+            pass
 
     async def _ensure_repo_session(self) -> None:
         if "session_id" not in inspect.signature(self.agent.chat).parameters:

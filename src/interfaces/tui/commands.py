@@ -12,6 +12,7 @@ COMMANDS = {
     "/exit": "Exit the assistant",
     "/quit": "Exit the assistant",
     "/model": "Show current model",
+    "/models": "Select a model interactively",
     "/tokens": "Show token count",
     "?": "Show this help message",
 }
@@ -39,8 +40,11 @@ async def execute_command(text: str, app: "AssistantTUI") -> None:
         app.action_quit()
 
     elif command == "/model":
-        model = getattr(app.agent, "model_name", getattr(app, "model_name", "unknown"))
+        model = getattr(app, "_selected_model", None) or getattr(app, "model_name", "unknown")
         await chat.add_system(f"Current model: [bold]{model}[/bold]")
+
+    elif command == "/models":
+        app.show_model_selector()
 
     elif command == "/tokens":
         await chat.add_system(f"Session tokens: [bold]{app.token_count}[/bold]")

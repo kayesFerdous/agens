@@ -185,6 +185,98 @@ TabbedContent {
 Footer {
     display: none;
 }
+
+/* ── Model status bar (below InputRow) ─────────────────────────────── */
+#model-bar {
+    height: 1;
+    width: 100%;
+    background: #0d0d0d;
+    color: #4b5563;
+    padding: 0 1;
+}
+
+/* ── Model selection modal ─────────────────────────────────────────── */
+ModelSelectScreen {
+    align: center middle;
+    background: rgba(0, 0, 0, 0.80);
+}
+
+#model-panel {
+    width: 68;
+    height: auto;
+    max-height: 34;
+    background: #111111;
+    border: solid #2a2a2a;
+}
+
+#model-title-bar {
+    height: auto;
+    background: #0d0d0d;
+    border-bottom: solid #2a2a2a;
+    padding: 0 2;
+}
+
+#model-title {
+    height: 1;
+    width: 100%;
+    color: #cc785c;
+    text-style: bold;
+    padding: 0;
+}
+
+#model-search {
+    height: 1;
+    width: 100%;
+    background: #1a1a1a;
+    border: solid #2a2a2a;
+    color: #d4d4d4;
+    padding: 0 2;
+    margin: 1 1;
+}
+
+#model-search:focus {
+    border: solid #cc785c;
+}
+
+#model-list {
+    height: auto;
+    max-height: 22;
+    width: 100%;
+    background: #111111;
+    border: none;
+    color: #d4d4d4;
+    padding: 0;
+    overflow-y: auto;
+    scrollbar-size: 1 1;
+    scrollbar-color: #2a2a2a #111111;
+}
+
+#model-list > .option-list--option {
+    padding: 0 2;
+    color: #d4d4d4;
+}
+
+#model-list > .option-list--option-highlighted {
+    background: #cc785c;
+    color: #ffffff;
+    text-style: bold;
+}
+
+#model-list > .option-list--option-disabled {
+    color: #4b5563;
+    text-style: bold;
+    background: transparent;
+    padding: 0 2;
+}
+
+#model-footer {
+    height: 1;
+    width: 100%;
+    color: #4b5563;
+    background: #0d0d0d;
+    border-top: solid #2a2a2a;
+    padding: 0;
+}
 """
 
 DEFAULT_CSS = ASSISTANT_CSS
