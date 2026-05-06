@@ -277,6 +277,187 @@ ModelSelectScreen {
     border-top: solid #2a2a2a;
     padding: 0;
 }
+
+/* ── API Key list modal ───────────────────────────────────────────── */
+APIKeyListScreen {
+    align: center middle;
+    background: rgba(0, 0, 0, 0.80);
+}
+
+#apikey-panel {
+    width: 96;
+    height: auto;
+    max-height: 34;
+    background: #111111;
+    border: solid #2a2a2a;
+}
+
+#apikey-title-bar {
+    dock: top;
+    height: auto;
+    background: #0d0d0d;
+    border-bottom: solid #2a2a2a;
+    padding: 0 2;
+}
+
+#apikey-title {
+    height: 1;
+    width: 100%;
+    color: #cc785c;
+    text-style: bold;
+    padding: 0;
+}
+
+#apikey-footer {
+    dock: bottom;
+    height: 1;
+    width: 100%;
+    background: #0d0d0d;
+    border-top: solid #2a2a2a;
+    padding: 0;
+}
+
+#apikey-header-row {
+    height: 1;
+    width: 100%;
+    background: #111111;
+    padding: 0 2;
+}
+
+#apikey-list {
+    height: auto;
+    max-height: 18;
+    width: 100%;
+    background: #111111;
+    border: none;
+    color: #d4d4d4;
+    padding: 0;
+    overflow-y: auto;
+    scrollbar-size: 1 1;
+    scrollbar-color: #2a2a2a #111111;
+}
+
+#apikey-list > .option-list--option {
+    padding: 0 2;
+    color: #d4d4d4;
+}
+
+#apikey-list > .option-list--option-highlighted {
+    background: #1e293b;
+    color: #ffffff;
+}
+
+#apikey-summary {
+    height: auto;
+    min-height: 1;
+    width: 100%;
+    background: #111111;
+    padding: 0 2;
+    color: #4b5563;
+}
+
+/* ── Add API Key modal ────────────────────────────────────────────── */
+APIKeyAddScreen {
+    align: center middle;
+    background: rgba(0, 0, 0, 0.80);
+}
+
+#addkey-panel {
+    width: 60;
+    height: auto;
+    max-height: 28;
+    background: #111111;
+    border: solid #2a2a2a;
+}
+
+#addkey-title-bar {
+    height: auto;
+    background: #0d0d0d;
+    border-bottom: solid #2a2a2a;
+    padding: 0 2;
+}
+
+#addkey-title {
+    height: 1;
+    width: 100%;
+    color: #cc785c;
+    text-style: bold;
+    padding: 0;
+}
+
+#addkey-form {
+    padding: 1 2;
+    height: auto;
+}
+
+#addkey-form .field-label {
+    height: 1;
+    margin: 1 0 0 0;
+    padding: 0;
+    background: transparent;
+}
+
+#addkey-form .field-hint {
+    height: 1;
+    margin: 0;
+    padding: 0;
+    color: #4b5563;
+    background: transparent;
+}
+
+#addkey-form Input {
+    height: 1;
+    width: 100%;
+    background: #1a1a1a;
+    border: solid #2a2a2a;
+    color: #d4d4d4;
+    padding: 0 1;
+    margin: 0 0 0 0;
+}
+
+#addkey-form Input:focus {
+    border: solid #cc785c;
+}
+
+#addkey-status {
+    height: auto;
+    min-height: 1;
+    padding: 0 2;
+    background: transparent;
+}
+
+#addkey-actions {
+    height: 3;
+    padding: 0 2;
+    align: right middle;
+}
+
+#addkey-actions Button {
+    margin: 0 1;
+    min-width: 12;
+}
+
+#addkey-save {
+    background: #cc785c;
+    color: #ffffff;
+    text-style: bold;
+    border: none;
+}
+
+#addkey-cancel {
+    background: #2a2a2a;
+    color: #d4d4d4;
+    border: none;
+}
+
+#addkey-footer {
+    height: 1;
+    width: 100%;
+    color: #4b5563;
+    background: #0d0d0d;
+    border-top: solid #2a2a2a;
+    padding: 0;
+}
 """
 
 DEFAULT_CSS = ASSISTANT_CSS

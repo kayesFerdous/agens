@@ -12,6 +12,8 @@ COMMANDS = {
     "/exit": "Exit the assistant",
     "/quit": "Exit the assistant",
     "/models": "Select a model interactively",
+    "/keys": "List registered API keys",
+    "/addkey": "Add a new API key",
     "/tokens": "Show token count",
     "?": "Show this help message",
 }
@@ -79,6 +81,12 @@ async def execute_command(text: str, app: "AssistantTUI") -> None:
 
     elif resolved_command == "/models":
         app.show_model_selector()
+
+    elif resolved_command == "/keys":
+        app.show_api_key_list()
+
+    elif resolved_command == "/addkey":
+        app.show_api_key_add()
 
     elif resolved_command == "/tokens":
         await chat.add_system(f"Session tokens: [bold]{app.token_count}[/bold]")
