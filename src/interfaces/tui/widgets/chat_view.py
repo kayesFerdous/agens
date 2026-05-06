@@ -1,26 +1,46 @@
 from __future__ import annotations
 
-from textual.containers import Vertical, VerticalScroll
 from textual.widget import Widget
 
 
-class ChatView(VerticalScroll):
-    """Scrollable chat transcript."""
+class ChatView(Widget):
+    """
+    The main chat canvas.
 
-    DEFAULT_CSS = "ChatView > Vertical { width: 100%; }"
+    This is not a panel, card, or bordered container. It uses Widget scrolling
+    via CSS overflow because the low-level Textual scroll base renders a
+    diagnostic panel unless a subclass implements its own rendering.
+    """
 
-    def compose(self):
-        yield Vertical(id="chat-content")
+    async def add_user(self, text: str) -> None:
+        from .messages import UserBlock
 
-    async def mount_message(self, widget: Widget) -> None:
-        await self.query_one("#chat-content", Vertical).mount(widget)
-        self.call_after_refresh(self.scroll_end, animate=False)
+        await self._add_widget(UserBlock(text))
 
-    async def clear_messages(self) -> None:
-        container = self.query_one("#chat-content", Vertical)
-        for child in list(container.children):
+    async def add_assistant(self) -> "AssistantBlock":
+        from .messages import AssistantBlock
+
+        widget = AssistantBlock()
+        await self._add_widget(widget)
+        return widget
+
+    async def add_system(self, text: str) -> None:
+        from .messages import SystemLine
+
+        await self._add_widget(SystemLine(text))
+
+    async def add_spinner(self) -> "LiveSpinner":
+        from .spinner import LiveSpinner
+
+        widget = LiveSpinner()
+        await self._add_widget(widget)
+        return widget
+
+    async def clear_all(self) -> None:
+        for child in list(self.children):
             await child.remove()
-        self.call_after_refresh(self.scroll_home, animate=False)
+        self.scroll_home(animate=False)
 
-    def scroll_to_bottom(self) -> None:
-        self.call_after_refresh(self.scroll_end, animate=False)
+    async def _add_widget(self, widget: Widget) -> None:
+        await self.mount(widget)
+        self.scroll_end(animate=False)

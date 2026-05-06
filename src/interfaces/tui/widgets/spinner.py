@@ -1,32 +1,48 @@
 from __future__ import annotations
 
-from textual.app import ComposeResult
-from textual.css.query import NoMatches
+from rich.style import Style
+from rich.text import Text
 from textual.reactive import reactive
+from textual.timer import Timer
 from textual.widget import Widget
-from textual.widgets import Static
+
+BRAILLE_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
 
-class StreamingSpinner(Widget):
-    FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+class LiveSpinner(Widget):
+    """
+    Inline animated spinner shown during streaming.
 
-    frame_index = reactive(0)
+    It appears directly in the chat flow, not as a modal or overlay.
+    """
 
-    def compose(self) -> ComposeResult:
-        yield Static(self._render(), id="spinner-line")
+    frame: reactive[int] = reactive(0)
+    label: reactive[str] = reactive("Thinking...")
 
     def on_mount(self) -> None:
-        self.set_interval(0.08, self._tick)
-
-    def watch_frame_index(self) -> None:
-        try:
-            self.query_one("#spinner-line", Static).update(self._render())
-        except NoMatches:
-            pass
+        self._timer: Timer = self.set_interval(0.08, self._tick)
 
     def _tick(self) -> None:
-        self.frame_index = (self.frame_index + 1) % len(self.FRAMES)
+        self.frame = (self.frame + 1) % len(BRAILLE_FRAMES)
 
-    def _render(self) -> str:
-        frame = self.FRAMES[self.frame_index]
-        return f"{frame} Thinking...                           [ESC to stop]"
+    def render(self) -> Text:
+        frame_char = BRAILLE_FRAMES[self.frame]
+        width = max(0, self.app.console.width - 4)
+        left = f"  {frame_char} {self.label}"
+        right = "esc to stop"
+        padding = max(0, width - len(left) - len(right))
+        line = Text()
+        line.append(left, style=Style(color="#cc785c"))
+        line.append(" " * padding)
+        line.append(right, style=Style(color="#3f3f3f"))
+        return line
+
+    async def stop(self) -> None:
+        try:
+            self._timer.stop()
+        except Exception:
+            pass
+        try:
+            await self.remove()
+        except Exception:
+            pass

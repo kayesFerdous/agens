@@ -2,148 +2,295 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import uuid
 from collections.abc import AsyncIterator
 from typing import Any
+
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
-from textual.message import Message
-from textual.widgets import Static, TextArea
-from .commands import handle_command, is_command
+
+from .commands import execute_command, parse_command
 from .history import InputHistory
-from .theme import DEFAULT_CSS
-from .widgets import AssistantMessage, ChatView, StreamingSpinner, SystemMessage, UserMessage
+from .theme import ASSISTANT_CSS
+from .widgets.chat_view import ChatView
+from .widgets.command_palette import CommandPalette
+from .widgets.header import AppHeader
+from .widgets.horizontal_rule import HorizontalRule
+from .widgets.input_row import InputRow
+from .widgets.tool_block import ToolBlock
+from .widgets.tool_group import ToolGroup
 
-class PromptInput(TextArea):
-    class Submitted(Message):
-        def __init__(self, text: str) -> None:
-            super().__init__(); self.text = text
-
-    async def on_key(self, event: events.Key) -> None:
-        if event.key == "shift+enter":
-            return
-        if event.key == "enter":
-            event.prevent_default(); event.stop()
-            self.post_message(self.Submitted(self.text))
 
 class AssistantTUI(App):
-    CSS = DEFAULT_CSS
+    CSS = ASSISTANT_CSS
+
     BINDINGS = [
-        Binding(k, a, show=False) for k, a in [("ctrl+c", "quit"), ("ctrl+q", "quit"),
-        ("ctrl+l", "clear_chat"), ("escape", "cancel_stream"), ("ctrl+k", "focus_input"),
-        ("pageup", "page_up"), ("pagedown", "page_down"), ("up", "history_prev"),
-        ("down", "history_next")]
+        Binding("ctrl+c", "quit", "Quit", priority=True),
+        Binding("ctrl+q", "quit", "Quit", priority=True),
+        Binding("ctrl+l", "clear_chat", "Clear"),
+        Binding("ctrl+k", "focus_input", "Focus input"),
+        Binding("escape", "interrupt", "Interrupt"),
+        Binding("up", "history_prev", "Previous input", show=False),
+        Binding("down", "history_next", "Next input", show=False),
     ]
-    def __init__(self, agent: Any) -> None:
-        super().__init__()
-        self.agent, self.history = agent, InputHistory(max_items=50)
-        self.current_task: asyncio.Task[None] | None = None
-        self.current_generator: AsyncIterator[Any] | None = None
-        self.is_streaming, self.token_count = False, 0
+
+    def __init__(self, agent: Any, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.agent = agent
         self.session_id = str(uuid.uuid4())
+        self._history = InputHistory(max_size=50)
+        self._stream_task: asyncio.Task[None] | None = None
+        self._current_generator: AsyncIterator[Any] | None = None
+        self._current_block = None
+        self._spinner = None
+        self._current_tool_group: ToolGroup | None = None
+        self._pending_tool_blocks: dict[str, ToolBlock] = {}
+        self._token_count = 0
         self.model_name = self._detect_model_name()
+
     def compose(self) -> ComposeResult:
-        with Horizontal(id="app-header"):
-            yield Static("◆ Assistant", id="header-title"); yield Static(self.model_name, id="header-model")
-            yield Static("tokens: 0", id="header-tokens")
+        yield AppHeader(id="app-header")
         yield ChatView(id="chat")
-        with Vertical(id="input-panel"):
-            yield PromptInput("", id="prompt"); yield Static("? for help · /clear · /exit              tokens: 0", id="footer-hints")
+        yield HorizontalRule()
+        yield CommandPalette(id="command-palette")
+        yield InputRow(id="input-row")
+
     async def on_mount(self) -> None:
-        await self._ensure_repo_session(); self.query_one(PromptInput).focus()
-    async def on_prompt_input_submitted(self, message: PromptInput.Submitted) -> None:
-        text = message.text.strip()
-        if not text or self.is_streaming:
+        await self._ensure_repo_session()
+        self.query_one(AppHeader).update_model(self.model_name)
+        self.query_one(InputRow).focus_input()
+        await self._mount_welcome()
+
+    def on_key(self, event: events.Key) -> None:
+        if event.key != "f12":
             return
-        self.query_one(PromptInput).load_text("")
-        if is_command(text): await handle_command(text, self)
-        else: self.history.add(text); self.current_task = asyncio.create_task(self.send_message(text))
-    async def send_message(self, text: str) -> None:
-        chat, assistant, spinner = self.query_one(ChatView), AssistantMessage(), StreamingSpinner()
-        await chat.mount_message(UserMessage(text)); await chat.mount_message(assistant)
-        await chat.mount_message(spinner)
-        self.is_streaming = True
+
+        chat = self.query_one(ChatView)
+        self.log(f"ChatView children: {list(chat.children)}")
+        self.log(f"ChatView size: {chat.size}")
+        self.log(f"ChatView region: {chat.region}")
+        for child in chat.children:
+            self.log(f"  child: {child} size={child.size} region={child.region}")
+
+    async def _mount_welcome(self) -> None:
+        await self.query_one(ChatView).add_system(
+            "◆  Assistant ready. Type [bold]?[/bold] for help."
+        )
+
+    def handle_submit(self, text: str) -> None:
+        if self._is_streaming:
+            return
+
+        self._history.add(text)
+
+        if parse_command(text):
+            asyncio.create_task(execute_command(text, self))
+            return
+
+        asyncio.create_task(self._run_turn(text))
+
+    async def _run_turn(self, text: str) -> None:
+        self._current_tool_group = None
+        self._pending_tool_blocks = {}
+        self._current_block = None
+        chat = self.query_one(ChatView)
+
+        await chat.add_user(text)
+        self._spinner = await chat.add_spinner()
+
+        self._stream_task = asyncio.create_task(self._stream(text))
+
+    async def _stream(self, text: str) -> None:
+        chat = self.query_one(ChatView)
+        header = self.query_one(AppHeader)
+
         try:
-            self.current_generator = self._chat_stream(text)
-            async for event in self.current_generator:
-                await self._handle_stream_event(event, assistant)
-                chat.scroll_to_bottom()
+            self._current_generator = self._chat_stream(text)
+            async for event in self._current_generator:
+                chunk = await self._handle_stream_event(event)
+                if chunk:
+                    if self._current_block is None:
+                        if self._spinner is not None:
+                            await self._spinner.stop()
+                            self._spinner = None
+                        self._current_block = await chat.add_assistant()
+                    self._current_block.append_chunk(chunk)
+                    self._token_count += len(chunk.split())
+                    header.update_tokens(self._token_count)
+                    chat.scroll_end(animate=False)
+
         except asyncio.CancelledError:
-            assistant.mark_interrupted()
+            if self._current_block is not None:
+                self._current_block.append_chunk("\n\n*[interrupted]*")
+
         except Exception as exc:
-            await self.add_system_message(f"◆ System\n\nError: `{type(exc).__name__}: {exc}`")
+            await chat.add_system(f"[red]Error:[/red] {exc}")
+
         finally:
-            self.current_generator = None; self.is_streaming = False
-            if spinner.is_mounted:
-                await spinner.remove()
-            self.current_task = None; chat.scroll_to_bottom()
-            self.query_one(PromptInput).focus()
-    async def add_system_message(self, text: str) -> None:
-        await self.query_one(ChatView).mount_message(SystemMessage(text))
-    async def clear_chat(self) -> None:
-        await self.query_one(ChatView).clear_messages()
-    async def action_clear_chat(self) -> None:
-        await self.clear_chat(); await self.add_system_message("◆ System\n\nChat cleared.")
-    def action_focus_input(self) -> None: self.query_one(PromptInput).focus()
-    def action_page_up(self) -> None: self.query_one(ChatView).scroll_page_up(animate=False)
-    def action_page_down(self) -> None: self.query_one(ChatView).scroll_page_down(animate=False)
-    async def action_cancel_stream(self) -> None:
-        if self.current_generator is not None and hasattr(self.current_generator, "aclose"):
-            await self.current_generator.aclose()
-        if self.current_task is not None:
-            self.current_task.cancel()
-    def action_history_prev(self) -> None:
-        prompt = self.query_one(PromptInput)
-        self._load_history(self.history.prev() if not prompt.text.strip() else None)
-    def action_history_next(self) -> None:
-        prompt = self.query_one(PromptInput)
-        if prompt.text.strip() and not self.history.has_cursor:
-            return
-        self._load_history(self.history.next())
-    def _load_history(self, value: str | None) -> None:
-        if value is not None: self.query_one(PromptInput).load_text(value)
-    async def _handle_stream_event(self, event: Any, assistant: AssistantMessage) -> None:
-        kind = getattr(event, "type", "")
-        if kind == "token" and getattr(event, "content", None):
-            assistant.append_text(event.content)
-        elif kind == "status" and getattr(event, "message", None):
-            await self.add_system_message(f"◆ System\n\n{event.message}")
+            self._current_generator = None
+            if self._spinner is not None:
+                await self._spinner.stop()
+                self._spinner = None
+
+            self._current_block = None
+            self._pending_tool_blocks = {}
+            self._stream_task = None
+            chat.scroll_end(animate=False)
+            self.query_one(InputRow).focus_input()
+
+    async def show_tool_call(self, tool_name: str, args: dict | str = "") -> ToolBlock:
+        """Call this when a tool starts executing."""
+        chat = self.query_one(ChatView)
+        if self._current_tool_group is None:
+            self._current_tool_group = ToolGroup()
+            await chat.mount(self._current_tool_group)
+        block = await self._current_tool_group.add_tool(tool_name, args)
+        chat.scroll_end(animate=False)
+        return block
+
+    async def finish_tool_call(self, block: ToolBlock, output: str) -> None:
+        """Call this when a tool finishes, passing its output."""
+        block.set_output(output)
+        if self._current_tool_group is not None and not self._pending_tool_blocks:
+            self._current_tool_group.mark_done()
+
+    async def _handle_stream_event(self, event: Any) -> str:
+        if isinstance(event, str):
+            return event
+
+        kind = self._event_value(event, "type", "")
+        if kind == "token":
+            return str(self._event_value(event, "content", "") or "")
+
+        if kind == "tool_start":
+            tool_name = str(self._event_value(event, "tool", None) or "tool")
+            arguments = self._event_value(event, "arguments", {}) or {}
+            block = await self.show_tool_call(tool_name, arguments)
+            self._pending_tool_blocks[tool_name] = block
+            return ""
+
+        if kind == "tool_end":
+            tool_name = str(self._event_value(event, "tool", None) or "tool")
+            block = self._pending_tool_blocks.pop(tool_name, None)
+            if block is not None:
+                await self.finish_tool_call(block, self._format_tool_output(event))
+            return ""
+
+        if kind == "status" and self._event_value(event, "message", None):
+            await self.query_one(ChatView).add_system(str(self._event_value(event, "message")))
         elif kind == "error":
-            await self.add_system_message(f"◆ System\n\nError: `{getattr(event, 'error', 'Unknown error')}`")
+            error = self._event_value(event, "error", "Unknown error")
+            await self.query_one(ChatView).add_system(f"[red]Error:[/red] {error}")
         elif kind in {"confirmation_required", "sudo_auth_required"}:
             await self._show_confirmation_event(event, kind)
-        elif kind == "done" and getattr(event, "usage", None) is not None:
-            self.token_count = getattr(event.usage, "total_tokens", self.token_count) or self.token_count
-            self._update_token_labels()
+        elif kind == "done" and self._event_value(event, "usage", None) is not None:
+            usage = self._event_value(event, "usage")
+            usage_total = getattr(usage, "total_tokens", None)
+            if usage_total is not None:
+                self._token_count = usage_total
+                self.query_one(AppHeader).update_tokens(self._token_count)
+
+        return ""
+
+    def _event_value(self, event: Any, key: str, default: Any = None) -> Any:
+        if isinstance(event, dict):
+            return event.get(key, default)
+        return getattr(event, key, default)
+
+    def _format_tool_output(self, event: Any) -> str:
+        error = self._event_value(event, "error", None)
+        if error:
+            return str(error)
+
+        result = self._event_value(event, "result", "")
+        if isinstance(result, (dict, list)):
+            try:
+                return json.dumps(result, indent=2, ensure_ascii=False)
+            except TypeError:
+                return str(result)
+        return str(result)
+
     async def _show_confirmation_event(self, event: Any, kind: str) -> None:
-        preview = getattr(event, "confirmation_preview", "") or ""
+        preview = self._event_value(event, "confirmation_preview", "") or ""
         if kind == "sudo_auth_required":
-            await self.add_system_message(f"◆ System\n\nSudo authorization required for `{preview}`."); return
-        reason = getattr(event, "confirmation_reason", "") or "Confirmation required."
-        await self.add_system_message(f"◆ System\n\n{reason}\n\n`{preview}`\n\nReply `YES` to proceed.")
+            await self.query_one(ChatView).add_system(
+                f"Sudo authorization required for `{preview}`."
+            )
+            return
+
+        reason = self._event_value(event, "confirmation_reason", "") or "Confirmation required."
+        await self.query_one(ChatView).add_system(
+            f"{reason}\n\n`{preview}`\n\nReply `YES` to proceed."
+        )
+
+    def action_interrupt(self) -> None:
+        if self._stream_task and not self._stream_task.done():
+            self._stream_task.cancel()
+
+    def action_clear_chat(self) -> None:
+        asyncio.create_task(self._do_clear())
+
+    async def _do_clear(self) -> None:
+        chat = self.query_one(ChatView)
+        await chat.clear_all()
+        await chat.add_system("Chat cleared. Type [bold]?[/bold] for help.")
+        self._token_count = 0
+        self.query_one(AppHeader).update_tokens(0)
+
+    def action_focus_input(self) -> None:
+        self.query_one(InputRow).focus_input()
+
+    def action_history_prev(self) -> None:
+        previous = self._history.prev()
+        if previous is not None:
+            input_row = self.query_one(InputRow)
+            input_row.query_one("#main-input").value = previous
+
+    def action_history_next(self) -> None:
+        next_value = self._history.next()
+        if next_value is not None:
+            input_row = self.query_one(InputRow)
+            input_row.query_one("#main-input").value = next_value
+
+    def action_quit(self) -> None:
+        if self._stream_task and not self._stream_task.done():
+            self._stream_task.cancel()
+        self.exit()
+
     def _chat_stream(self, text: str) -> AsyncIterator[Any]:
         params = inspect.signature(self.agent.chat).parameters
         if "source" in params:
             return self.agent.chat(text, source="tui")
         if "channel" in params:
             from agent.agent import Channel
+
             return self.agent.chat(text, self.session_id, Channel.TUI)
         return self.agent.chat(text)
+
     async def _ensure_repo_session(self) -> None:
-        if "session_id" not in inspect.signature(self.agent.chat).parameters: return
+        if "session_id" not in inspect.signature(self.agent.chat).parameters:
+            return
         try:
             from db import repository as session_repo
             from db.database import async_session
+
             async with async_session() as db:
                 self.session_id = (await session_repo.insert_session(db, title="TUI Session")).id
         except Exception:
-            await self.add_system_message("◆ System\n\nCould not create a database session. Using an ephemeral TUI session.")
+            await self.query_one(ChatView).add_system(
+                "Could not create a database session. Using an ephemeral TUI session."
+            )
+
     def _detect_model_name(self) -> str:
         llm = getattr(self.agent, "_llm", None)
-        return str(getattr(llm, "model_name", None) or getattr(self.agent, "model_name", "model"))
-    def _update_token_labels(self) -> None:
-        text = f"tokens: {self.token_count}"
-        self.query_one("#header-tokens", Static).update(text)
-        self.query_one("#footer-hints", Static).update(f"? for help · /clear · /exit              {text}")
+        return str(getattr(llm, "model_name", None) or getattr(self.agent, "model_name", "assistant"))
+
+    @property
+    def _is_streaming(self) -> bool:
+        return self._stream_task is not None and not self._stream_task.done()
+
+    @property
+    def token_count(self) -> int:
+        return self._token_count

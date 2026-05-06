@@ -7,38 +7,53 @@ if TYPE_CHECKING:
 
 
 COMMANDS = {
-    "/help": "Show this help panel",
-    "/clear": "Clear the visible chat",
-    "/exit": "Exit the TUI",
-    "/quit": "Exit the TUI",
-    "/model": "Show the active model name",
-    "/tokens": "Show the session token count",
-    "?": "Show this help panel",
+    "/help": "Show this help message",
+    "/clear": "Clear chat history",
+    "/exit": "Exit the assistant",
+    "/quit": "Exit the assistant",
+    "/model": "Show current model",
+    "/tokens": "Show token count",
+    "?": "Show this help message",
 }
 
 
+def parse_command(text: str) -> bool:
+    value = text.strip()
+    return value == "?" or value.startswith("/")
+
+
+async def execute_command(text: str, app: "AssistantTUI") -> None:
+    command = text.strip().split(maxsplit=1)[0].lower()
+    chat = app.query_one("ChatView")
+
+    if command in {"?", "/help"}:
+        lines = ["[bold]Available commands:[/bold]"]
+        for name, description in COMMANDS.items():
+            lines.append(f"  [#cc785c]{name}[/#cc785c]  {description}")
+        await chat.add_system("\n".join(lines))
+
+    elif command == "/clear":
+        await app._do_clear()
+
+    elif command in {"/exit", "/quit"}:
+        app.action_quit()
+
+    elif command == "/model":
+        model = getattr(app.agent, "model_name", getattr(app, "model_name", "unknown"))
+        await chat.add_system(f"Current model: [bold]{model}[/bold]")
+
+    elif command == "/tokens":
+        await chat.add_system(f"Session tokens: [bold]{app.token_count}[/bold]")
+
+    else:
+        await chat.add_system(
+            f"Unknown command: [red]{text}[/red]  - type [bold]?[/bold] for help"
+        )
+
+
 def is_command(text: str) -> bool:
-    stripped = text.strip()
-    return stripped == "?" or stripped.startswith("/")
+    return parse_command(text)
 
 
 async def handle_command(text: str, app: "AssistantTUI") -> None:
-    command = text.strip().split(maxsplit=1)[0].lower()
-    if command == "?":
-        command = "/help"
-
-    if command == "/help":
-        lines = ["◆ System", "", "**Commands**"]
-        lines.extend(f"- `{name}` - {description}" for name, description in COMMANDS.items())
-        await app.add_system_message("\n".join(lines))
-    elif command == "/clear":
-        await app.clear_chat()
-        await app.add_system_message("◆ System\n\nChat cleared.")
-    elif command in {"/exit", "/quit"}:
-        app.exit()
-    elif command == "/model":
-        await app.add_system_message(f"◆ System\n\nCurrent model: `{app.model_name}`")
-    elif command == "/tokens":
-        await app.add_system_message(f"◆ System\n\nSession tokens: `{app.token_count}`")
-    else:
-        await app.add_system_message(f"◆ System\n\nUnknown command: `{command}`. Type `?` for help.")
+    await execute_command(text, app)
