@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from textual import events
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
@@ -57,7 +58,7 @@ def _build_options(query: str, current_model: str | None) -> list[Option]:
                 marker = "✓ " if mid == current_model else "  "
                 items.append(
                     Option(
-                        f"{marker}[bold]{lbl}[/bold]  [dim]{mid}[/dim]",
+                        f"{marker}[bold]{lbl}[/bold]",
                         id=mid,
                     )
                 )
@@ -74,7 +75,7 @@ def _build_options(query: str, current_model: str | None) -> list[Option]:
             marker = "✓ " if mid == current_model else "  "
             items.append(
                 Option(
-                    f"{marker}[bold]{lbl}[/bold]  [dim]{mid}[/dim]",
+                    f"{marker}[bold]{lbl}[/bold]",
                     id=mid,
                 )
             )
@@ -121,8 +122,16 @@ class ModelSelectScreen(ModalScreen[str | None]):
             )
 
     def on_mount(self) -> None:
-        self.query_one("#model-search", Input).focus()
+        self.query_one("#model-list", OptionList).focus()
         self._scroll_to_current()
+
+    def on_key(self, event: events.Key) -> None:
+        search = self.query_one("#model-search", Input)
+        if not search.has_focus and event.is_printable and event.character:
+            search.focus()
+            search.value += event.character
+            search.cursor_position = len(search.value)
+            event.prevent_default()
 
     # ------------------------------------------------------------------
     # Event handlers
