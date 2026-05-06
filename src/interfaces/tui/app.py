@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import uuid
 from collections.abc import AsyncIterator
 from typing import Any
@@ -45,6 +46,7 @@ class AssistantTUI(App):
         self._current_block = None
         self._spinner = None
         self._current_tool_group: ToolGroup | None = None
+        self._pending_tool_blocks: dict[str, ToolBlock] = {}
         self._token_count = 0
         self.model_name = self._detect_model_name()
 
@@ -91,11 +93,12 @@ class AssistantTUI(App):
 
     async def _run_turn(self, text: str) -> None:
         self._current_tool_group = None
+        self._pending_tool_blocks = {}
+        self._current_block = None
         chat = self.query_one(ChatView)
 
         await chat.add_user(text)
         self._spinner = await chat.add_spinner()
-        self._current_block = await chat.add_assistant()
 
         self._stream_task = asyncio.create_task(self._stream(text))
 
@@ -107,7 +110,12 @@ class AssistantTUI(App):
             self._current_generator = self._chat_stream(text)
             async for event in self._current_generator:
                 chunk = await self._handle_stream_event(event)
-                if chunk and self._current_block is not None:
+                if chunk:
+                    if self._current_block is None:
+                        if self._spinner is not None:
+                            await self._spinner.stop()
+                            self._spinner = None
+                        self._current_block = await chat.add_assistant()
                     self._current_block.append_chunk(chunk)
                     self._token_count += len(chunk.split())
                     header.update_tokens(self._token_count)
@@ -127,6 +135,7 @@ class AssistantTUI(App):
                 self._spinner = None
 
             self._current_block = None
+            self._pending_tool_blocks = {}
             self._stream_task = None
             chat.scroll_end(animate=False)
             self.query_one(InputRow).focus_input()
@@ -144,40 +153,74 @@ class AssistantTUI(App):
     async def finish_tool_call(self, block: ToolBlock, output: str) -> None:
         """Call this when a tool finishes, passing its output."""
         block.set_output(output)
-        self._current_tool_group = None
+        if self._current_tool_group is not None and not self._pending_tool_blocks:
+            self._current_tool_group.mark_done()
 
     async def _handle_stream_event(self, event: Any) -> str:
         if isinstance(event, str):
             return event
 
-        kind = getattr(event, "type", "")
+        kind = self._event_value(event, "type", "")
         if kind == "token":
-            return str(getattr(event, "content", "") or "")
+            return str(self._event_value(event, "content", "") or "")
 
-        if kind == "status" and getattr(event, "message", None):
-            await self.query_one(ChatView).add_system(str(event.message))
+        if kind == "tool_start":
+            tool_name = str(self._event_value(event, "tool", None) or "tool")
+            arguments = self._event_value(event, "arguments", {}) or {}
+            block = await self.show_tool_call(tool_name, arguments)
+            self._pending_tool_blocks[tool_name] = block
+            return ""
+
+        if kind == "tool_end":
+            tool_name = str(self._event_value(event, "tool", None) or "tool")
+            block = self._pending_tool_blocks.pop(tool_name, None)
+            if block is not None:
+                await self.finish_tool_call(block, self._format_tool_output(event))
+            return ""
+
+        if kind == "status" and self._event_value(event, "message", None):
+            await self.query_one(ChatView).add_system(str(self._event_value(event, "message")))
         elif kind == "error":
-            error = getattr(event, "error", "Unknown error")
+            error = self._event_value(event, "error", "Unknown error")
             await self.query_one(ChatView).add_system(f"[red]Error:[/red] {error}")
         elif kind in {"confirmation_required", "sudo_auth_required"}:
             await self._show_confirmation_event(event, kind)
-        elif kind == "done" and getattr(event, "usage", None) is not None:
-            usage_total = getattr(event.usage, "total_tokens", None)
+        elif kind == "done" and self._event_value(event, "usage", None) is not None:
+            usage = self._event_value(event, "usage")
+            usage_total = getattr(usage, "total_tokens", None)
             if usage_total is not None:
                 self._token_count = usage_total
                 self.query_one(AppHeader).update_tokens(self._token_count)
 
         return ""
 
+    def _event_value(self, event: Any, key: str, default: Any = None) -> Any:
+        if isinstance(event, dict):
+            return event.get(key, default)
+        return getattr(event, key, default)
+
+    def _format_tool_output(self, event: Any) -> str:
+        error = self._event_value(event, "error", None)
+        if error:
+            return str(error)
+
+        result = self._event_value(event, "result", "")
+        if isinstance(result, (dict, list)):
+            try:
+                return json.dumps(result, indent=2, ensure_ascii=False)
+            except TypeError:
+                return str(result)
+        return str(result)
+
     async def _show_confirmation_event(self, event: Any, kind: str) -> None:
-        preview = getattr(event, "confirmation_preview", "") or ""
+        preview = self._event_value(event, "confirmation_preview", "") or ""
         if kind == "sudo_auth_required":
             await self.query_one(ChatView).add_system(
                 f"Sudo authorization required for `{preview}`."
             )
             return
 
-        reason = getattr(event, "confirmation_reason", "") or "Confirmation required."
+        reason = self._event_value(event, "confirmation_reason", "") or "Confirmation required."
         await self.query_one(ChatView).add_system(
             f"{reason}\n\n`{preview}`\n\nReply `YES` to proceed."
         )

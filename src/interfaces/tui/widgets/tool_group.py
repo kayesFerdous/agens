@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from rich.style import Style
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.widget import Widget
 from textual.widgets import Static
@@ -42,8 +44,22 @@ class ToolGroup(Widget):
         return block
 
     def _update_header(self) -> None:
+        self._render_header(done=False)
+
+    def mark_done(self) -> None:
+        self._render_header(done=True)
+
+    def _render_header(self, done: bool = False) -> None:
         count = len(self._blocks)
         plural = "s" if count != 1 else ""
-        self.query_one("#tg-header", Static).update(
-            f"  ● Running {count} tool{plural}...  (click to expand)"
-        )
+        if done:
+            text = Text(
+                f"  ✓ {count} tool{plural} complete",
+                style=Style(color="#3a3a3a"),
+            )
+        else:
+            text = Text(
+                f"  ● {count} tool{plural} running",
+                style=Style(color="#cc785c"),
+            )
+        self.query_one("#tg-header", Static).update(text)
