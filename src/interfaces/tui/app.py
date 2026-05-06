@@ -300,6 +300,24 @@ class AssistantTUI(App):
 
         self.push_screen(ModelSelectScreen(current_model=self._selected_model), callback=_on_selected)
 
+    def show_api_key_list(self) -> None:
+        """Push the API key list modal."""
+        from .widgets.api_key_manage import APIKeyListScreen
+        self.push_screen(APIKeyListScreen())
+
+    def show_api_key_add(self) -> None:
+        """Push the add-API-key modal; shows a success message on completion."""
+        from .widgets.api_key_manage import APIKeyAddScreen
+
+        def _on_result(result: str | None) -> None:
+            if result is None:
+                return
+            asyncio.create_task(
+                self.query_one(ChatView).add_system(result)
+            )
+
+        self.push_screen(APIKeyAddScreen(), callback=_on_result)
+
     def _update_model_bar(self) -> None:
         """Refresh the one-line status bar below the input with the active model."""
         from .widgets.model_select import get_model_label
