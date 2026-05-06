@@ -12,7 +12,6 @@ COMMANDS = [
     ("/clear", "Clear the chat history"),
     ("/exit", "Exit the assistant"),
     ("/quit", "Exit the assistant"),
-    ("/model", "Show the current model name"),
     ("/models", "Select a model interactively"),
     ("/tokens", "Show session token count"),
 ]
