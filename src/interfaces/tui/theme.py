@@ -1,135 +1,190 @@
 from __future__ import annotations
 
-THEME = {
-    "background": "#0d0d0d",
-    "surface": "#1a1a1a",
-    "panel": "#141414",
-    "header_bg": "#1a1a2e",
-    "accent": "#cc785c",
-    "accent_alt": "#4a9eff",
-    "text_primary": "#e8e6e3",
-    "text_muted": "#6b6b6b",
-    "border_color": "#2a2a2a",
-    "user_bubble_bg": "#1e2030",
-    "success": "#4caf50",
-    "error": "#f44336",
+ASSISTANT_CSS = """
+Screen {
+    background: #0d0d0d;
+    color: #d4d4d4;
+    layout: vertical;
 }
 
-DEFAULT_CSS = f"""
-Screen {{
-    background: {THEME["background"]};
-    color: {THEME["text_primary"]};
-}}
-
-#app-header {{
-    dock: top;
+AppHeader {
     height: 1;
-    background: {THEME["header_bg"]};
-    color: {THEME["text_primary"]};
+    background: #111827;
     layout: horizontal;
     padding: 0 1;
-}}
+}
 
-#header-title, #header-model, #header-tokens {{
+AppHeader .header-title {
+    color: #cc785c;
+    text-style: bold;
+    width: auto;
+}
+
+AppHeader .header-model {
+    color: #4b5563;
     width: 1fr;
-    height: 1;
-}}
-
-#header-title {{
-    color: {THEME["accent"]};
-    text-style: bold;
-}}
-
-#header-model {{
     content-align: center middle;
-    color: {THEME["text_muted"]};
-}}
+}
 
-#header-tokens {{
-    content-align: right middle;
-    color: {THEME["text_muted"]};
-}}
+AppHeader .header-tokens {
+    color: #4b5563;
+    width: auto;
+}
 
-ChatView {{
-    background: {THEME["background"]};
+ChatView {
+    height: 1fr;
+    min-height: 10;
+    background: #0d0d0d;
+    border: none !important;
+    outline: none !important;
     padding: 1 2;
-}}
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-size: 1 1;
+    scrollbar-color: #1f1f1f #0d0d0d;
+}
 
-.user-message {{
-    align-horizontal: right;
-    width: 88%;
-    margin: 1 0;
-}}
+ScrollView {
+    border: none !important;
+    outline: none !important;
+}
 
-.user-box {{
-    background: {THEME["user_bubble_bg"]};
-    border: round {THEME["accent_alt"]};
-    color: {THEME["text_primary"]};
-    padding: 0 1;
-}}
-
-.assistant-message {{
-    width: 100%;
-    margin: 1 0;
-}}
-
-.message-label {{
-    height: 1;
-    color: {THEME["accent"]};
-    text-style: bold;
-}}
-
-.user-label {{
-    color: {THEME["accent_alt"]};
-    content-align: right middle;
-}}
-
-.assistant-rule {{
-    height: 1;
-    color: {THEME["border_color"]};
-}}
-
-.assistant-markdown {{
-    background: {THEME["background"]};
-    color: {THEME["text_primary"]};
-}}
-
-.system-message {{
-    margin: 1 0;
-    color: {THEME["text_muted"]};
-    text-style: italic;
-}}
-
-StreamingSpinner {{
-    height: 1;
-    margin: 1 0;
-    color: {THEME["accent"]};
-}}
-
-#input-panel {{
-    dock: bottom;
+UserBlock {
     height: auto;
-    max-height: 10;
-    background: {THEME["panel"]};
-    border-top: solid {THEME["border_color"]};
-    padding: 0 1;
-}}
+    width: 100%;
+    background: #1a1a1a;
+    border: none;
+    padding: 0 2;
+    margin: 0 0 1 0;
+}
 
-PromptInput {{
-    height: 3;
-    max-height: 8;
-    background: {THEME["surface"]};
-    color: {THEME["text_primary"]};
-    border: round {THEME["border_color"]};
-    padding: 0 1;
-}}
+AssistantBlock {
+    height: auto;
+    min-height: 3;
+    width: 100%;
+    background: transparent;
+    border: none;
+    padding: 0 0 1 0;
+    margin: 0;
+}
 
-PromptInput:focus {{
-    border: round {THEME["accent"]};
-}}
+AssistantBlock Markdown {
+    height: auto;
+    min-height: 1;
+    width: 100%;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+}
 
-#footer-hints {{
+Markdown {
+    height: auto;
+    min-height: 1;
+    width: 100%;
+}
+
+SystemLine {
+    height: auto;
+    min-height: 1;
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: #4b5563;
+    text-style: italic;
+    padding: 0 0 1 0;
+    margin: 0;
+}
+
+LiveSpinner {
     height: 1;
-    color: {THEME["text_muted"]};
-}}
+    width: 100%;
+    background: transparent;
+    border: none;
+    margin: 0 0 1 0;
+}
+
+HorizontalRule {
+    display: none;
+}
+
+InputRow {
+    height: auto;
+    min-height: 3;
+    background: #0d0d0d;
+    layout: vertical;
+    padding: 0;
+    margin: 0 0 1 0;
+    border: none;
+}
+
+InputRow .input-top-rule {
+    height: 1;
+    color: #2a2a2a;
+    background: #0d0d0d;
+    padding: 0;
+}
+
+InputRow .input-bottom-rule {
+    height: 1;
+    color: #2a2a2a;
+    background: #0d0d0d;
+    padding: 0;
+}
+
+InputRow .input-line {
+    height: 1;
+    min-height: 1;
+    layout: horizontal;
+    background: #0d0d0d;
+    padding: 0 2;
+}
+
+InputRow .prompt-char {
+    width: 3;
+    color: #cc785c;
+    text-style: bold;
+    background: transparent;
+    padding: 0;
+}
+
+InputRow Input {
+    height: 1;
+    min-height: 1;
+    width: 1fr;
+    background: transparent;
+    border: none;
+    color: #d4d4d4;
+    padding: 0;
+}
+
+InputRow Input:focus {
+    border: none;
+    background: transparent;
+}
+
+InputRow Horizontal {
+    height: 1;
+    min-height: 1;
+    background: #0d0d0d;
+    padding: 0 2;
+}
+
+Tabs {
+    display: none;
+    height: 0;
+}
+
+TabPane {
+    display: none;
+}
+
+TabbedContent {
+    display: none;
+}
+
+Footer {
+    display: none;
+}
 """
+
+DEFAULT_CSS = ASSISTANT_CSS
