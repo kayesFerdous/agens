@@ -11,7 +11,6 @@ COMMANDS = {
     "/clear": "Clear chat history",
     "/exit": "Exit the assistant",
     "/quit": "Exit the assistant",
-    "/model": "Show current model",
     "/models": "Select a model interactively",
     "/tokens": "Show token count",
     "?": "Show this help message",
@@ -23,36 +22,66 @@ def parse_command(text: str) -> bool:
     return value == "?" or value.startswith("/")
 
 
+def _resolve_command(command: str) -> tuple[str | None, list[str]]:
+    value = command.strip().lower()
+    if value == "?":
+        return "?", []
+
+    if value in COMMANDS:
+        return value, []
+
+    matches = [name for name in COMMANDS if name.startswith(value)]
+    if not matches:
+        return None, []
+
+    if len(matches) == 1:
+        return matches[0], []
+
+    # Prefer the most specific command when one is a strict extension of others.
+    # Example: /mod -> /models (while /model remains exact when fully typed).
+    ranked = sorted(matches, key=len, reverse=True)
+    if len(ranked[0]) > len(ranked[1]):
+        return ranked[0], []
+
+    return None, sorted(matches)
+
+
 async def execute_command(text: str, app: "AssistantTUI") -> None:
     command = text.strip().split(maxsplit=1)[0].lower()
+    resolved_command, ambiguous_matches = _resolve_command(command)
     chat = app.query_one("ChatView")
 
-    if command in {"?", "/help"}:
+    if ambiguous_matches:
+        options = "  ".join(ambiguous_matches)
+        await chat.add_system(
+            f"Ambiguous command: [#cc785c]{command}[/#cc785c]  matches: {options}"
+        )
+        return
+
+    if resolved_command is None:
+        await chat.add_system(
+            f"Unknown command: [red]{text}[/red]  - type [bold]?[/bold] for help"
+        )
+        return
+
+    if resolved_command in {"?", "/help"}:
         lines = ["[bold]Available commands:[/bold]"]
         for name, description in COMMANDS.items():
             lines.append(f"  [#cc785c]{name}[/#cc785c]  {description}")
         await chat.add_system("\n".join(lines))
 
-    elif command == "/clear":
+    elif resolved_command == "/clear":
         await app._do_clear()
 
-    elif command in {"/exit", "/quit"}:
+    elif resolved_command in {"/exit", "/quit"}:
         app.action_quit()
 
-    elif command == "/model":
-        model = getattr(app, "_selected_model", None) or getattr(app, "model_name", "unknown")
-        await chat.add_system(f"Current model: [bold]{model}[/bold]")
 
-    elif command == "/models":
+    elif resolved_command == "/models":
         app.show_model_selector()
 
-    elif command == "/tokens":
+    elif resolved_command == "/tokens":
         await chat.add_system(f"Session tokens: [bold]{app.token_count}[/bold]")
-
-    else:
-        await chat.add_system(
-            f"Unknown command: [red]{text}[/red]  - type [bold]?[/bold] for help"
-        )
 
 
 def is_command(text: str) -> bool:
