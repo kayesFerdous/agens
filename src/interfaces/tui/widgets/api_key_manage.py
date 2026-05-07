@@ -117,17 +117,15 @@ class APIKeyListScreen(ModalScreen[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="apikey-panel"):
-            # Docked: title at top, footer at bottom — yielded first
             with Vertical(id="apikey-title-bar"):
                 yield Static(
                     "[bold]API Keys[/bold]  [dim]esc to close[/dim]",
                     id="apikey-title",
                 )
-            yield Static("", id="apikey-footer")
-            # Non-docked flow content
             yield Static("", id="apikey-header-row")
             yield KeyList(id="apikey-list")
             yield Static("", id="apikey-summary")
+            yield Static("", id="apikey-footer")
 
     async def on_mount(self) -> None:
         self._set_footer_normal()

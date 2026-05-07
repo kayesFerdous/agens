@@ -293,7 +293,6 @@ APIKeyListScreen {
 }
 
 #apikey-title-bar {
-    dock: top;
     height: auto;
     background: #0d0d0d;
     border-bottom: solid #2a2a2a;
@@ -309,8 +308,8 @@ APIKeyListScreen {
 }
 
 #apikey-footer {
-    dock: bottom;
-    height: 1;
+    height: 2;
+    min-height: 2;
     width: 100%;
     background: #0d0d0d;
     border-top: solid #2a2a2a;
