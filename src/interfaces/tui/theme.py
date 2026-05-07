@@ -37,7 +37,7 @@ ChatView {
     background: #0d0d0d;
     border: none !important;
     outline: none !important;
-    padding: 1 2;
+    padding: 1 1;
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-size: 1 1;
@@ -55,16 +55,16 @@ UserBlock {
     background: #1a1a1a;
     border: none;
     padding: 0 2;
-    margin: 0 0 1 0;
+    margin: 0;
 }
 
 AssistantBlock {
     height: auto;
-    min-height: 3;
+    min-height: 1;
     width: 100%;
     background: transparent;
     border: none;
-    padding: 0 0 1 0;
+    padding: 0;
     margin: 0;
 }
 
@@ -91,7 +91,7 @@ SystemLine {
     border: none;
     color: #4b5563;
     text-style: italic;
-    padding: 0 0 1 0;
+    padding: 0;
     margin: 0;
 }
 
@@ -100,7 +100,7 @@ LiveSpinner {
     width: 100%;
     background: transparent;
     border: none;
-    margin: 0 0 1 0;
+    margin: 0;
 }
 
 HorizontalRule {
@@ -162,11 +162,150 @@ InputRow Input:focus {
     background: transparent;
 }
 
+InputRow.locked {
+    opacity: 60%;
+}
+
+InputRow.locked Input {
+    color: #4b5563;
+}
+
 InputRow Horizontal {
     height: 1;
     min-height: 1;
     background: #0d0d0d;
     padding: 0 2;
+}
+
+/* ── Inline confirmation ─────────────────────────────────────────── */
+InlineConfirmation {
+    height: auto;
+    width: 100%;
+    background: transparent;
+    padding: 0 0 0 2;
+    margin: 0;
+}
+
+InlineConfirmation .confirm-box {
+    width: 72;
+    max-width: 96%;
+    height: auto;
+    background: #101010;
+    border-left: solid #cc785c;
+    border-top: none;
+    border-right: none;
+    border-bottom: none;
+    padding: 0 1;
+}
+
+InlineConfirmation .confirm-title {
+    height: 1;
+    width: 100%;
+    color: #9a9a9a;
+    text-style: bold;
+    padding: 0;
+}
+
+InlineConfirmation .confirm-command {
+    height: 1;
+    width: 100%;
+    color: #d7d7d7;
+    background: #0b0b0b;
+    padding: 0 1;
+    margin: 0;
+}
+
+InlineConfirmation .confirm-warning {
+    height: auto;
+    min-height: 1;
+    width: 100%;
+    background: transparent;
+    color: #777777;
+    padding: 0;
+}
+
+CommandResultBlock {
+    height: auto;
+    width: 100%;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+}
+
+CommandResultBlock .command-result-box {
+    height: auto;
+    width: 100%;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+}
+
+CommandResultBlock .command-result-title {
+    height: 1;
+    color: #d4d4d4;
+    text-style: bold;
+    padding: 0;
+}
+
+CommandResultBlock .command-result-command {
+    height: 1;
+    color: #d7d7d7;
+    background: #0b0b0b;
+    padding: 0 1;
+    margin: 0;
+}
+
+CommandResultBlock .command-result-exit {
+    height: 1;
+    color: #777777;
+    padding: 0;
+    margin: 0;
+}
+
+CommandResultBlock .command-result-output {
+    height: auto;
+    width: 100%;
+    color: #f1f1f1;
+    background: #0b0b0b;
+    padding: 0 1;
+    margin: 0;
+}
+
+InlineConfirmation .confirm-actions {
+    height: 1;
+    width: 100%;
+    align: left middle;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+}
+
+InlineConfirmation .confirm-actions Button {
+    height: 1;
+    min-width: 7;
+    margin: 0 1 0 0;
+    padding: 0 1;
+    background: #1a1a1a;
+    border: none;
+    color: #bdbdbd;
+}
+
+InlineConfirmation .confirm-actions Button.selected {
+    background: #cc785c;
+    color: #ffffff;
+    text-style: bold;
+}
+
+InlineConfirmation .confirm-yes.selected {
+    background: #8a4f3d;
+}
+
+InlineConfirmation .confirm-no.selected {
+    background: #cc785c;
+}
+
+InlineConfirmation.resolved .confirm-title {
+    color: #777777;
 }
 
 Tabs {

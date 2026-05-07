@@ -7,6 +7,10 @@ from textual.widgets import Input, Static
 
 
 class InputRow(Widget):
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._locked = False
+
     def compose(self) -> ComposeResult:
         yield Static("─" * 400, classes="input-top-rule")
         with Horizontal(classes="input-line"):
@@ -18,8 +22,23 @@ class InputRow(Widget):
         self.focus_input()
 
     def focus_input(self) -> None:
+        if self._locked:
+            return
         try:
             self.query_one("#main-input", Input).focus()
+        except Exception:
+            pass
+
+    def set_locked(self, locked: bool) -> None:
+        self._locked = locked
+        try:
+            input_widget = self.query_one("#main-input", Input)
+            input_widget.disabled = locked
+            self.set_class(locked, "locked")
+            if locked:
+                self.app.query_one("#command-palette").hide()
+            else:
+                input_widget.focus()
         except Exception:
             pass
 
@@ -36,6 +55,9 @@ class InputRow(Widget):
             return ""
 
     def on_input_changed(self, event: Input.Changed) -> None:
+        if self._locked:
+            event.stop()
+            return
         value = event.value
         try:
             palette = self.app.query_one("#command-palette")
@@ -48,6 +70,8 @@ class InputRow(Widget):
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         event.stop()
+        if self._locked:
+            return
         try:
             self.app.query_one("#command-palette").hide()
         except Exception:

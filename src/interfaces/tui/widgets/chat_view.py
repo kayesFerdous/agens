@@ -36,11 +36,46 @@ class ChatView(Widget):
         await self._add_widget(widget)
         return widget
 
+    async def add_confirmation(self, request: "ConfirmationRequest") -> "InlineConfirmation":
+        from .inline_confirmation import InlineConfirmation
+
+        widget = InlineConfirmation(request)
+        await self._add_widget(widget)
+        return widget
+
+    async def add_command_result(
+        self,
+        *,
+        command: str,
+        output: str,
+        exit_code: object,
+        failed: bool = False,
+    ) -> "CommandResultBlock":
+        from .messages import CommandResultBlock
+
+        widget = CommandResultBlock(
+            command=command,
+            output=output,
+            exit_code=exit_code,
+            failed=failed,
+        )
+        await self._add_widget(widget)
+        return widget
+
     async def clear_all(self) -> None:
         for child in list(self.children):
             await child.remove()
         self.scroll_home(animate=False)
 
+    def is_near_bottom(self, threshold: int = 2) -> bool:
+        return self.max_scroll_y - self.scroll_y <= threshold
+
+    def maybe_scroll_end(self, *, was_near_bottom: bool | None = None) -> None:
+        should_scroll = self.is_near_bottom() if was_near_bottom is None else was_near_bottom
+        if should_scroll:
+            self.scroll_end(animate=False)
+
     async def _add_widget(self, widget: Widget) -> None:
+        was_near_bottom = self.is_near_bottom()
         await self.mount(widget)
-        self.scroll_end(animate=False)
+        self.maybe_scroll_end(was_near_bottom=was_near_bottom)
