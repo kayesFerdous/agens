@@ -4,8 +4,9 @@ from .chat_view import ChatView
 from .command_palette import CommandPalette
 from .header import AppHeader
 from .horizontal_rule import HorizontalRule
+from .inline_confirmation import ConfirmationRequest, InlineConfirmation
 from .input_row import InputRow
-from .messages import AssistantBlock, SystemLine, UserBlock
+from .messages import AssistantBlock, CommandResultBlock, SystemLine, UserBlock
 from .spinner import LiveSpinner
 from .tool_block import ToolBlock
 from .tool_group import ToolGroup
@@ -15,8 +16,11 @@ __all__ = [
     "AssistantBlock",
     "ChatView",
     "CommandPalette",
+    "CommandResultBlock",
     "HorizontalRule",
     "InputRow",
+    "ConfirmationRequest",
+    "InlineConfirmation",
     "LiveSpinner",
     "SystemLine",
     "ToolBlock",

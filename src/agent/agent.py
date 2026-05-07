@@ -219,7 +219,11 @@ class Agent:
                 yield StreamEvent(type="done", tool_calls=[], next_action=None)
                 return
 
-            if user_request.strip().upper() == "YES":
+            normalized_confirmation = user_request.strip().upper()
+            is_confirmed = normalized_confirmation == "YES" or (
+                channel == Channel.TUI and normalized_confirmation == "Y"
+            )
+            if is_confirmed:
                 # User explicitly approved — but sudo commands need a second factor.
                 if pending.requires_sudo_auth:
                     if not self._is_sudo_authorized(session_id):
@@ -354,7 +358,43 @@ class Agent:
                             "terminal interface to run this command."
                         ),
                     }
-                if safety_mode:
+                elif channel == Channel.TUI:
+                    # In TUI, bypass safety-mode blocking and use a lightweight y/N flow.
+                    from tools.shell_command import _NEEDS_CONFIRMATION as _sudo_patterns
+
+                    cmd_str = args.get("command", "")
+                    is_sudo_command = any(
+                        pat.search(cmd_str) for pat, _ in _sudo_patterns
+                        if pat.pattern in (r"\bsudo\b", r"\bsu\s+-")
+                    )
+                    pending_args = {**args, "use_sudo": True} if is_sudo_command else args
+                    confirmation = PendingConfirmation(
+                        tool_name=name,
+                        arguments=pending_args,
+                        reason=result["reason"],
+                        command_preview=result["preview"],
+                        created_at=time.time(),
+                        session_id=session_id,
+                        requires_sudo_auth=False,
+                    )
+                    self._pending_confirmations[session_id] = confirmation
+                    captured_confirmation.append(confirmation)
+                    logger.info(
+                        "Confirmation-required command queued for TUI: tool=%s session=%s command=%r",
+                        name, session_id, result["preview"],
+                    )
+                    return {
+                        "status": "awaiting_user_confirmation",
+                        "message": (
+                            "This command requires confirmation before execution.\n"
+                            f"Reason: {result['reason']}\n"
+                            f"Command: `{result['preview']}`\n\n"
+                            "In TUI, reply `y` to proceed or `N` (default) to cancel. "
+                            "Do NOT attempt to call this tool again."
+                        ),
+                    }
+
+                elif safety_mode:
                     # Safety mode ON — permanently block; no path to execution.
                     logger.info(
                         "sudo blocked by safety mode: tool=%s session=%s",

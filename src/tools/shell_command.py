@@ -233,8 +233,11 @@ class ShellCommandTool(Tool):
         # Dereference SecretStr — this value is used exactly once below, then overwritten
         password = settings.SYSTEM_SUDO_PASSWORD.get_secret_value()
 
-        # sudo -S reads password from stdin; -p "" suppresses the password prompt
-        args = ["sudo", "-S", "-p", ""] + shlex.split(command)
+        # sudo -S reads password from stdin; -p "" suppresses the password prompt.
+        command_parts = shlex.split(command)
+        if command_parts and command_parts[0] == "sudo":
+            command_parts = command_parts[1:]
+        args = ["sudo", "-S", "-p", ""] + command_parts
 
         logger = __import__("logging").getLogger(__name__)
         logger.info(
