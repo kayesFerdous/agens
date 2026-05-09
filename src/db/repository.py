@@ -24,9 +24,14 @@ async def get_session(db: AsyncSession, session_id: str) -> Session | None:
     return result.scalars().one_or_none()
 
 
-async def fetch_all_sessions(db: AsyncSession, limit: int = 20) -> list[Session]:
+async def fetch_all_sessions(
+    db: AsyncSession, limit: int = 20, offset: int = 0
+) -> list[Session]:
     result = await db.execute(
-        select(Session).order_by(Session.created_at.desc()).limit(limit)
+        select(Session)
+        .order_by(Session.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
     return list(result.scalars().all())
 
