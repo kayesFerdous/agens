@@ -18,8 +18,12 @@ async def create_session(
 
 
 @router.get("", response_model=list[SessionResponse])
-async def list_sessions(db: AsyncSession = Depends(get_db)):
-    sessions = await session_repo.fetch_all_sessions(db)
+async def list_sessions(
+    limit: int = 20,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+):
+    sessions = await session_repo.fetch_all_sessions(db, limit=limit, offset=offset)
     return sessions
 
 
