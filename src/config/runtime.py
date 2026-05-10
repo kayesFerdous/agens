@@ -274,15 +274,12 @@ def build_knowledge_prompt_snippet() -> str:
     The snippet is intentionally small — it tells the model *what exists*
     without injecting the actual file contents.
     """
-    index = get_knowledge_index()
-    if not index:
+    files = list_knowledge_files()
+    if not files:
         return "No knowledge files are currently available."
 
-    lines = ["Available knowledge files (use search_knowledge / read_file to access):"]
-    for group, files in sorted(index.items()):
-        label = group if group != "." else "(root)"
-        lines.append(f"\n  [{label}]")
-        for f in files:
-            lines.append(f"    - {f}")
+    lines = ["Available knowledge files (use file_read to access):"]
+    for f in files:
+        lines.append(f"  - {f}")
 
     return "\n".join(lines)
