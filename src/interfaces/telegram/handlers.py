@@ -8,13 +8,15 @@ from agent.agent import Agent, Channel
 from core.model_catalog import ALL_MODELS, get_model_label, resolve_model
 from db.database import async_session
 from db import repository as session_repo
-from db.models import KeyStatus
+from db.models import APIKey, KeyStatus
 from db.repositories.api_key import APIKeyRepository
 from .prefs import get_selected_model, set_selected_model
 
 logger = logging.getLogger(__name__)
 
-MODEL_CALLBACK_PREFIX = "model:"
+MODEL_CALLBACK_PREFIX    = "model:"
+KEY_TOGGLE_CALLBACK_PREFIX = "keytoggle:"
+KEY_BULK_CALLBACK_PREFIX   = "keybulk:"
 
 
 def _md(text: str) -> str:
@@ -54,7 +56,7 @@ async def help_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         f"• *{_md('/start')}* — {_md('Start a new session with the bot')}",
         f"• *{_md('/help')}* — {_md('Show this help message')}",
         f"• *{_md('/model')}* — {_md('Choose a model')}",
-        f"• *{_md('/api_keys')}* — {_md('View all registered API keys and their statuses')}",
+        f"• *{_md('/keys')}* — {_md('View API keys and toggle status')}",
         "",
         f"*{_md('How to use')}*",
         _md("You don't need commands for most things! Just chat with me normally."),
@@ -175,45 +177,231 @@ async def handle_model_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) 
     await query.answer(f"Model set to {get_model_label(resolved)}")
 
 
+# ── /keys — helpers ────────────────────────────────────────────────────────────
+
+def _status_dot(key: APIKey) -> str:
+    return {
+        KeyStatus.ACTIVE:   "🟢",
+        KeyStatus.INACTIVE: "⚪",
+    }.get(key.status, "🔴")
+
+
+def _status_label(key: APIKey) -> str:
+    raw = key.status.value.replace("_", " ")
+    mapping = {
+        "rate limited": "rate limited",
+        "exhausted":    "exhausted",
+        "invalid":      "invalid",
+        "active":       "active",
+        "inactive":     "inactive",
+    }
+    return mapping.get(raw, raw)
+
+
+def _build_keys_message(keys: list[APIKey]) -> str:
+    active   = [k for k in keys if k.status == KeyStatus.ACTIVE]
+    inactive = [k for k in keys if k.status == KeyStatus.INACTIVE]
+    broken   = [k for k in keys if k.status not in {KeyStatus.ACTIVE, KeyStatus.INACTIVE}]
+
+    lines: list[str] = [
+        f"*{_md('API Keys')}*",
+        "",
+        f"🟢 *{len(active)}* active   "
+        f"⚪ *{len(inactive)}* inactive   "
+        f"🔴 *{len(broken)}* error",
+        "",
+    ]
+
+    if not keys:
+        lines.append(_md("No API keys registered yet."))
+        return "\n".join(lines)
+
+    if active:
+        lines.append(f"*{_md('Active')}*")
+        for k in active:
+            lines.append(
+                f"{_status_dot(k)} `{_md(k.label or 'Unnamed')}` "
+                f"_{_md(k.key_hint or '—')}_"
+            )
+        lines.append("")
+
+    if inactive:
+        lines.append(f"*{_md('Inactive')}*")
+        for k in inactive:
+            lines.append(
+                f"{_status_dot(k)} `{_md(k.label or 'Unnamed')}` "
+                f"_{_md(k.key_hint or '—')}_"
+            )
+        lines.append("")
+
+    if broken:
+        lines.append(f"*{_md('Unavailable')}*")
+        lines.append(_md("These keys cannot be toggled."))
+        for k in broken:
+            lines.append(
+                f"{_status_dot(k)} `{_md(k.label or 'Unnamed')}` "
+                f"— _{_md(_status_label(k))}_"
+            )
+        lines.append("")
+
+    return "\n".join(lines).rstrip()
+
+
+def _build_keys_keyboard(keys: list[APIKey]) -> InlineKeyboardMarkup:
+    active   = [k for k in keys if k.status == KeyStatus.ACTIVE]
+    inactive = [k for k in keys if k.status == KeyStatus.INACTIVE]
+
+    rows: list[list[InlineKeyboardButton]] = []
+
+    for key in active:
+        rows.append([
+            InlineKeyboardButton(
+                text=f"🔴 Disable  {key.label or 'Unnamed'}",
+                callback_data=f"{KEY_TOGGLE_CALLBACK_PREFIX}{key.id}",
+            )
+        ])
+
+    for key in inactive:
+        rows.append([
+            InlineKeyboardButton(
+                text=f"🟢 Enable  {key.label or 'Unnamed'}",
+                callback_data=f"{KEY_TOGGLE_CALLBACK_PREFIX}{key.id}",
+            )
+        ])
+
+    bulk_row: list[InlineKeyboardButton] = []
+    if inactive:
+        bulk_row.append(InlineKeyboardButton(
+            text="🟢 Enable all",
+            callback_data=f"{KEY_BULK_CALLBACK_PREFIX}enable_all",
+        ))
+    if active:
+        bulk_row.append(InlineKeyboardButton(
+            text="🔴 Disable all",
+            callback_data=f"{KEY_BULK_CALLBACK_PREFIX}disable_all",
+        ))
+    if bulk_row:
+        rows.append(bulk_row)
+
+    rows.append([InlineKeyboardButton(
+        text="✕  Close",
+        callback_data=f"{KEY_TOGGLE_CALLBACK_PREFIX}close",
+    )])
+
+    return InlineKeyboardMarkup(rows)
+
+
+# ── /keys — command handler ────────────────────────────────────────────────────
+
 async def get_keys_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handler for /keys command: list registered API keys."""
+    """Handler for /keys — grouped key manager with stats and bulk actions."""
     async with async_session() as db:
         repo = APIKeyRepository(db)
         keys = await repo.list_keys()
 
-    if not keys:
-        await update.message.reply_text(  # type: ignore[union-attr]
-            _md("No API keys registered yet."),
+    await update.message.reply_text(  # type: ignore[union-attr]
+        _build_keys_message(keys),
+        reply_markup=_build_keys_keyboard(keys),
+        parse_mode=ParseMode.MARKDOWN_V2,
+    )
+
+
+# ── /keys — per-key toggle callback ───────────────────────────────────────────
+
+async def handle_key_toggle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if not query or not query.data or not query.data.startswith(KEY_TOGGLE_CALLBACK_PREFIX):
+        return
+
+    selection = query.data[len(KEY_TOGGLE_CALLBACK_PREFIX):]
+
+    if selection == "close":
+        await query.answer()
+        await query.edit_message_text(
+            f"*{_md('Key manager closed')}*",
             parse_mode=ParseMode.MARKDOWN_V2,
         )
         return
 
-    status_badge = {
-        KeyStatus.ACTIVE:       "🟢 Active",
-        KeyStatus.RATE_LIMITED: "🟡 Rate limited",
-        KeyStatus.EXHAUSTED:    "🔴 Exhausted",
-        KeyStatus.INVALID:      "❌ Invalid",
-        KeyStatus.INACTIVE:     "⚪️ Inactive",
-    }
+    async with async_session() as db:
+        repo = APIKeyRepository(db)
+        key  = await repo.get_by_id(selection)
 
-    lines = [f"*API Keys* — {len(keys)} registered\n"]
+        if not key:
+            await query.answer("Key not found.", show_alert=True)
+            return
 
-    for k in keys:
-        badge = status_badge.get(k.status, "❓ Unknown")
-        name  = escape_markdown(k.label or "Unnamed", version=2)
-        hint  = f"`{escape_markdown(k.key_hint, version=2)}`"
-        uid   = f"`...{escape_markdown(str(k.id)[-8:], version=2)}`"   # show only last 8 chars
+        if key.status not in {KeyStatus.ACTIVE, KeyStatus.INACTIVE}:
+            await query.answer(
+                f"This key is {_status_label(key)} and cannot be toggled.",
+                show_alert=True,
+            )
+            return
 
-        lines.append(
-            f"*{name}* {badge}\n"
-            f"ID {uid}  ·  Hint {hint}\n"
-        )
+        new_status = KeyStatus.INACTIVE if key.status == KeyStatus.ACTIVE else KeyStatus.ACTIVE
+        await repo.update_status(key.id, new_status)
+        keys = await repo.list_keys()
 
-    await update.message.reply_text(  # type: ignore[union-attr]
-        "\n".join(lines),
+    action = "disabled" if new_status == KeyStatus.INACTIVE else "enabled"
+    await query.answer(f"{key.label or 'Key'} {action}.")
+    await query.edit_message_text(
+        _build_keys_message(keys),
+        reply_markup=_build_keys_keyboard(keys),
         parse_mode=ParseMode.MARKDOWN_V2,
     )
 
+
+# ── /keys — bulk toggle callback ───────────────────────────────────────────────
+
+async def handle_key_bulk_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handles the 'Enable all' / 'Disable all' buttons.
+
+    Register in your dispatcher:
+        application.add_handler(CallbackQueryHandler(
+            handle_key_bulk_callback, pattern=f"^{KEY_BULK_CALLBACK_PREFIX}"
+        ))
+    """
+    query = update.callback_query
+    if not query or not query.data or not query.data.startswith(KEY_BULK_CALLBACK_PREFIX):
+        return
+
+    action = query.data[len(KEY_BULK_CALLBACK_PREFIX):]
+
+    async with async_session() as db:
+        repo = APIKeyRepository(db)
+        keys = await repo.list_keys()
+
+        if action == "enable_all":
+            targets    = [k for k in keys if k.status == KeyStatus.INACTIVE]
+            new_status = KeyStatus.ACTIVE
+            verb       = "enabled"
+        elif action == "disable_all":
+            targets    = [k for k in keys if k.status == KeyStatus.ACTIVE]
+            new_status = KeyStatus.INACTIVE
+            verb       = "disabled"
+        else:
+            await query.answer("Unknown action.", show_alert=True)
+            return
+
+        if not targets:
+            await query.answer("Nothing to change.")
+            return
+
+        for key in targets:
+            await repo.update_status(key.id, new_status)
+
+        keys = await repo.list_keys()
+
+    await query.answer(f"{len(targets)} key(s) {verb}.")
+    await query.edit_message_text(
+        _build_keys_message(keys),
+        reply_markup=_build_keys_keyboard(keys),
+        parse_mode=ParseMode.MARKDOWN_V2,
+    )
+
+
+# ── message handler ────────────────────────────────────────────────────────────
 
 def _format_tool_call(tool_name: str, arguments: dict) -> str:
     """Format a tool_start event into a readable Telegram Markdown message."""
@@ -254,8 +442,10 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
 
         session_id: str = ctx.user_data["session_id"]  # type: ignore[union-attr]
 
-        # Placeholder message that we'll edit as tokens stream in
-        sent = await update.message.reply_text("...")
+        sent = await update.message.reply_text(
+            _md("..."),
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
         buffer = ""
         last_sent = "..."
         char_count = 0
@@ -290,7 +480,10 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
                     if len(buffer) >= MAX_LEN:
                         if escaped != last_sent:
                             await sent.edit_text(escaped, parse_mode=ParseMode.MARKDOWN_V2)
-                        sent = await update.message.reply_text("...")
+                        sent = await update.message.reply_text(
+                            _md("..."),
+                            parse_mode=ParseMode.MARKDOWN_V2,
+                        )
                         last_sent = "..."
                         buffer = ""
                     elif escaped != last_sent:
@@ -305,7 +498,6 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
                 )
                 return
 
-        # Final edit
         final = escape_markdown(buffer.strip() or "I'm not sure how to answer that.", version=2)
         if final != last_sent:
             await sent.edit_text(final, parse_mode=ParseMode.MARKDOWN_V2)
