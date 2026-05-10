@@ -5,8 +5,9 @@ import json
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
-
 from pydantic import BaseModel, ValidationError
+
+from .runtime import get_config_file
 
 
 # ── Schema ──────────────────────────────────────────────────────
@@ -47,8 +48,8 @@ ALLOWED_KEYS = {"user", "assistant", "preferences", "telegram_token"}
 
 
 class ConfigManager:
-    def __init__(self, path: Path) -> None:
-        self._path = path
+    def __init__(self) -> None:
+        self._path = get_config_file()
 
     def load_config(self) -> AppConfig:
         """Read config.json → AppConfig. Creates default file if missing."""

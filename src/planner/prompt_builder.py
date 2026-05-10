@@ -17,7 +17,7 @@ Platform: {platform} | Workspace: {workspace_root} | DateTime: {now}
 ## Knowledge Files
 {knowledge_files}
 
-Use read_file to read a knowledge file before answering questions that require it. Never assume file contents without reading them first.
+Use file_read to read a knowledge file before answering questions that require it. Never assume file contents without reading them first.
 
 ## Rules:
 - All file paths must be absolute, under workspace root.

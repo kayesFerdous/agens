@@ -8,7 +8,6 @@ from telegram.ext import Application, CallbackQueryHandler, CommandHandler, Mess
 
 from agent.agent import Agent
 from config.logging import setup_logging
-from config.runtime import get_config_file
 from config.settings import settings
 from config.config_manager import ConfigManager
 from . import handlers
@@ -29,7 +28,7 @@ async def start_telegram(agent: Agent) -> None:
     and therefore cannot be used inside an already-running asyncio event loop.
     """
 
-    config_mgr = ConfigManager(get_config_file())
+    config_mgr = ConfigManager()
     config = config_mgr.load_config()
 
     if not config.telegram_token:

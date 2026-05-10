@@ -14,7 +14,6 @@ from memory.manager import MemoryManager
 from core.registry import ToolRegistry
 from llm.gemini import GeminiLLM
 from services.api_key_manager import APIKeyManager
-from config.runtime import get_config_file
 from config.settings import settings
 from config.config_manager import ConfigManager
 from tools.file_read import FileReadTool
@@ -61,7 +60,7 @@ async def build_agent(session: AsyncSession) -> Agent:
     """
     fernet = Fernet(settings.FERNET_SECRET)
     usage = Usage()
-    config_manager = ConfigManager(get_config_file())
+    config_manager = ConfigManager()
 
     repo = APIKeyRepository(session)
     key_manager = APIKeyManager(repo, fernet=fernet)

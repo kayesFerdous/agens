@@ -320,6 +320,7 @@ class Agent:
         # ── End confirmation gate ──────────────────────────────────────────────────
 
         system = build_system_prompt(self._config_manager)
+        logger.info(f"\n\nsystem prompt: \n%s",system)
         tool_schemas = self._registry.tool_schemas()
         message_history = await memory_manager.get_history_for_gemini(session_id)
 

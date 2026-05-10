@@ -9,17 +9,17 @@ Usage:
     python main.py web telegram tui     # all three concurrently
 """
 from __future__ import annotations
-
-from src.config.runtime import initialize_runtime
-
-initialize_runtime()
-
 import asyncio
 import sys
 
+from config.settings import settings
+from config.runtime import initialize_runtime
 from config.logging import get_logger, setup_logging
 
-setup_logging("ERROR")
+
+initialize_runtime()
+
+setup_logging(settings.LOG_LEVEL)
 logger = get_logger(__name__)
 
 VALID_INTERFACES = {"web", "telegram", "tui"}
