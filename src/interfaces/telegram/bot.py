@@ -51,6 +51,10 @@ async def start_telegram(agent: Agent) -> None:
     app.add_handler(CommandHandler("models", handlers.model_command))
     app.add_handler(CommandHandler("keys", handlers.get_keys_command))
     app.add_handler(CallbackQueryHandler(handlers.handle_model_callback, pattern=r"^model:"))
+    app.add_handler(CallbackQueryHandler(handlers.handle_key_toggle_callback, pattern=r"^keytoggle:"))
+    app.add_handler(CallbackQueryHandler(
+        handlers.handle_key_bulk_callback, pattern=f"^{handlers.KEY_BULK_CALLBACK_PREFIX}"
+    ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.handle_message))
 
     # `async with app` calls initialize() on enter and shutdown() on exit.
