@@ -47,6 +47,10 @@ def get_runtime_root() -> Path:
     return user_config_path(APP_NAME, APP_AUTHOR)
 
 
+def get_config_file() -> Path:
+    return get_runtime_root() / "config.json"
+
+
 def get_knowledge_dir() -> Path:
     return get_runtime_root() / "knowledge"
 

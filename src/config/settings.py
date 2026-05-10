@@ -4,11 +4,8 @@ from pathlib import Path
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-BASE_DIR = Path(__file__).resolve().parent.parent
 
 class Settings(BaseSettings):
-    CONFIG_PATH: Path = BASE_DIR / "data" / "config.json"
-
     DEFAULT_MODEL: str = "gemini-2.5-flash-lite"
     DATABASE_URL: str
     FRONTEND_LINK: str
