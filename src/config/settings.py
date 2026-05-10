@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     LOG_LEVEL: str = "ERROR"
+    PRODUCTION: bool = True
     DEFAULT_MODEL: str = "gemini-2.5-flash-lite"
     DATABASE_URL: str
     FRONTEND_LINK: str

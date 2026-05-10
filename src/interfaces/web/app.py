@@ -79,7 +79,8 @@ async def start_web(agent: Agent) -> None:
         app=app,
         host=settings.WEB_HOST,
         port=settings.WEB_PORT,
-        log_level="info",
+        log_level='warning' if settings.PRODUCTION else 'info',
+        access_log=not settings.PRODUCTION,
     )
     server = uvicorn.Server(config)
     logger.info("Starting web interface on %s:%d", settings.WEB_HOST, settings.WEB_PORT)

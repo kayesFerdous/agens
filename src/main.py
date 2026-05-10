@@ -11,6 +11,7 @@ Usage:
 from __future__ import annotations
 import asyncio
 import sys
+from typing import Any, Coroutine
 
 from config.settings import settings
 from config.runtime import initialize_runtime
@@ -107,7 +108,12 @@ async def main() -> None:
         agent = await build_agent(db)
     logger.info("Agent ready. Starting interface(s): %s", ", ".join(selected))
 
-    starters = [_build_starter(name, agent) for name in selected]
+    starters: list[Coroutine[Any, Any, None]] = []
+    for name in selected:
+        starter = _build_starter(name, agent)
+        if starter is None:
+            raise ValueError(f"Unsupported interface: {name}")
+        starters.append(starter)
 
     if len(starters) == 1:
         await starters[0]
