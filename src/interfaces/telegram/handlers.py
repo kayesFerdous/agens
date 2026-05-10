@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 MODEL_CALLBACK_PREFIX = "model:"
 
 
+def _md(text: str) -> str:
+    return escape_markdown(text, version=2)
+
+
 async def on_startup(app: Application) -> None:  # type: ignore[type-arg]
     """Store the shared agent in bot_data so every handler can reach it."""
     logger.info("Telegram bot ready (agent already attached)")
@@ -28,16 +32,18 @@ async def start_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         model_name = get_selected_model(update.effective_user.id)
     model_label = get_model_label(model_name) if model_name else "the default model"
     await update.message.reply_text(  # type: ignore[union-attr]
-        f"Hello! I'm your assistant. Send me anything and I'll help you out.\n\n"
-        f"Current model: {model_label}\n"
-        "Use /model to change it.",
+        "\n".join([
+            "*Assistant ready*",
+            "",
+            _md("Send me anything and I'll help you out."),
+            f"*{_md('Current model:')}* `{_md(model_label)}`",
+            _md("Use /model to change it."),
+        ]),
+        parse_mode=ParseMode.MARKDOWN_V2,
     )
 
 
 async def help_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    def _md(text: str) -> str:
-        return escape_markdown(text, version=2)
-
     lines = [
         f"*{_md('Assistant Help')}*",
         "",
@@ -84,12 +90,12 @@ def _build_model_keyboard(current_model: str | None) -> InlineKeyboardMarkup:
 def _render_model_prompt(current_model: str | None) -> str:
     if current_model:
         return (
-            f"Current model: {get_model_label(current_model)}\n\n"
-            "Tap a model below to change it."
+            f"*{_md('Current model:')}* `{_md(get_model_label(current_model))}`\n\n"
+            f"{_md('Tap a model below to change it.')}"
         )
     return (
-        "No model is pinned for this chat yet.\n\n"
-        "Tap a model below to set one, or keep using the default model."
+        f"*{_md('Current model:')}* `default`\n\n"
+        f"{_md('Tap a model below to set one, or keep using the default model.')}"
     )
 
 
@@ -107,7 +113,13 @@ async def model_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 if update.effective_user:
                     set_selected_model(update.effective_user.id, resolved)
                 await update.message.reply_text(  # type: ignore[union-attr]
-                    f"Model set to {get_model_label(resolved)}. New chats will use this model."
+                    "\n".join([
+                        "*Model updated*",
+                        "",
+                        _md(f"Now using {get_model_label(resolved)}."),
+                        _md("New chats will use this model."),
+                    ]),
+                    parse_mode=ParseMode.MARKDOWN_V2,
                 )
                 return
 
@@ -115,6 +127,7 @@ async def model_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(  # type: ignore[union-attr]
         _render_model_prompt(current_model),
         reply_markup=_build_model_keyboard(current_model),
+        parse_mode=ParseMode.MARKDOWN_V2,
     )
 
 
@@ -127,7 +140,10 @@ async def handle_model_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) 
     selection = query.data[len(MODEL_CALLBACK_PREFIX):]
 
     if selection == "close":
-        await query.edit_message_text("Model picker closed.")
+        await query.edit_message_text(
+            "*Model picker closed*",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
         return
 
     resolved = resolve_model(selection)
@@ -147,8 +163,14 @@ async def handle_model_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) 
 
     set_selected_model(user.id, resolved)
     await query.edit_message_text(
-        f"Model set to {get_model_label(resolved)}. New chats will use this model.",
+        "\n".join([
+            "*Model updated*",
+            "",
+            _md(f"Now using {get_model_label(resolved)}."),
+            _md("New chats will use this model."),
+        ]),
         reply_markup=_build_model_keyboard(resolved),
+        parse_mode=ParseMode.MARKDOWN_V2,
     )
     await query.answer(f"Model set to {get_model_label(resolved)}")
 
@@ -160,7 +182,10 @@ async def get_keys_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         keys = await repo.list_keys()
 
     if not keys:
-        await update.message.reply_text("No API keys registered yet.")  # type: ignore[union-attr]
+        await update.message.reply_text(  # type: ignore[union-attr]
+            _md("No API keys registered yet."),
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
         return
 
     status_badge = {
@@ -171,31 +196,36 @@ async def get_keys_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         KeyStatus.INACTIVE:     "⚪️ Inactive",
     }
 
-    lines = [f"🔑 *API Keys* — {len(keys)} registered\n"]
+    lines = [f"*API Keys* — {len(keys)} registered\n"]
 
     for k in keys:
         badge = status_badge.get(k.status, "❓ Unknown")
-        name  = k.label or "Unnamed"
-        hint  = f"`{k.key_hint}`"
-        uid   = f"`...{str(k.id)[-8:]}`"   # show only last 8 chars
+        name  = escape_markdown(k.label or "Unnamed", version=2)
+        hint  = f"`{escape_markdown(k.key_hint, version=2)}`"
+        uid   = f"`...{escape_markdown(str(k.id)[-8:], version=2)}`"   # show only last 8 chars
 
         lines.append(
             f"*{name}* {badge}\n"
             f"ID {uid}  ·  Hint {hint}\n"
         )
 
-    await update.message.reply_markdown("\n".join(lines))  # type: ignore[union-attr]
+    await update.message.reply_text(  # type: ignore[union-attr]
+        "\n".join(lines),
+        parse_mode=ParseMode.MARKDOWN_V2,
+    )
 
 
 def _format_tool_call(tool_name: str, arguments: dict) -> str:
     """Format a tool_start event into a readable Telegram Markdown message."""
-    lines = [f"🔧 *Calling:* `{tool_name}`"]
+    lines = [f"*Calling:* `{escape_markdown(tool_name, version=2)}`"]
     if arguments:
         for key, value in arguments.items():
             display = str(value)
             if len(display) > 200:
                 display = display[:197] + "…"
-            lines.append(f"  • *{key}:* `{display}`")
+            lines.append(
+                f"  • *{escape_markdown(str(key), version=2)}:* `{escape_markdown(display, version=2)}`"
+            )
     return "\n".join(lines)
 
 
@@ -237,26 +267,35 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
                     event.tool or "unknown",
                     event.arguments or {},
                 )
-                await update.message.reply_markdown(tool_msg)  # type: ignore[union-attr]
+                await update.message.reply_text(  # type: ignore[union-attr]
+                    tool_msg,
+                    parse_mode=ParseMode.MARKDOWN_V2,
+                )
             elif event.type == "token" and event.content:
                 answer_parts.append(event.content)
             elif event.type == "error" and event.error:
                 logger.error("Agent error: %s", event.error)
                 await update.message.reply_text(  # type: ignore[union-attr]
-                    f"⚠️ Something went wrong: {event.error}"
+                    _md(f"⚠️ Something went wrong: {event.error}"),
+                    parse_mode=ParseMode.MARKDOWN_V2,
                 )
                 return
 
         reply = "".join(answer_parts).strip() or "I'm not sure how to answer that."
-        await update.message.reply_markdown(reply)  # type: ignore[union-attr]
+        await update.message.reply_text(  # type: ignore[union-attr]
+            escape_markdown(reply, version=2),
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
 
     except RuntimeError as e:
         logger.warning("Agent unavailable: %s", e)
         await update.message.reply_text(  # type: ignore[union-attr]
-            "⚠️ The assistant is not configured yet. Please add an API key first."
+            _md("⚠️ The assistant is not configured yet. Please add an API key first."),
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
     except Exception as e:
         logger.exception("Unhandled error in handle_message: %s", e)
         await update.message.reply_text(  # type: ignore[union-attr]
-            "⚠️ An unexpected error occurred. Please try again."
+            _md("⚠️ An unexpected error occurred. Please try again."),
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
