@@ -478,6 +478,7 @@ class Agent:
                     tool_executor=_gated_tool_executor,  # ← gated wrapper, not self._execute_tool
                     message_history=message_history,
                     model_name=model_name,
+                    streaming=channel != Channel.TELEGRAM,
                 ):
                     if event.type == "error":
                         stream_error = event.error or "Unknown LLM stream error"

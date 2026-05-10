@@ -101,13 +101,14 @@ class LLM(ABC):
         tool_executor: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
         max_iterations: int = 10,
         temperature: float = 0,
-        model_name: str | None = None
+        model_name: str | None = None,
+        streaming: bool = True,
     ) -> AsyncIterator[StreamEvent]:
-        """Streaming variant of react().
+        """Evented variant of react().
 
         Yields StreamEvent objects in real time:
           tool_start / tool_end — as tools execute
-          token                 — text chunks of the final answer
+          token                 — text chunks, or one complete final answer when streaming=False
           done                  — stream complete with usage + tool history
         """
         ...

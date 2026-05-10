@@ -1,5 +1,7 @@
+import asyncio
 import logging
 import re
+from html import escape as html_escape, unescape
 
 import markdown
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -21,7 +23,7 @@ logger = logging.getLogger(__name__)
 MODEL_CALLBACK_PREFIX    = "model:"
 KEY_TOGGLE_CALLBACK_PREFIX = "keytoggle:"
 KEY_BULK_CALLBACK_PREFIX   = "keybulk:"
-STREAM_EDIT_EVERY_CHARS = 100
+TELEGRAM_PLACEHOLDER_TEXT = "Thinking..."
 TELEGRAM_RESPONSE_CHUNK_LIMIT = 3200
 TELEGRAM_HTML_TAGS = {
     "a",
@@ -454,61 +456,6 @@ def _format_tool_call(tool_name: str, arguments: dict) -> str:
     return "\n".join(lines)
 
 
-def _close_partial_markdown(text: str) -> str:
-    """Make partial Markdown safe for streaming edits by closing open entities."""
-    in_code_block = False
-    in_inline_code = False
-    bold_open = False
-    italic_open = False
-
-    i = 0
-    length = len(text)
-    while i < length:
-        if text.startswith("```", i) and not in_inline_code:
-            in_code_block = not in_code_block
-            i += 3
-            continue
-
-        ch = text[i]
-        if ch == "\\":
-            i += 2
-            continue
-
-        if in_code_block:
-            i += 1
-            continue
-
-        if ch == "`":
-            in_inline_code = not in_inline_code
-            i += 1
-            continue
-
-        if in_inline_code:
-            i += 1
-            continue
-
-        if ch == "*":
-            bold_open = not bold_open
-        elif ch == "_":
-            italic_open = not italic_open
-
-        i += 1
-
-    if in_code_block:
-        if not text.endswith("\n"):
-            text += "\n"
-        return text + "```"
-
-    if in_inline_code:
-        text += "`"
-    if bold_open:
-        text += "*"
-    if italic_open:
-        text += "_"
-
-    return text
-
-
 def _normalize_telegram_html(html: str) -> str:
     """Convert Python-Markdown HTML into the subset accepted by Telegram."""
     html = html.replace("<strong>", "<b>").replace("</strong>", "</b>")
@@ -592,10 +539,7 @@ def _normalize_telegram_html(html: str) -> str:
     return html.strip()
 
 
-def _render_telegram_html(markdown_text: str, *, partial: bool = False) -> str:
-    if partial:
-        markdown_text = _close_partial_markdown(markdown_text)
-
+def _render_telegram_html(markdown_text: str) -> str:
     html = markdown.markdown(
         markdown_text,
         extensions=["fenced_code", "tables"],
@@ -604,20 +548,146 @@ def _render_telegram_html(markdown_text: str, *, partial: bool = False) -> str:
     return _normalize_telegram_html(html)
 
 
-async def _safe_edit_html(message, html_text: str) -> str:
+def _strip_html_to_text(html_text: str) -> str:
+    return unescape(re.sub(r"<[^>]+>", "", html_text)).strip()
+
+
+def _split_telegram_html(html_text: str, limit: int = TELEGRAM_RESPONSE_CHUNK_LIMIT) -> list[str]:
+    """Split final Telegram HTML without cutting through tags or entities."""
+    html_text = html_text.strip()
+    if not html_text:
+        return []
+    if len(html_text) <= limit:
+        return [html_text]
+
+    chunks: list[str] = []
+    current = ""
+    open_tags: list[tuple[str, str]] = []
+    token_pattern = re.compile(r"(<[^>]+>|&(?:#\d+|#x[0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]+);)")
+    tag_pattern = re.compile(r"</?([A-Za-z][A-Za-z0-9-]*)(?:\s[^>]*)?>")
+
+    def closing_markup() -> str:
+        return "".join(f"</{name}>" for name, _ in reversed(open_tags))
+
+    def opening_markup() -> str:
+        return "".join(opener for _, opener in open_tags)
+
+    def flush() -> None:
+        nonlocal current
+        text = current + closing_markup()
+        if text.strip():
+            chunks.append(text)
+        current = opening_markup()
+
+    def apply_tag_state(token: str) -> None:
+        match = tag_pattern.fullmatch(token)
+        if not match:
+            return
+        name = match.group(1).lower()
+        if name not in TELEGRAM_HTML_TAGS:
+            return
+        is_closing = token.startswith("</")
+        is_self_closing = token.endswith("/>")
+        if is_closing:
+            for index in range(len(open_tags) - 1, -1, -1):
+                if open_tags[index][0] == name:
+                    del open_tags[index:]
+                    break
+        elif not is_self_closing:
+            open_tags.append((name, token))
+
+    def append_text(token: str) -> None:
+        nonlocal current
+        while token:
+            available = limit - len(current) - len(closing_markup())
+            if available <= 0:
+                flush()
+                available = limit - len(current) - len(closing_markup())
+            piece = token[:available]
+            current += piece
+            token = token[available:]
+            if token:
+                flush()
+
+    for token in filter(None, token_pattern.split(html_text)):
+        if token.startswith("<"):
+            if len(current) + len(token) + len(closing_markup()) > limit and current.strip():
+                flush()
+            current += token
+            apply_tag_state(token)
+            continue
+
+        if token.startswith("&") and token.endswith(";"):
+            if len(current) + len(token) + len(closing_markup()) > limit and current.strip():
+                flush()
+            current += token
+            continue
+
+        append_text(token)
+
+    if current.strip():
+        chunks.append(current + closing_markup())
+
+    return chunks
+
+
+async def _safe_edit_html(message, html_text: str, *, retry: bool = True) -> str:
     try:
         await message.edit_text(html_text, parse_mode=ParseMode.HTML)
         return html_text
     except BadRequest as exc:
         logger.warning("Telegram rejected rendered HTML; sending unformatted text: %s", exc)
-        await message.edit_text(re.sub(r"<[^>]+>", "", html_text))
+        await message.edit_text(_strip_html_to_text(html_text) or "I could not format that response.")
         return html_text
     except RetryAfter as exc:
         logger.warning("Telegram rate-limited message edit; retry_after=%s", exc.retry_after)
+        if retry and exc.retry_after <= 5:
+            await asyncio.sleep(exc.retry_after)
+            return await _safe_edit_html(message, html_text, retry=False)
         return html_text
     except (TimedOut, NetworkError) as exc:
         logger.warning("Telegram message edit failed due to network issue: %s", exc)
         return html_text
+
+
+async def _safe_reply_html(message, html_text: str, *, retry: bool = True) -> None:
+    try:
+        await message.reply_text(html_text, parse_mode=ParseMode.HTML)
+    except BadRequest as exc:
+        logger.warning("Telegram rejected rendered HTML chunk; sending unformatted text: %s", exc)
+        await message.reply_text(_strip_html_to_text(html_text) or "I could not format that response.")
+    except RetryAfter as exc:
+        logger.warning("Telegram rate-limited message send; retry_after=%s", exc.retry_after)
+        if retry and exc.retry_after <= 5:
+            await asyncio.sleep(exc.retry_after)
+            await _safe_reply_html(message, html_text, retry=False)
+    except (TimedOut, NetworkError) as exc:
+        logger.warning("Telegram message send failed due to network issue: %s", exc)
+
+
+async def _deliver_final_response(message, placeholder, response_text: str) -> None:
+    final_text = response_text.strip() or "I'm not sure how to answer that."
+    try:
+        rendered = _render_telegram_html(final_text)
+    except Exception as exc:
+        logger.warning("Failed to render Telegram Markdown; sending unformatted text: %s", exc)
+        rendered = html_escape(final_text)
+
+    chunks = _split_telegram_html(rendered) or [html_escape(final_text)]
+    await _safe_edit_html(placeholder, chunks[0])
+    for chunk in chunks[1:]:
+        await _safe_reply_html(message, chunk)
+
+
+async def _typing_indicator_loop(ctx: ContextTypes.DEFAULT_TYPE, chat_id: int) -> None:
+    try:
+        while True:
+            await ctx.bot.send_chat_action(chat_id=chat_id, action="typing")
+            await asyncio.sleep(4)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        logger.debug("Telegram typing indicator failed: %s", exc)
 
 
 async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -633,6 +703,8 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     selected_model = get_selected_model(user_id)
 
     await ctx.bot.send_chat_action(chat_id=chat_id, action="typing")
+    placeholder = None
+    typing_task: asyncio.Task[None] | None = None
 
     try:
         if "session_id" not in ctx.user_data:  # type: ignore[union-attr]
@@ -645,13 +717,9 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
 
         session_id: str = ctx.user_data["session_id"]  # type: ignore[union-attr]
 
-        sent = await update.message.reply_text(
-            "...",
-            parse_mode=ParseMode.HTML,
-        )
-        buffer = ""
-        last_sent = "..."
-        char_count = 0
+        placeholder = await update.message.reply_text(TELEGRAM_PLACEHOLDER_TEXT)
+        typing_task = asyncio.create_task(_typing_indicator_loop(ctx, chat_id))
+        response_parts: list[str] = []
 
         async for event in agent.chat(
             user_text,
@@ -671,47 +739,41 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
                 )
 
             elif event.type == "token" and event.content:
-                buffer += event.content
-                char_count += len(event.content)
-
-                if char_count >= STREAM_EDIT_EVERY_CHARS:
-                    char_count = 0
-                    rendered = _render_telegram_html(buffer, partial=True)
-
-                    if len(buffer) >= TELEGRAM_RESPONSE_CHUNK_LIMIT:
-                        if rendered != last_sent:
-                            last_sent = await _safe_edit_html(sent, rendered)
-                        sent = await update.message.reply_text(
-                            "...",
-                            parse_mode=ParseMode.HTML,
-                        )
-                        last_sent = "..."
-                        buffer = ""
-                    elif rendered != last_sent:
-                        last_sent = await _safe_edit_html(sent, rendered)
+                response_parts.append(event.content)
 
             elif event.type == "error" and event.error:
                 logger.error("Agent error: %s", event.error)
-                await sent.edit_text(
-                    _md(f"⚠️ Something went wrong: {event.error}"),
-                    parse_mode=ParseMode.MARKDOWN_V2,
-                )
+                error_text = _md(f"⚠️ Something went wrong: {event.error}")
+                if placeholder:
+                    await placeholder.edit_text(error_text, parse_mode=ParseMode.MARKDOWN_V2)
+                else:
+                    await update.message.reply_text(error_text, parse_mode=ParseMode.MARKDOWN_V2)
                 return
 
-        final = buffer.strip() or "I'm not sure how to answer that."
-        if final != last_sent:
-            rendered = _render_telegram_html(final)
-            await _safe_edit_html(sent, rendered)
+        await _deliver_final_response(
+            update.message,
+            placeholder,
+            "".join(response_parts),
+        )
 
     except RuntimeError as e:
         logger.warning("Agent unavailable: %s", e)
-        await update.message.reply_text(
-            _md("⚠️ The assistant is not configured yet. Please add an API key first."),
-            parse_mode=ParseMode.MARKDOWN_V2,
-        )
+        error_text = _md("⚠️ The assistant is not configured yet. Please add an API key first.")
+        if placeholder:
+            await placeholder.edit_text(error_text, parse_mode=ParseMode.MARKDOWN_V2)
+        else:
+            await update.message.reply_text(error_text, parse_mode=ParseMode.MARKDOWN_V2)
     except Exception as e:
         logger.exception("Unhandled error in handle_message: %s", e)
-        await update.message.reply_text(
-            _md("⚠️ An unexpected error occurred. Please try again."),
-            parse_mode=ParseMode.MARKDOWN_V2,
-        )
+        error_text = _md("⚠️ An unexpected error occurred. Please try again.")
+        if placeholder:
+            await placeholder.edit_text(error_text, parse_mode=ParseMode.MARKDOWN_V2)
+        else:
+            await update.message.reply_text(error_text, parse_mode=ParseMode.MARKDOWN_V2)
+    finally:
+        if typing_task:
+            typing_task.cancel()
+            try:
+                await typing_task
+            except asyncio.CancelledError:
+                pass

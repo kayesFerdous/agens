@@ -147,9 +147,10 @@ class GeminiLLM(LLM):
         tool_executor: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
         max_iterations: int = 10,
         temperature: float = 0,
-        model_name: str | None = None
+        model_name: str | None = None,
+        streaming: bool = True,
     ) -> AsyncIterator[StreamEvent]:
-        """Streaming ReAct loop. Yields StreamEvent objects in real time."""
+        """ReAct event loop. Can stream final text or emit it once when complete."""
         if model_name:
             self._model_name = model_name
 
@@ -161,7 +162,7 @@ class GeminiLLM(LLM):
             tool_executor=tool_executor,
             max_iterations=max_iterations,
             temperature=temperature,
-            streaming=True,
+            streaming=streaming,
         ):
             yield event
 
