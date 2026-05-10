@@ -217,7 +217,7 @@ async def get_keys_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
 
 def _format_tool_call(tool_name: str, arguments: dict) -> str:
     """Format a tool_start event into a readable Telegram Markdown message."""
-    lines = [f"*Calling:* `{escape_markdown(tool_name, version=2)}`"]
+    lines = [f"*Called:* `{escape_markdown(tool_name, version=2)}`"]
     if arguments:
         for key, value in arguments.items():
             display = str(value)
@@ -232,9 +232,11 @@ def _format_tool_call(tool_name: str, arguments: dict) -> str:
 async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.message or not update.message.text:
         return
+    if not update.effective_user:
+        return
 
     user_text: str = update.message.text
-    user_id: int = update.effective_user.id  # type: ignore[union-attr]
+    user_id: int = update.effective_user.id
     agent: Agent = ctx.bot_data["agent"]
     chat_id: int = update.effective_chat.id  # type: ignore[union-attr]
     selected_model = get_selected_model(user_id)
@@ -242,7 +244,6 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     await ctx.bot.send_chat_action(chat_id=chat_id, action="typing")
 
     try:
-        # Retrieve or create a persistent DB session for this Telegram user.
         if "session_id" not in ctx.user_data:  # type: ignore[union-attr]
             async with async_session() as db:
                 session = await session_repo.insert_session(
@@ -253,8 +254,14 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
 
         session_id: str = ctx.user_data["session_id"]  # type: ignore[union-attr]
 
-        # Collect the full answer from the streaming ReAct loop.
-        answer_parts: list[str] = []
+        # Placeholder message that we'll edit as tokens stream in
+        sent = await update.message.reply_text("...")
+        buffer = ""
+        last_sent = "..."
+        char_count = 0
+        EDIT_EVERY = 100
+        MAX_LEN = 3800
+
         async for event in agent.chat(
             user_text,
             session_id,
@@ -267,35 +274,51 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
                     event.tool or "unknown",
                     event.arguments or {},
                 )
-                await update.message.reply_text(  # type: ignore[union-attr]
+                await update.message.reply_text(
                     tool_msg,
                     parse_mode=ParseMode.MARKDOWN_V2,
                 )
+
             elif event.type == "token" and event.content:
-                answer_parts.append(event.content)
+                buffer += event.content
+                char_count += len(event.content)
+
+                if char_count >= EDIT_EVERY:
+                    char_count = 0
+                    escaped = escape_markdown(buffer, version=2)
+
+                    if len(buffer) >= MAX_LEN:
+                        if escaped != last_sent:
+                            await sent.edit_text(escaped, parse_mode=ParseMode.MARKDOWN_V2)
+                        sent = await update.message.reply_text("...")
+                        last_sent = "..."
+                        buffer = ""
+                    elif escaped != last_sent:
+                        await sent.edit_text(escaped, parse_mode=ParseMode.MARKDOWN_V2)
+                        last_sent = escaped
+
             elif event.type == "error" and event.error:
                 logger.error("Agent error: %s", event.error)
-                await update.message.reply_text(  # type: ignore[union-attr]
+                await sent.edit_text(
                     _md(f"⚠️ Something went wrong: {event.error}"),
                     parse_mode=ParseMode.MARKDOWN_V2,
                 )
                 return
 
-        reply = "".join(answer_parts).strip() or "I'm not sure how to answer that."
-        await update.message.reply_text(  # type: ignore[union-attr]
-            escape_markdown(reply, version=2),
-            parse_mode=ParseMode.MARKDOWN_V2,
-        )
+        # Final edit
+        final = escape_markdown(buffer.strip() or "I'm not sure how to answer that.", version=2)
+        if final != last_sent:
+            await sent.edit_text(final, parse_mode=ParseMode.MARKDOWN_V2)
 
     except RuntimeError as e:
         logger.warning("Agent unavailable: %s", e)
-        await update.message.reply_text(  # type: ignore[union-attr]
+        await update.message.reply_text(
             _md("⚠️ The assistant is not configured yet. Please add an API key first."),
             parse_mode=ParseMode.MARKDOWN_V2,
         )
     except Exception as e:
         logger.exception("Unhandled error in handle_message: %s", e)
-        await update.message.reply_text(  # type: ignore[union-attr]
+        await update.message.reply_text(
             _md("⚠️ An unexpected error occurred. Please try again."),
             parse_mode=ParseMode.MARKDOWN_V2,
         )
