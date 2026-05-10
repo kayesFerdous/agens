@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from agent.agent import Agent
 from config.logging import get_logger, setup_logging
@@ -13,6 +16,7 @@ from config.settings import settings
 
 setup_logging()
 logger = get_logger(__name__)
+FRONTEND_DIST = Path(__file__).parent / "dist"
 
 
 def _create_app(agent: Agent) -> FastAPI:
@@ -54,6 +58,15 @@ def _create_app(agent: Agent) -> FastAPI:
     app.include_router(chat_router, prefix="/chat", tags=["chat"])
     app.include_router(api_keys_router, prefix="/api-keys", tags=["api-keys"])
     app.include_router(settings_router, prefix="/settings", tags=["settings"])
+
+    app.mount("/static", StaticFiles(directory=FRONTEND_DIST), name="frontend")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    async def serve_frontend(path: str):
+        api_prefixes = ("sessions", "chat", "api-keys", "settings")
+        if path in api_prefixes or path.startswith(tuple(f"{prefix}/" for prefix in api_prefixes)):
+            raise HTTPException(status_code=404)
+        return FileResponse(FRONTEND_DIST / "index.html")
 
     return app
 
