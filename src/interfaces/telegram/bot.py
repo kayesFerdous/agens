@@ -4,7 +4,9 @@ from __future__ import annotations
 import logging
 import asyncio
 
+from telegram.error import NetworkError, RetryAfter, TelegramError, TimedOut
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters
+from telegram.request import HTTPXRequest
 
 from agent.agent import Agent
 from config.logging import setup_logging
@@ -14,6 +16,12 @@ from . import handlers
 
 setup_logging()
 logger = logging.getLogger(__name__)
+BOT_CONNECT_TIMEOUT = 15.0
+BOT_READ_TIMEOUT = 20.0
+BOT_WRITE_TIMEOUT = 20.0
+BOT_POOL_TIMEOUT = 5.0
+POLLING_TIMEOUT = 30
+POLLING_READ_TIMEOUT = 40.0
 
 
 # ---------------------------------------------------------------------------
@@ -35,9 +43,24 @@ async def start_telegram(agent: Agent) -> None:
         logger.error("No Telegram token configured in config.json. Bot will not start.")
         return
 
+    bot_request = HTTPXRequest(
+        connect_timeout=BOT_CONNECT_TIMEOUT,
+        read_timeout=BOT_READ_TIMEOUT,
+        write_timeout=BOT_WRITE_TIMEOUT,
+        pool_timeout=BOT_POOL_TIMEOUT,
+    )
+    polling_request = HTTPXRequest(
+        connect_timeout=BOT_CONNECT_TIMEOUT,
+        read_timeout=POLLING_READ_TIMEOUT,
+        write_timeout=BOT_WRITE_TIMEOUT,
+        pool_timeout=BOT_POOL_TIMEOUT,
+    )
+
     app = (
         Application.builder()
         .token(config.telegram_token)
+        .request(bot_request)
+        .get_updates_request(polling_request)
         .post_init(handlers.on_startup)
         .build()
     )
@@ -56,6 +79,7 @@ async def start_telegram(agent: Agent) -> None:
         handlers.handle_key_bulk_callback, pattern=f"^{handlers.KEY_BULK_CALLBACK_PREFIX}"
     ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.handle_message))
+    app.add_error_handler(handlers.error_handler)
 
     # `async with app` calls initialize() on enter and shutdown() on exit.
     async with app:
@@ -71,7 +95,10 @@ async def start_telegram(agent: Agent) -> None:
             )
         else:
             logger.info("Starting Telegram bot with long-polling")
-            await app.updater.start_polling()  # type: ignore[union-attr]
+            await app.updater.start_polling(  # type: ignore[union-attr]
+                timeout=POLLING_TIMEOUT,
+                error_callback=_log_polling_error,
+            )
 
         try:
             # Block here until cancelled (KeyboardInterrupt → CancelledError
@@ -81,3 +108,13 @@ async def start_telegram(agent: Agent) -> None:
             # Graceful shutdown — mirrors what run_polling() does internally.
             await app.updater.stop()  # type: ignore[union-attr]
             await app.stop()
+
+
+def _log_polling_error(error: TelegramError) -> None:
+    if isinstance(error, RetryAfter):
+        logger.warning("Telegram polling rate-limited; retry_after=%s", error.retry_after)
+        return
+    if isinstance(error, (TimedOut, NetworkError)):
+        logger.warning("Telegram polling network issue: %s", error)
+        return
+    logger.exception("Telegram polling error", exc_info=(type(error), error, error.__traceback__))

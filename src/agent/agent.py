@@ -457,6 +457,7 @@ class Agent:
         for attempt in range(max_retries):
             answer_parts.clear()
             last_done_event = None
+            stream_error: str | None = None
 
             # The active model may be overridden per-request via the model_name arg.
             active_model = model_name or self._llm.model_name
@@ -478,12 +479,36 @@ class Agent:
                     message_history=message_history,
                     model_name=model_name,
                 ):
+                    if event.type == "error":
+                        stream_error = event.error or "Unknown LLM stream error"
+                        break
                     if event.type == "token" and event.content:
                         answer_parts.append(event.content)
                     if event.type == "done":
                         last_done_event = event
                         continue
                     yield event
+
+                if stream_error:
+                    is_empty_stop = (
+                        stream_error.startswith("No content. Finish reason:")
+                        and "STOP" in stream_error
+                    )
+                    if is_empty_stop and attempt < max_retries - 1:
+                        logger.warning(
+                            "Empty LLM response on attempt %d/%d for model=%s; retrying",
+                            attempt + 1,
+                            max_retries,
+                            active_model,
+                        )
+                        yield StreamEvent(
+                            type="status",
+                            message="The model returned an empty response. Retrying.",
+                        )
+                        continue
+
+                    yield StreamEvent(type="error", error=stream_error)
+                    return
 
                 if captured_confirmation:
                     pending_conf = captured_confirmation[0]

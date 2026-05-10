@@ -1,6 +1,10 @@
 import logging
+import re
+
+import markdown
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
+from telegram.error import BadRequest, NetworkError, RetryAfter, TimedOut
 from telegram.helpers import escape_markdown
 from telegram.ext import ContextTypes, Application
 
@@ -17,6 +21,21 @@ logger = logging.getLogger(__name__)
 MODEL_CALLBACK_PREFIX    = "model:"
 KEY_TOGGLE_CALLBACK_PREFIX = "keytoggle:"
 KEY_BULK_CALLBACK_PREFIX   = "keybulk:"
+STREAM_EDIT_EVERY_CHARS = 100
+TELEGRAM_RESPONSE_CHUNK_LIMIT = 3200
+TELEGRAM_HTML_TAGS = {
+    "a",
+    "b",
+    "code",
+    "del",
+    "i",
+    "pre",
+    "s",
+    "span",
+    "strike",
+    "tg-spoiler",
+    "u",
+}
 
 
 def _md(text: str) -> str:
@@ -26,6 +45,24 @@ def _md(text: str) -> str:
 async def on_startup(app: Application) -> None:  # type: ignore[type-arg]
     """Store the shared agent in bot_data so every handler can reach it."""
     logger.info("Telegram bot ready (agent already attached)")
+
+
+async def error_handler(update: object, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Log Telegram framework errors without turning network blips into tracebacks."""
+    error = ctx.error
+    if isinstance(error, RetryAfter):
+        logger.warning("Telegram rate limit from framework; retry_after=%s", error.retry_after)
+        return
+    if isinstance(error, (TimedOut, NetworkError)):
+        logger.warning("Telegram network timeout from framework: %s", error)
+        return
+    if isinstance(error, BaseException):
+        logger.error(
+            "Unhandled Telegram framework error",
+            exc_info=(type(error), error, error.__traceback__),
+        )
+        return
+    logger.error("Unhandled Telegram framework error: %r", error)
 
 
 async def start_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -417,6 +454,172 @@ def _format_tool_call(tool_name: str, arguments: dict) -> str:
     return "\n".join(lines)
 
 
+def _close_partial_markdown(text: str) -> str:
+    """Make partial Markdown safe for streaming edits by closing open entities."""
+    in_code_block = False
+    in_inline_code = False
+    bold_open = False
+    italic_open = False
+
+    i = 0
+    length = len(text)
+    while i < length:
+        if text.startswith("```", i) and not in_inline_code:
+            in_code_block = not in_code_block
+            i += 3
+            continue
+
+        ch = text[i]
+        if ch == "\\":
+            i += 2
+            continue
+
+        if in_code_block:
+            i += 1
+            continue
+
+        if ch == "`":
+            in_inline_code = not in_inline_code
+            i += 1
+            continue
+
+        if in_inline_code:
+            i += 1
+            continue
+
+        if ch == "*":
+            bold_open = not bold_open
+        elif ch == "_":
+            italic_open = not italic_open
+
+        i += 1
+
+    if in_code_block:
+        if not text.endswith("\n"):
+            text += "\n"
+        return text + "```"
+
+    if in_inline_code:
+        text += "`"
+    if bold_open:
+        text += "*"
+    if italic_open:
+        text += "_"
+
+    return text
+
+
+def _normalize_telegram_html(html: str) -> str:
+    """Convert Python-Markdown HTML into the subset accepted by Telegram."""
+    html = html.replace("<strong>", "<b>").replace("</strong>", "</b>")
+    html = html.replace("<em>", "<i>").replace("</em>", "</i>")
+    html = re.sub(r"<code\b[^>]*>", "<code>", html)
+    html = re.sub(r"<pre\b[^>]*>", "<pre>", html)
+
+    def _render_heading(match: re.Match[str]) -> str:
+        content = match.group(2).strip()
+        if not content:
+            return ""
+        return f"<b>{content}</b>\n\n"
+
+    html = re.sub(r"<h([1-6])>(.*?)</h\1>", _render_heading, html, flags=re.S)
+
+    def _render_blockquote(match: re.Match[str]) -> str:
+        content = match.group(1)
+        content = content.replace("<p>", "").replace("</p>", "\n")
+        content = re.sub(r"<br\s*/?>", "\n", content)
+        content = content.strip()
+        if not content:
+            return ""
+        lines = [line.strip() for line in content.splitlines() if line.strip()]
+        return "\n".join(f"&gt; {line}" for line in lines) + "\n"
+
+    html = re.sub(r"<blockquote>(.*?)</blockquote>", _render_blockquote, html, flags=re.S)
+
+    def _clean_list_item(item: str) -> str:
+        item = item.replace("<p>", "").replace("</p>", "\n")
+        item = re.sub(r"<br\s*/?>", "\n", item)
+        lines = [line.strip() for line in item.splitlines() if line.strip()]
+        return " ".join(lines)
+
+    def _render_ol(match: re.Match[str]) -> str:
+        body = match.group(1)
+        items = re.findall(r"<li>(.*?)</li>", body, flags=re.S)
+        lines: list[str] = []
+        for index, item in enumerate(items, 1):
+            cleaned = _clean_list_item(item)
+            if cleaned:
+                lines.append(f"{index}. {cleaned}")
+        return "\n".join(lines)
+
+    def _render_ul(match: re.Match[str]) -> str:
+        body = match.group(1)
+        items = re.findall(r"<li>(.*?)</li>", body, flags=re.S)
+        lines: list[str] = []
+        for item in items:
+            cleaned = _clean_list_item(item)
+            if cleaned:
+                lines.append(f"• {cleaned}")
+        return "\n".join(lines)
+
+    html = re.sub(r"<ol>(.*?)</ol>", _render_ol, html, flags=re.S)
+    html = re.sub(r"<ul>(.*?)</ul>", _render_ul, html, flags=re.S)
+    html = re.sub(r"</?li>", "", html)
+
+    html = re.sub(r"</?thead>|</?tbody>|</?tfoot>", "", html)
+    html = re.sub(r"<table\b[^>]*>", "", html)
+    html = html.replace("</table>", "")
+    html = re.sub(r"<tr\b[^>]*>", "", html)
+    html = html.replace("</tr>", "\n")
+    html = re.sub(r"<th\b[^>]*>", "", html)
+    html = html.replace("</th>", "  ")
+    html = re.sub(r"<td\b[^>]*>", "", html)
+    html = html.replace("</td>", "  ")
+
+    html = html.replace("<p>", "").replace("</p>", "\n")
+    html = re.sub(r"<br\s*/?>", "\n", html)
+    html = re.sub(r"<hr\s*/?>", "\n", html)
+
+    def _strip_unsupported_tag(match: re.Match[str]) -> str:
+        return match.group(0) if match.group(1).lower() in TELEGRAM_HTML_TAGS else ""
+
+    html = re.sub(
+        r"</?([A-Za-z][A-Za-z0-9-]*)(?:\s[^>]*)?>",
+        _strip_unsupported_tag,
+        html,
+    )
+    html = re.sub(r"\n{3,}", "\n\n", html)
+    return html.strip()
+
+
+def _render_telegram_html(markdown_text: str, *, partial: bool = False) -> str:
+    if partial:
+        markdown_text = _close_partial_markdown(markdown_text)
+
+    html = markdown.markdown(
+        markdown_text,
+        extensions=["fenced_code", "tables"],
+        output_format="html",
+    )
+    return _normalize_telegram_html(html)
+
+
+async def _safe_edit_html(message, html_text: str) -> str:
+    try:
+        await message.edit_text(html_text, parse_mode=ParseMode.HTML)
+        return html_text
+    except BadRequest as exc:
+        logger.warning("Telegram rejected rendered HTML; sending unformatted text: %s", exc)
+        await message.edit_text(re.sub(r"<[^>]+>", "", html_text))
+        return html_text
+    except RetryAfter as exc:
+        logger.warning("Telegram rate-limited message edit; retry_after=%s", exc.retry_after)
+        return html_text
+    except (TimedOut, NetworkError) as exc:
+        logger.warning("Telegram message edit failed due to network issue: %s", exc)
+        return html_text
+
+
 async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.message or not update.message.text:
         return
@@ -443,14 +646,12 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         session_id: str = ctx.user_data["session_id"]  # type: ignore[union-attr]
 
         sent = await update.message.reply_text(
-            _md("..."),
-            parse_mode=ParseMode.MARKDOWN_V2,
+            "...",
+            parse_mode=ParseMode.HTML,
         )
         buffer = ""
         last_sent = "..."
         char_count = 0
-        EDIT_EVERY = 100
-        MAX_LEN = 3800
 
         async for event in agent.chat(
             user_text,
@@ -473,22 +674,21 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
                 buffer += event.content
                 char_count += len(event.content)
 
-                if char_count >= EDIT_EVERY:
+                if char_count >= STREAM_EDIT_EVERY_CHARS:
                     char_count = 0
-                    escaped = escape_markdown(buffer, version=2)
+                    rendered = _render_telegram_html(buffer, partial=True)
 
-                    if len(buffer) >= MAX_LEN:
-                        if escaped != last_sent:
-                            await sent.edit_text(escaped, parse_mode=ParseMode.MARKDOWN_V2)
+                    if len(buffer) >= TELEGRAM_RESPONSE_CHUNK_LIMIT:
+                        if rendered != last_sent:
+                            last_sent = await _safe_edit_html(sent, rendered)
                         sent = await update.message.reply_text(
-                            _md("..."),
-                            parse_mode=ParseMode.MARKDOWN_V2,
+                            "...",
+                            parse_mode=ParseMode.HTML,
                         )
                         last_sent = "..."
                         buffer = ""
-                    elif escaped != last_sent:
-                        await sent.edit_text(escaped, parse_mode=ParseMode.MARKDOWN_V2)
-                        last_sent = escaped
+                    elif rendered != last_sent:
+                        last_sent = await _safe_edit_html(sent, rendered)
 
             elif event.type == "error" and event.error:
                 logger.error("Agent error: %s", event.error)
@@ -498,9 +698,10 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
                 )
                 return
 
-        final = escape_markdown(buffer.strip() or "I'm not sure how to answer that.", version=2)
+        final = buffer.strip() or "I'm not sure how to answer that."
         if final != last_sent:
-            await sent.edit_text(final, parse_mode=ParseMode.MARKDOWN_V2)
+            rendered = _render_telegram_html(final)
+            await _safe_edit_html(sent, rendered)
 
     except RuntimeError as e:
         logger.warning("Agent unavailable: %s", e)
