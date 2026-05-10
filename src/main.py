@@ -10,6 +10,10 @@ Usage:
 """
 from __future__ import annotations
 
+from src.config.runtime import initialize_runtime
+
+initialize_runtime()
+
 import asyncio
 import sys
 

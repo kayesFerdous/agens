@@ -2,6 +2,7 @@
 from __future__ import annotations
 import platform
 from datetime import datetime
+from src.config.runtime import build_knowledge_prompt_snippet
 from config.workspace import WORKSPACE_ROOT
 from config.config_manager import ConfigManager
 
@@ -12,6 +13,11 @@ SYSTEM_PROMPT = """You are {assistant_name}, a personal assistant for {user_name
 Tone: {tone}. Address the user by first name when natural.
 Platform: {platform} | Workspace: {workspace_root} | DateTime: {now}
 {preferences_summary}
+
+## Knowledge Files
+{knowledge_files}
+
+Use read_file to read a knowledge file before answering questions that require it. Never assume file contents without reading them first.
 
 ## Rules:
 - All file paths must be absolute, under workspace root.
@@ -53,4 +59,5 @@ def build_system_prompt(config_manager: ConfigManager) -> str:
         workspace_root=WORKSPACE_ROOT,
         now=datetime.now().strftime("%Y-%m-%d %H:%M"),
         preferences_summary=preferences_summary,
+        knowledge_files=build_knowledge_prompt_snippet(),
     )
