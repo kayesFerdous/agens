@@ -8,10 +8,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from config.runtime import get_runtime_root
+
 # Resolves to  src/data/tui_prefs.json
-_PREFS_FILE: Path = (
-    Path(__file__).resolve().parent.parent.parent.parent / "data" / "tui_prefs.json"
-)
+_PREFS_FILE: Path = get_runtime_root() / "tui_prefs.json"
 
 _DEFAULTS: dict = {
     "selected_model": None,

@@ -4,7 +4,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-_PREFS_FILE: Path = Path(__file__).resolve().parent.parent.parent.parent / "data" / "telegram_prefs.json"
+from config.runtime import get_runtime_root
+
+_PREFS_FILE: Path = get_runtime_root() / "telegram_prefs.json"
 
 _DEFAULTS: dict = {
     "users": {},
