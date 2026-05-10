@@ -1,5 +1,6 @@
 # Run instructions:
-#   uv run python -m src.main --interface tui
+#   uv run python -m main --interface tui
+#   vela tui
 #   Requirements: textual>=0.60.0
 #
 # If you see a blank screen: check that ChatView has height: 1fr in CSS.

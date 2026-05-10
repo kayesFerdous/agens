@@ -1,5 +1,5 @@
 [project]
-name = "assistant"
+name = "vela"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -19,6 +19,9 @@ dependencies = [
     "uvicorn[standard]>=0.34.0",
 ]
 
+[project.scripts]
+vela = "main:cli"
+
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
@@ -26,6 +29,7 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 package-dir = {"" = "src"}
 include-package-data = true
+py-modules = ["main"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -26,7 +26,8 @@ VALID_INTERFACES = {"web", "telegram", "tui"}
 
 USAGE = """\
 Usage: python main.py <interface> [<interface> ...]
-       python -m src.main --interface <interface> [<interface> ...]
+    python -m main --interface <interface> [<interface> ...]
+    vela <interface> [<interface> ...]
 
 Available interfaces:
   web        FastAPI + uvicorn REST/SSE server
@@ -35,6 +36,8 @@ Available interfaces:
 
 Examples:
   python main.py web
+    python -m main --interface web
+    vela web
   python main.py telegram
   python main.py web telegram tui
 """
@@ -112,8 +115,13 @@ async def main() -> None:
         await asyncio.gather(*starters)
 
 
-if __name__ == "__main__":
+def cli() -> None:
+    """Sync entry point for console scripts."""
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\nShutting down. Goodbye.")
+
+
+if __name__ == "__main__":
+    cli()

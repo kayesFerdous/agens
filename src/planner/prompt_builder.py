@@ -2,7 +2,7 @@
 from __future__ import annotations
 import platform
 from datetime import datetime
-from src.config.runtime import build_knowledge_prompt_snippet
+from config.runtime import build_knowledge_prompt_snippet
 from config.workspace import WORKSPACE_ROOT
 from config.config_manager import ConfigManager
 

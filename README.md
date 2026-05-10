@@ -1,7 +1,7 @@
 
 **To start:**
 ```
-env PYTHONPATH=src uv run -m src.main
+env PYTHONPATH=src uv run -m main
 ```
 or
 ```
