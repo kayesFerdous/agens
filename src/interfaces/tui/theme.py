@@ -56,6 +56,7 @@ UserBlock {
     border: none;
     padding: 0 2;
     margin: 0;
+    margin-top: 1;
 }
 
 AssistantBlock {
@@ -64,8 +65,9 @@ AssistantBlock {
     width: 100%;
     background: transparent;
     border: none;
-    padding: 0;
+    padding: 0 2;
     margin: 0;
+    margin-top: 1;
 }
 
 AssistantBlock Markdown {
@@ -91,8 +93,9 @@ SystemLine {
     border: none;
     color: #4b5563;
     text-style: italic;
-    padding: 0;
+    padding: 0 2;
     margin: 0;
+    margin-top: 1;
 }
 
 LiveSpinner {
@@ -101,6 +104,7 @@ LiveSpinner {
     background: transparent;
     border: none;
     margin: 0;
+    margin-top: 1;
 }
 
 HorizontalRule {
@@ -230,6 +234,7 @@ CommandResultBlock {
     background: transparent;
     padding: 0;
     margin: 0;
+    margin-top: 1;
 }
 
 CommandResultBlock .command-result-box {
