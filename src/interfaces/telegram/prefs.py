@@ -1,0 +1,38 @@
+"""Lightweight persistence for Telegram user preferences."""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+_PREFS_FILE: Path = Path(__file__).resolve().parent.parent.parent.parent / "data" / "telegram_prefs.json"
+
+_DEFAULTS: dict = {
+    "users": {},
+}
+
+
+def _load() -> dict:
+    try:
+        return json.loads(_PREFS_FILE.read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        return dict(_DEFAULTS)
+
+
+def _save(prefs: dict) -> None:
+    _PREFS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _PREFS_FILE.write_text(json.dumps(prefs, indent=2))
+
+
+def get_selected_model(user_id: int) -> str | None:
+    prefs = _load()
+    users = prefs.get("users", {})
+    user_prefs = users.get(str(user_id), {})
+    return user_prefs.get("selected_model")
+
+
+def set_selected_model(user_id: int, model_id: str | None) -> None:
+    prefs = _load()
+    users = prefs.setdefault("users", {})
+    user_prefs = users.setdefault(str(user_id), {})
+    user_prefs["selected_model"] = model_id
+    _save(prefs)
