@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import asyncio
 
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters
 
 from agent.agent import Agent
 from config.logging import setup_logging
@@ -47,7 +47,10 @@ async def start_telegram(agent: Agent) -> None:
 
     app.add_handler(CommandHandler("start", handlers.start_command))
     app.add_handler(CommandHandler("help", handlers.help_command))
+    app.add_handler(CommandHandler("model", handlers.model_command))
+    app.add_handler(CommandHandler("models", handlers.model_command))
     app.add_handler(CommandHandler("keys", handlers.get_keys_command))
+    app.add_handler(CallbackQueryHandler(handlers.handle_model_callback, pattern=r"^model:"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.handle_message))
 
     # `async with app` calls initialize() on enter and shutdown() on exit.
