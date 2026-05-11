@@ -1,7 +1,8 @@
 <script>
   import '@fontsource/inter';
   import { onMount } from 'svelte';
-  import { activeSessionId, theme, messages, activePage, restoredConfirmation } from './lib/store.js';
+  import { get } from 'svelte/store';
+  import { activeSessionId, theme, messages, activePage, restoredConfirmation, noApiKeys, settingsTab } from './lib/store.js';
   import { getSession, shutdownAssistant, getSetupStatus } from './lib/api.js';
   import { sessionService } from './lib/sessionService.svelte.js';
 
@@ -9,7 +10,6 @@
   let shutdownPending = false;
   let shutdownError = null;
   let setupLoading = true;
-  let noApiKeys = false;
 
   function toggleTheme() {
     theme.update(t => t === 'dark' ? 'light' : 'dark');
@@ -117,8 +117,15 @@
     (async () => {
       try {
         const setup = await getSetupStatus();
-        noApiKeys = !!setup.no_api_keys;
-        if (noApiKeys) return;
+        noApiKeys.set(!!setup.no_api_keys);
+        if (get(noApiKeys)) {
+          const params = new URLSearchParams(window.location.search);
+          const page = params.get('page');
+          const tab = params.get('tab');
+          if (page) activePage.set(page);
+          if (tab) settingsTab.set(tab);
+          return;
+        }
 
         await sessionService.loadInitial();
         
@@ -135,6 +142,10 @@
         if (page) {
           activePage.set(page);
         }
+        const tab = params.get('tab');
+        if (tab) {
+          settingsTab.set(tab);
+        }
       } catch (err) {
         console.error('Failed to load sessions:', err);
       } finally {
@@ -147,7 +158,7 @@
       const sid = params.get('session');
       const page = params.get('page') || 'chat';
 
-      if (!noApiKeys && sid !== $activeSessionId) {
+      if (!$noApiKeys && sid !== $activeSessionId) {
         activeSessionId.set(sid);
         loadSession(sid);
       }
@@ -155,6 +166,7 @@
       if (page !== $activePage) {
         activePage.set(page);
       }
+      settingsTab.set(params.get('tab') || 'general');
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -166,6 +178,7 @@
       const url = new URL(window.location.href);
       const currentSid = url.searchParams.get('session');
       const currentPage = url.searchParams.get('page') || 'chat';
+      const currentTab = url.searchParams.get('tab') || 'general';
       
       let changed = false;
 
@@ -190,6 +203,16 @@
         changed = true;
       }
 
+      if ($activePage === 'settings') {
+        if (currentTab !== $settingsTab) {
+          url.searchParams.set('tab', $settingsTab);
+          changed = true;
+        }
+      } else if (url.searchParams.has('tab')) {
+        url.searchParams.delete('tab');
+        changed = true;
+      }
+
       if (changed) {
         window.history.pushState({ sessionId: $activeSessionId, page: $activePage }, '', url);
       }
@@ -198,7 +221,7 @@
 
   // Reload messages when activeSessionId changes
   $: {
-    if (!noApiKeys) {
+    if (!$noApiKeys) {
       loadSession($activeSessionId);
     }
   }
@@ -261,10 +284,10 @@
       
       {#if setupLoading}
         <div class="setup-loading">Checking setup...</div>
-      {:else if noApiKeys}
-        <SetupPage />
       {:else if $activePage === 'settings'}
         <SettingsPage />
+      {:else if $noApiKeys}
+        <SetupPage />
       {:else}
         <ChatArea />
       {/if}

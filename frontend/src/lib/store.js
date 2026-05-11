@@ -3,6 +3,7 @@ import { writable } from 'svelte/store';
 export const activeSessionId = writable(null);
 export const messages = writable([]);
 export const isStreaming = writable(false);
+export const noApiKeys = writable(false);
 
 /**
  * Set by App.svelte after loading a session whose last assistant message has
@@ -17,6 +18,11 @@ const initialPage = typeof window !== 'undefined'
   ? (new URLSearchParams(window.location.search).get('page') || 'chat')
   : 'chat';
 export const activePage = writable(initialPage);
+
+const initialSettingsTab = typeof window !== 'undefined'
+  ? (new URLSearchParams(window.location.search).get('tab') || 'general')
+  : 'general';
+export const settingsTab = writable(initialSettingsTab);
 
 const storedTheme = typeof window !== 'undefined' ? localStorage.getItem('theme') : 'dark';
 export const theme = writable(storedTheme || 'dark');

@@ -7,16 +7,6 @@ Screen {
     layout: vertical;
 }
 
-#setup-screen {
-    width: 100%;
-    height: 100%;
-    content-align: center middle;
-    text-align: center;
-    padding: 4 8;
-    color: #f4f4f5;
-    background: #0d0d0d;
-}
-
 AppHeader {
     height: 1;
     background: #111827;
@@ -321,6 +311,55 @@ InlineConfirmation .confirm-no.selected {
 
 InlineConfirmation.resolved .confirm-title {
     color: #777777;
+}
+
+NoAPIKeysOnboarding {
+    height: auto;
+    width: 100%;
+    background: transparent;
+    padding: 0 0 0 2;
+    margin: 1 0 0 0;
+}
+
+NoAPIKeysOnboarding .no-keys-box {
+    width: 74;
+    max-width: 96%;
+    height: auto;
+    background: #101010;
+    border-left: solid #cc785c;
+    padding: 0 1;
+}
+
+NoAPIKeysOnboarding .no-keys-title {
+    height: 1;
+    color: #f4f4f5;
+    text-style: bold;
+}
+
+NoAPIKeysOnboarding .no-keys-copy {
+    height: auto;
+    min-height: 1;
+    color: #9a9a9a;
+}
+
+NoAPIKeysOnboarding .no-keys-option {
+    height: 1;
+    width: 100%;
+    color: #d4d4d4;
+    background: transparent;
+    margin: 1 0 0 0;
+    padding: 0;
+}
+
+NoAPIKeysOnboarding .no-keys-option.selected {
+    color: #f4f4f5;
+    text-style: bold;
+}
+
+NoAPIKeysOnboarding .no-keys-shortcuts {
+    height: 1;
+    color: #4b5563;
+    margin: 1 0 0 0;
 }
 
 Tabs {

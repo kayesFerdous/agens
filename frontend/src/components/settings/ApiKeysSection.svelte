@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { getApiKeys, deleteApiKey, updateApiKeyStatus } from '../../lib/api.js';
+  import { noApiKeys } from '../../lib/store.js';
   import ApiKeyTable from './ApiKeyTable.svelte';
   import CreateApiKeyModal from './CreateApiKeyModal.svelte';
   import ConfirmActionModal from './ConfirmActionModal.svelte';
@@ -32,6 +33,7 @@
     try {
       // By default no pagination mapping needed as API limits at 100 which is plenty for now
       keys = await getApiKeys();
+      noApiKeys.set(!keys.some(key => key.status === 'active'));
     } catch (err) {
       error = err.message || 'Failed to load API keys.';
     } finally {

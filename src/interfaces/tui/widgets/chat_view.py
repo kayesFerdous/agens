@@ -43,6 +43,13 @@ class ChatView(Widget):
         await self._add_widget(widget)
         return widget
 
+    async def add_no_api_keys_onboarding(self) -> "NoAPIKeysOnboarding":
+        from .no_api_keys import NoAPIKeysOnboarding
+
+        widget = NoAPIKeysOnboarding()
+        await self._add_widget(widget)
+        return widget
+
     async def add_command_result(
         self,
         *,

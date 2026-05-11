@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from db.models import KeyStatus
 from db.repositories.api_key import APIKeyRepository
 
 SETUP_COMMAND = "vela apikey add <label> <provider> <key>"
@@ -34,6 +35,14 @@ ALL_KEYS_UNAVAILABLE_MESSAGE = (
 
 async def has_any_api_keys(repo: APIKeyRepository) -> bool:
     keys = await repo.list_keys(limit=1)
+    return bool(keys)
+
+
+async def has_active_api_keys(repo: APIKeyRepository, provider: str | None = None) -> bool:
+    if provider:
+        keys = await repo.get_active_by_provider(provider)
+        return bool(keys)
+    keys = await repo.list_keys(status=KeyStatus.ACTIVE, limit=1)
     return bool(keys)
 
 

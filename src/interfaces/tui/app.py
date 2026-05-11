@@ -23,9 +23,10 @@ from .widgets.header import AppHeader
 from .widgets.horizontal_rule import HorizontalRule
 from .widgets.inline_confirmation import ConfirmationRequest, InlineConfirmation
 from .widgets.input_row import InputRow
+from .widgets.no_api_keys import NoAPIKeysOnboarding
 from .widgets.tool_block import ToolBlock
 from .widgets.tool_group import ToolGroup
-from interfaces.api_key_state import NO_API_KEYS_SETUP_MESSAGE, user_key_unavailable_message
+from interfaces.api_key_state import has_active_api_keys, user_key_unavailable_message
 
 
 class AssistantTUI(App):
@@ -37,6 +38,7 @@ class AssistantTUI(App):
         Binding("ctrl+l", "clear_chat", "Clear"),
         Binding("ctrl+k", "focus_input", "Focus input"),
         Binding("escape", "interrupt", "Interrupt"),
+        Binding("enter", "no_key_select", "Select", priority=True, show=False),
         Binding("up", "history_prev", "Previous input", show=False),
         Binding("down", "history_next", "Next input", show=False),
     ]
@@ -57,6 +59,9 @@ class AssistantTUI(App):
         self._selected_model: str | None = get_selected_model()  # restored from prefs
         self.model_name = self._detect_model_name()
         self._awaiting_confirmation = False
+        self._waiting_for_api_key = self._no_api_keys_at_startup
+        self._active_no_api_key_prompt: NoAPIKeysOnboarding | None = None
+        self._api_key_modal_open = False
         self._confirmation_lock = asyncio.Lock()
         self._pending_confirmation_response: str | None = None
         self._active_confirmation: InlineConfirmation | None = None
@@ -64,9 +69,6 @@ class AssistantTUI(App):
         self._stop_requested = False
 
     def compose(self) -> ComposeResult:
-        if self._no_api_keys_at_startup:
-            yield Static(NO_API_KEYS_SETUP_MESSAGE, id="setup-screen")
-            return
         yield AppHeader(id="app-header")
         yield ChatView(id="chat")
         yield HorizontalRule()
@@ -75,16 +77,45 @@ class AssistantTUI(App):
         yield Static("", id="model-bar")
 
     async def on_mount(self) -> None:
-        if self._no_api_keys_at_startup:
-            return
         await self._ensure_repo_session()
         from .widgets.model_select import get_model_label
         self.query_one(AppHeader).update_model(get_model_label(self.model_name))
-        self.query_one(InputRow).focus_input()
         self._update_model_bar()
-        await self._mount_welcome()
+        if self._waiting_for_api_key:
+            await self._mount_no_api_keys_onboarding()
+        else:
+            self.query_one(InputRow).focus_input()
+            await self._mount_welcome()
+
+    async def _mount_no_api_keys_onboarding(self) -> None:
+        input_row = self.query_one(InputRow)
+        input_row.set_locked(True)
+        self._active_no_api_key_prompt = await self.query_one(ChatView).add_no_api_keys_onboarding()
+        self._active_no_api_key_prompt.focus()
+
+    def on_no_api_keys_onboarding_add_key(
+        self, _: NoAPIKeysOnboarding.AddKey
+    ) -> None:
+        self.show_api_key_add()
+
+    async def on_no_api_keys_onboarding_dismiss(
+        self, _: NoAPIKeysOnboarding.Dismiss
+    ) -> None:
+        prompt = self._active_no_api_key_prompt
+        self._active_no_api_key_prompt = None
+        if prompt is not None:
+            await prompt.remove()
+        self.query_one(InputRow).set_locked(False)
+        await self.query_one(ChatView).add_system(
+            "Chat messages are disabled until you add an active API key. You can still use commands like [bold]/addkey[/bold], [bold]/keys[/bold], or [bold]/quit[/bold]."
+        )
+        self.query_one(InputRow).focus_input()
 
     def on_key(self, event: events.Key) -> None:
+        if self._active_no_api_key_prompt is not None and not self._api_key_modal_open:
+            if self._active_no_api_key_prompt.handle_prompt_key(event):
+                return
+
         if self._awaiting_confirmation:
             if self._route_confirmation_key(event):
                 return
@@ -108,11 +139,20 @@ class AssistantTUI(App):
         if self._is_streaming or self._awaiting_confirmation:
             return
 
-        self._history.add(text)
-
         if parse_command(text):
+            self._history.add(text)
             asyncio.create_task(execute_command(text, self))
             return
+
+        if self._waiting_for_api_key:
+            asyncio.create_task(
+                self.query_one(ChatView).add_system(
+                    "Chat messages are disabled until you add an active API key. Type [bold]/addkey[/bold] to add one."
+                )
+            )
+            return
+
+        self._history.add(text)
 
         asyncio.create_task(self._run_turn(text))
 
@@ -407,7 +447,7 @@ class AssistantTUI(App):
         chat.maybe_scroll_end()
 
     def action_clear_chat(self) -> None:
-        if self._awaiting_confirmation:
+        if self._awaiting_confirmation or self._active_no_api_key_prompt is not None:
             return
         asyncio.create_task(self._do_clear())
 
@@ -419,12 +459,39 @@ class AssistantTUI(App):
         self.query_one(AppHeader).update_tokens(0)
 
     def action_focus_input(self) -> None:
-        if self._awaiting_confirmation:
+        if self._awaiting_confirmation or self._active_no_api_key_prompt is not None:
             return
         self.query_one(InputRow).focus_input()
 
+    def _route_no_api_key_prompt_action(self, key: str) -> bool:
+        if self._active_no_api_key_prompt is None or self._api_key_modal_open:
+            return False
+
+        class PromptKey:
+            def __init__(self, key: str) -> None:
+                self.key = key
+
+            def stop(self) -> None:
+                pass
+
+            def prevent_default(self) -> None:
+                pass
+
+        self._active_no_api_key_prompt.handle_prompt_key(PromptKey(key))  # type: ignore[arg-type]
+        return True
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "no_key_select":
+            return self._active_no_api_key_prompt is not None and not self._api_key_modal_open
+        return True
+
+    def action_no_key_select(self) -> None:
+        self._route_no_api_key_prompt_action("enter")
+
     def action_history_prev(self) -> None:
-        if self._awaiting_confirmation:
+        if self._route_no_api_key_prompt_action("up"):
+            return
+        if self._awaiting_confirmation or self._waiting_for_api_key:
             return
         previous = self._history.prev()
         if previous is not None:
@@ -432,7 +499,9 @@ class AssistantTUI(App):
             input_row.query_one("#main-input").value = previous
 
     def action_history_next(self) -> None:
-        if self._awaiting_confirmation:
+        if self._route_no_api_key_prompt_action("down"):
+            return
+        if self._awaiting_confirmation or self._waiting_for_api_key:
             return
         next_value = self._history.next()
         if next_value is not None:
@@ -482,20 +551,65 @@ class AssistantTUI(App):
     def show_api_key_list(self) -> None:
         """Push the API key list modal."""
         from .widgets.api_key_manage import APIKeyListScreen
-        self.push_screen(APIKeyListScreen())
+
+        def _on_closed(_: None) -> None:
+            asyncio.create_task(self._refresh_api_key_gate())
+
+        self.push_screen(APIKeyListScreen(), callback=_on_closed)
 
     def show_api_key_add(self) -> None:
         """Push the add-API-key modal; shows a success message on completion."""
         from .widgets.api_key_manage import APIKeyAddScreen
 
         def _on_result(result: str | None) -> None:
+            self._api_key_modal_open = False
             if result is None:
+                asyncio.create_task(self._refresh_api_key_gate())
                 return
             asyncio.create_task(
-                self.query_one(ChatView).add_system(result)
+                self._handle_api_key_added(result)
             )
 
+        self._api_key_modal_open = True
         self.push_screen(APIKeyAddScreen(), callback=_on_result)
+
+    async def _handle_api_key_added(self, result: str) -> None:
+        await self.query_one(ChatView).add_system(result)
+        await self._refresh_api_key_gate()
+
+    async def _refresh_api_key_gate(self) -> None:
+        if not self._waiting_for_api_key:
+            return
+        try:
+            from db.database import async_session
+            from db.repositories.api_key import APIKeyRepository
+
+            async with async_session() as db:
+                has_active_key = await has_active_api_keys(APIKeyRepository(db))
+        except Exception as exc:
+            await self.query_one(ChatView).add_system(
+                f"[red]Could not check API keys:[/red] {exc}"
+            )
+            return
+
+        if not has_active_key:
+            if self._active_no_api_key_prompt is not None:
+                self.query_one(InputRow).set_locked(True)
+                self._active_no_api_key_prompt.focus()
+            return
+
+        self._waiting_for_api_key = False
+        self._no_api_keys_at_startup = False
+        prompt = self._active_no_api_key_prompt
+        self._active_no_api_key_prompt = None
+        if prompt is not None:
+            await prompt.remove()
+        input_row = self.query_one(InputRow)
+        input_row.set_locked(False)
+        await self.query_one(ChatView).add_system(
+            "API key ready. Chat input is now enabled."
+        )
+        input_row.focus_input()
 
     def _update_model_bar(self) -> None:
         """Refresh the one-line status bar below the input with the active model."""

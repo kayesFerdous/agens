@@ -1,24 +1,22 @@
 <script>
-  const command = 'vela apikey add <label> <provider> <key>';
-  const example = 'vela apikey add personal gemini YOUR_API_KEY';
+  import { activePage, settingsTab } from '../lib/store.js';
+
+  function openApiKeys() {
+    settingsTab.set('apikeys');
+    activePage.set('settings');
+  }
 </script>
 
 <div class="setup-page">
   <section class="setup-panel" aria-labelledby="setup-title">
     <p class="setup-kicker">Setup required</p>
-    <h1 id="setup-title">No API keys found</h1>
+    <h1 id="setup-title">No API keys configured yet</h1>
     <p class="setup-copy">
-      Vela needs at least one API key before chat can start. Add one from your
-      terminal, then reload this page.
+      Add an API key to start chatting with the local assistant. Chat stays unavailable until at least one active key exists.
     </p>
-    <div class="command-block">
-      <span>Command</span>
-      <code>{command}</code>
-    </div>
-    <div class="command-block muted">
-      <span>Example</span>
-      <code>{example}</code>
-    </div>
+    <button type="button" class="setup-cta" onclick={openApiKeys}>
+      Add your first API key
+    </button>
   </section>
 </div>
 
@@ -30,19 +28,21 @@
     align-items: center;
     justify-content: center;
     padding: 32px 16px;
+    background: var(--bg-surface);
   }
 
   .setup-panel {
     width: min(640px, 100%);
-    border: 1px solid rgba(148, 163, 184, 0.24);
-    background: rgba(17, 24, 39, 0.78);
+    border: 1px solid var(--border-main);
+    background: var(--surface-container-high);
     border-radius: 8px;
     padding: 28px;
+    box-shadow: var(--shadow-input);
   }
 
   .setup-kicker {
     margin: 0 0 10px;
-    color: #f59e0b;
+    color: var(--accent-primary);
     font-size: 0.8rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -62,30 +62,28 @@
     line-height: 1.6;
   }
 
-  .command-block {
-    display: grid;
-    gap: 8px;
-    padding: 14px;
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    border-radius: 6px;
-    background: rgba(2, 6, 23, 0.45);
-    margin-top: 12px;
-  }
-
-  .command-block span {
-    color: var(--text-secondary);
-    font-size: 0.78rem;
-    text-transform: uppercase;
+  .setup-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent-primary);
+    color: #ffffff;
+    cursor: pointer;
+    font: inherit;
+    font-size: 14px;
     font-weight: 700;
+    padding: 11px 18px;
+    transition: filter 0.2s ease, transform 0.2s ease;
   }
 
-  .command-block code {
-    color: #f8fafc;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
+  .setup-cta:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
   }
 
-  .command-block.muted {
-    background: transparent;
+  .setup-cta:active {
+    transform: translateY(0);
   }
 </style>

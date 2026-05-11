@@ -2,17 +2,25 @@
   import TabNav from './TabNav.svelte';
   import GeneralSettings from './GeneralSettings.svelte';
   import ApiKeysSection from './ApiKeysSection.svelte';
+  import { settingsTab } from '../../lib/store.js';
 
   const tabs = [
     { id: 'general', label: 'General' },
     { id: 'apikeys', label: 'API Keys' }
   ];
-  let activeTab = $state('general');
-  let scrollContainer;
+  let activeTab = $state($settingsTab);
+  let scrollContainer = $state();
 
   function handleTabChange(id) {
     activeTab = id;
+    settingsTab.set(id);
   }
+
+  $effect(() => {
+    if ($settingsTab !== activeTab) {
+      activeTab = $settingsTab;
+    }
+  });
 </script>
 
 <div class="settings-page" bind:this={scrollContainer}>
