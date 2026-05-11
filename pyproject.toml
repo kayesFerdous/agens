@@ -21,7 +21,6 @@ dependencies = [
 
 [project.scripts]
 vela = "main:cli"
-assistant = "cli:main"
 
 [build-system]
 requires = ["setuptools>=61"]
