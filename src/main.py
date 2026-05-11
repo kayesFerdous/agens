@@ -11,7 +11,7 @@ Usage:
 from __future__ import annotations
 import asyncio
 import sys
-from typing import Any, Coroutine
+from typing import Any
 
 from config.settings import settings
 from config.runtime import initialize_runtime
@@ -22,6 +22,25 @@ initialize_runtime()
 
 setup_logging(settings.LOG_LEVEL)
 logger = get_logger(__name__)
+
+
+
+
+#TODO:
+#add the following commands:
+# ---- API key commands ----  
+# - user should be able to add api_key (label, provider, key)
+# - user should be able to list api_keys
+# - user should be able to remove api_key by label
+# - user should be able to toggle api_key active/inactive by label
+# ---- Safety Mode Command ----  
+# - user should be able to toggle safety mode on/off
+# - user should be able to see current safety mode status
+# ---- Other Commands ----
+# - user should be able to see which interfaces are currently running
+# - user should be able to gracefully shutdown the assistant from any interface
+# - user should be able to add telegram token via command
+
 
 VALID_INTERFACES = {"web", "telegram", "tui"}
 
@@ -108,17 +127,35 @@ async def main() -> None:
         agent = await build_agent(db)
     logger.info("Agent ready. Starting interface(s): %s", ", ".join(selected))
 
-    starters: list[Coroutine[Any, Any, None]] = []
+    shutdown_event = asyncio.Event()
+
+    def request_shutdown(source: str = "unknown") -> None:
+        logger.info("Shutdown requested from %s", source)
+        shutdown_event.set()
+
+    agent.request_shutdown = request_shutdown
+
+    starters: list[asyncio.Task[None]] = []
     for name in selected:
         starter = _build_starter(name, agent)
         if starter is None:
             raise ValueError(f"Unsupported interface: {name}")
-        starters.append(starter)
+        starters.append(asyncio.create_task(starter, name=f"{name}-interface"))
 
-    if len(starters) == 1:
-        await starters[0]
+    interfaces = asyncio.gather(*starters)
+    shutdown_waiter = asyncio.create_task(shutdown_event.wait(), name="shutdown-waiter")
+    done, _ = await asyncio.wait(
+        {interfaces, shutdown_waiter},
+        return_when=asyncio.FIRST_COMPLETED,
+    )
+
+    if shutdown_waiter in done:
+        interfaces.cancel()
+        await asyncio.gather(interfaces, return_exceptions=True)
     else:
-        await asyncio.gather(*starters)
+        shutdown_waiter.cancel()
+        await asyncio.gather(shutdown_waiter, return_exceptions=True)
+        await interfaces
 
 
 def cli() -> None:

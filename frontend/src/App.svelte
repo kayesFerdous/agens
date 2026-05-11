@@ -2,11 +2,31 @@
   import '@fontsource/inter';
   import { onMount } from 'svelte';
   import { activeSessionId, theme, messages, activePage, restoredConfirmation } from './lib/store.js';
-  import { getSession } from './lib/api.js';
+  import { getSession, shutdownAssistant } from './lib/api.js';
   import { sessionService } from './lib/sessionService.svelte.js';
+
+  let showShutdownConfirm = false;
+  let shutdownPending = false;
+  let shutdownError = null;
 
   function toggleTheme() {
     theme.update(t => t === 'dark' ? 'light' : 'dark');
+  }
+
+  async function requestShutdown() {
+    if (shutdownPending) return;
+    shutdownPending = true;
+    shutdownError = null;
+    try {
+      const result = await shutdownAssistant();
+      if (!result.ok) {
+        shutdownError = result.data?.detail ?? 'Shutdown request failed.';
+        shutdownPending = false;
+      }
+    } catch {
+      shutdownError = 'Unable to reach the local server.';
+      shutdownPending = false;
+    }
   }
   
   import Sidebar from './components/Sidebar.svelte';
@@ -213,12 +233,10 @@
               <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.36 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM10 17l-3.5-3.5 1.41-1.41L10 14.17 15.18 9l1.41 1.41L10 17z"/>
             </svg>
           </button>
-          <button class="icon-btn" aria-label="Project tree">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="18" cy="18" r="3"></circle>
-              <circle cx="6" cy="6" r="3"></circle>
-              <path d="M13 6h3a2 2 0 0 1 2 2v7"></path>
-              <line x1="6" y1="9" x2="6" y2="21"></line>
+          <button class="icon-btn danger" aria-label="Shutdown assistant" title="Shutdown assistant" onclick={() => showShutdownConfirm = true}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+              <line x1="12" y1="2" x2="12" y2="12"></line>
             </svg>
           </button>
         </div>
@@ -238,6 +256,26 @@
     </div>
   </div>
 </div>
+
+{#if showShutdownConfirm}
+  <div class="shutdown-modal-overlay" role="presentation">
+    <div class="shutdown-modal" role="dialog" aria-modal="true" aria-labelledby="shutdown-title">
+      <h2 id="shutdown-title">Shutdown assistant?</h2>
+      <p>This stops the local assistant process and cancels active streams.</p>
+      {#if shutdownError}
+        <p class="shutdown-error">{shutdownError}</p>
+      {/if}
+      <div class="shutdown-actions">
+        <button type="button" class="shutdown-cancel" onclick={() => showShutdownConfirm = false} disabled={shutdownPending}>
+          Cancel
+        </button>
+        <button type="button" class="shutdown-confirm" onclick={requestShutdown} disabled={shutdownPending}>
+          {shutdownPending ? 'Shutting down...' : 'Shutdown'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   :global(:root) {
@@ -420,6 +458,85 @@
 
   .icon-btn:hover {
     color: var(--text-primary);
+  }
+
+  .icon-btn.danger:hover {
+    color: var(--status-err);
+  }
+
+  .shutdown-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 5000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(8px);
+  }
+
+  .shutdown-modal {
+    width: min(420px, 100%);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-main);
+    border-radius: 12px;
+    padding: 22px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+  }
+
+  .shutdown-modal h2 {
+    margin: 0 0 8px;
+    color: var(--text-primary);
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .shutdown-modal p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .shutdown-error {
+    margin-top: 12px !important;
+    color: var(--status-err) !important;
+  }
+
+  .shutdown-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 24px;
+  }
+
+  .shutdown-cancel,
+  .shutdown-confirm {
+    border-radius: 8px;
+    padding: 9px 14px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .shutdown-cancel {
+    border: 1px solid var(--border-main);
+    background: transparent;
+    color: var(--text-primary);
+  }
+
+  .shutdown-confirm {
+    border: 1px solid var(--badge-err-border);
+    background: var(--badge-err-bg);
+    color: var(--status-err);
+  }
+
+  .shutdown-cancel:disabled,
+  .shutdown-confirm:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
   }
 
   .chat-wrapper {

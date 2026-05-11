@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -26,6 +26,7 @@ def _create_app(agent: Agent) -> FastAPI:
     async def lifespan(app: FastAPI):
         # Agent is already built — just attach it so routers can reach it.
         app.state.agent = agent
+        app.state.active_chat_tasks = {}
         # fernet lives on the agent; expose it here for the api-keys router
         # which needs it to encrypt keys added via the REST API.
         app.state.fernet = agent._fernet
@@ -61,9 +62,29 @@ def _create_app(agent: Agent) -> FastAPI:
 
     app.mount("/static", StaticFiles(directory=FRONTEND_DIST), name="frontend")
 
+    @app.post("/shutdown", include_in_schema=False)
+    async def shutdown(request: Request):
+        """Request a graceful shutdown of the running assistant process."""
+        if request.headers.get("x-vela-action") != "shutdown":
+            raise HTTPException(status_code=403, detail="Invalid lifecycle request.")
+
+        for task in list(getattr(request.app.state, "active_chat_tasks", {}).values()):
+            if not task.done():
+                task.cancel()
+
+        request_process_shutdown = getattr(agent, "request_shutdown", None)
+        if callable(request_process_shutdown):
+            request_process_shutdown("web")
+
+        request_web_shutdown = getattr(request.app.state, "request_web_shutdown", None)
+        if callable(request_web_shutdown):
+            request_web_shutdown()
+
+        return {"shutdown": True}
+
     @app.get("/{path:path}", include_in_schema=False)
     async def serve_frontend(path: str):
-        api_prefixes = ("sessions", "chat", "api-keys", "settings")
+        api_prefixes = ("sessions", "chat", "api-keys", "settings", "shutdown")
         if path in api_prefixes or path.startswith(tuple(f"{prefix}/" for prefix in api_prefixes)):
             raise HTTPException(status_code=404)
         return FileResponse(FRONTEND_DIST / "index.html")
@@ -83,5 +104,10 @@ async def start_web(agent: Agent) -> None:
         access_log=not settings.PRODUCTION,
     )
     server = uvicorn.Server(config)
+
+    def request_web_shutdown() -> None:
+        server.should_exit = True
+
+    app.state.request_web_shutdown = request_web_shutdown
     logger.info("Starting web interface on %s:%d", settings.WEB_HOST, settings.WEB_PORT)
     await server.serve()

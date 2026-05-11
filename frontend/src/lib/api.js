@@ -31,6 +31,25 @@ export async function deleteSession(sessionId) {
   await fetch(`/sessions/${sessionId}`, { method: 'DELETE' });
 }
 
+export async function stopChat(sessionId) {
+  if (!sessionId) return { stopped: false };
+  const res = await fetch(`/chat/${sessionId}/stop`, {
+    method: 'POST',
+    headers: { 'X-Vela-Action': 'stop' }
+  });
+  if (!res.ok) return { stopped: false };
+  return res.json();
+}
+
+export async function shutdownAssistant() {
+  const res = await fetch('/shutdown', {
+    method: 'POST',
+    headers: { 'X-Vela-Action': 'shutdown' }
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, data };
+}
+
 /**
  * @typedef {Object} DoneEventPayload
  * @property {"done"} type
@@ -85,6 +104,9 @@ export function streamChat(sessionId, message, model, callbacks) {
           }
 
           switch (event.type) {
+            case 'session':
+              if (callbacks.onSession) callbacks.onSession(event.session_id);
+              break;
             case 'token':
               callbacks.onToken(event.content);
               break;
@@ -138,7 +160,6 @@ export function streamChat(sessionId, message, model, callbacks) {
 
   return {
     abort: (reason) => {
-      console.trace('Stream abort() called with reason:', reason);
       if (reason === 'user_stop') {
         controller.abort();
       } else {

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hmac
+import asyncio
 import json
 import time
 
@@ -19,6 +20,14 @@ from core.types import SUDO_AUTHORIZATION_TTL_SECONDS
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+
+def _active_chat_tasks(request: Request) -> dict[str, asyncio.Task]:
+    tasks = getattr(request.app.state, "active_chat_tasks", None)
+    if tasks is None:
+        tasks = {}
+        request.app.state.active_chat_tasks = tasks
+    return tasks
 
 
 class SudoAuthRequest(BaseModel):
@@ -110,7 +119,17 @@ async def chat(
     # agent.chat(), which opens its own independent session internally.
 
     async def event_stream():
+        current_task = asyncio.current_task()
+        tasks = _active_chat_tasks(request)
+        if current_task is not None:
+            previous_task = tasks.get(session_id)
+            if previous_task is not None and not previous_task.done():
+                previous_task.cancel()
+            tasks[session_id] = current_task
+
         try:
+            yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
+
             async for event in agent.chat(body.message, session_id, model=body.model, channel=Channel.WEB):
                 payload: dict = {}
 
@@ -190,12 +209,35 @@ async def chat(
 
                 yield f"data: {json.dumps(payload)}\n\n"
 
+        except asyncio.CancelledError:
+            logger.info("Chat stream cancelled", extra={"session_id": session_id})
+            raise
+
         except Exception as e:
             logger.exception("Unhandled error in event_stream: %s", e)
             yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+
+        finally:
+            if current_task is not None and tasks.get(session_id) is current_task:
+                tasks.pop(session_id, None)
 
     return StreamingResponse(
         event_stream(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
     )
+
+
+@router.post("/{session_id}/stop")
+async def stop_chat(session_id: str, request: Request):
+    """Cancel the active streaming task for a session, if one is running."""
+    if request.headers.get("x-vela-action") != "stop":
+        raise HTTPException(status_code=403, detail="Invalid lifecycle request.")
+
+    task = _active_chat_tasks(request).get(session_id)
+    if task is None or task.done():
+        return {"stopped": False}
+
+    task.cancel()
+    logger.info("Stop requested for chat stream", extra={"session_id": session_id})
+    return {"stopped": True}

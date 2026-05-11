@@ -5,7 +5,7 @@
     activeSessionId,
     restoredConfirmation,
   } from "../lib/store.js";
-  import { streamChat, authorizeSudo } from "../lib/api.js";
+  import { streamChat, authorizeSudo, stopChat } from "../lib/api.js";
   import { sessionService } from "../lib/sessionService.svelte.js";
 
   import WelcomeScreen from "./WelcomeScreen.svelte";
@@ -13,6 +13,7 @@
   import ChatInput from "./ChatInput.svelte";
 
   let currentStream = $state(null);
+  let streamSessionId = $state(null);
   let chatWindow;
   // Track pending dangerous command confirmations locally.
   let pendingConfirmation = $state(null);
@@ -55,15 +56,38 @@
 
   function finalizeStream() {
     currentStream = null;
+    streamSessionId = null;
     isStreaming.set(false);
   }
 
-  function abortStream() {
+  async function abortStream() {
+    const sessionId = streamSessionId || $activeSessionId;
+    if (sessionId) {
+      try {
+        await stopChat(sessionId);
+      } catch (err) {
+        console.error("Failed to stop stream:", err);
+      }
+    }
+
     if (currentStream) {
       currentStream.abort("user_stop");
       currentStream = null;
     }
+    streamSessionId = null;
     isStreaming.set(false);
+    messages.update((m) => {
+      const last = [...m].reverse().find((x) => x.role === "assistant");
+      if (last) {
+        last.isThinking = false;
+        if (!last.content.trim()) {
+          last.content = "_Stopped._";
+        } else if (!last.content.includes("_Stopped._")) {
+          last.content += "\n\n_Stopped._";
+        }
+      }
+      return m;
+    });
   }
 
   function generateId() {
@@ -130,6 +154,17 @@
     isStreaming.set(true);
 
     currentStream = streamChat(sessionId, text, model, {
+      async onSession(id) {
+        streamSessionId = id;
+        if (id && id !== $activeSessionId) {
+          activeSessionId.set(id);
+          try {
+            await sessionService.refresh();
+          } catch (err) {
+            console.error("Failed to refresh sessions:", err);
+          }
+        }
+      },
       onToken(content) {
         messages.update((m) => {
           const am = m.find((x) => x.id === assistantId);
@@ -330,7 +365,7 @@
   }
 
   function handleStop() {
-    abortStream();
+    void abortStream();
   }
 
   function handleConfirmation(choice) {
