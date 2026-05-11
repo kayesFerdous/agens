@@ -63,6 +63,7 @@ error_console = Console(stderr=True)
 
 _INTERFACE_STATE_FILE = get_runtime_root() / "interfaces.json"
 _KNOWN_INTERFACES = ("web", "telegram", "tui")
+_INTERACTIVE_INTERFACES = {"tui"}
 VALID_INTERFACES = set(_KNOWN_INTERFACES)
 
 
@@ -172,10 +173,36 @@ def _request_web_shutdown() -> bool:
 
 
 def _write_interface_state(selected: list[str], *, pid: int | None = None) -> None:
+    process_pid = pid if pid is not None else os.getpid()
+    existing = _load_interface_state()
+    interfaces: dict[str, Any] = {}
+    started_at = datetime.now(timezone.utc).isoformat()
+
+    if existing and isinstance(existing, dict):
+        raw_interfaces = existing.get("interfaces")
+        if isinstance(raw_interfaces, dict):
+            interfaces = {
+                name: details
+                for name, details in raw_interfaces.items()
+                if name in VALID_INTERFACES and isinstance(details, dict)
+            }
+        existing_started_at = existing.get("started_at")
+        if isinstance(existing_started_at, str):
+            started_at = existing_started_at
+
+    for name in selected:
+        interfaces[name] = {"status": "running", "pid": process_pid}
+
+    pids = sorted({
+        details["pid"]
+        for details in interfaces.values()
+        if isinstance(details.get("pid"), int)
+    })
     data = {
-        "pid": pid if pid is not None else os.getpid(),
-        "started_at": datetime.now(timezone.utc).isoformat(),
-        "interfaces": {name: {"status": "running"} for name in selected},
+        "pid": pids[0] if len(pids) == 1 else None,
+        "pids": pids,
+        "started_at": started_at,
+        "interfaces": interfaces,
     }
     try:
         _INTERFACE_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -193,6 +220,46 @@ def _clear_interface_state() -> None:
             _INTERFACE_STATE_FILE.unlink()
     except OSError as exc:
         logger.warning("Failed to clear interface state: %s", exc)
+
+
+def _remove_interface_state(selected: list[str], *, pid: int | None = None) -> None:
+    state = _load_interface_state()
+    if not state or not isinstance(state, dict):
+        return
+
+    raw_interfaces = state.get("interfaces")
+    if not isinstance(raw_interfaces, dict):
+        _clear_interface_state()
+        return
+
+    interfaces = dict(raw_interfaces)
+    for name in selected:
+        details = interfaces.get(name)
+        if not isinstance(details, dict):
+            interfaces.pop(name, None)
+            continue
+        if pid is None or details.get("pid") == pid:
+            interfaces.pop(name, None)
+
+    if not interfaces:
+        _clear_interface_state()
+        return
+
+    pids = sorted({
+        details["pid"]
+        for details in interfaces.values()
+        if isinstance(details, dict) and isinstance(details.get("pid"), int)
+    })
+    state["interfaces"] = interfaces
+    state["pid"] = pids[0] if len(pids) == 1 else None
+    state["pids"] = pids
+    try:
+        _INTERFACE_STATE_FILE.write_text(
+            json.dumps(state, indent=2, ensure_ascii=True),
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        logger.warning("Failed to update interface state: %s", exc)
 
 
 def _terminate_process(pid: int) -> None:
@@ -329,7 +396,7 @@ async def _run_interfaces(selected: list[str]) -> None:
             await asyncio.gather(shutdown_waiter, return_exceptions=True)
             await interfaces
     finally:
-        _clear_interface_state()
+        _remove_interface_state(selected, pid=os.getpid())
 
 
 def _run_interface_command(interfaces: list[str]) -> None:
@@ -342,17 +409,27 @@ def _run_interface_command(interfaces: list[str]) -> None:
         error_console.print("[red]Error:[/red] No valid interfaces specified.")
         raise typer.Exit(code=1)
 
-    try:
-        process = _spawn_interface_process(selected)
-        _write_interface_state(selected, pid=process.pid)
-    except OSError as exc:
-        error_console.print(f"[red]Error:[/red] Failed to launch interface process: {exc}")
-        raise typer.Exit(code=1)
+    foreground = [name for name in selected if name in _INTERACTIVE_INTERFACES]
+    background = [name for name in selected if name not in _INTERACTIVE_INTERFACES]
 
-    console.print(
-        f"Started {', '.join(selected)} interface(s) in the background "
-        f"(PID {process.pid})."
-    )
+    if background:
+        try:
+            process = _spawn_interface_process(background)
+            _write_interface_state(background, pid=process.pid)
+        except OSError as exc:
+            error_console.print(f"[red]Error:[/red] Failed to launch interface process: {exc}")
+            raise typer.Exit(code=1)
+
+        console.print(
+            f"Started {', '.join(background)} interface(s) in the background "
+            f"(PID {process.pid})."
+        )
+
+    if foreground:
+        try:
+            _run(_run_interfaces(foreground))
+        except KeyboardInterrupt:
+            console.print("\nShutting down. Goodbye.")
 
 
 @app.command("_run-interfaces", hidden=True)
@@ -650,17 +727,29 @@ def interfaces_status() -> None:
     initialize_runtime()
 
     state = _load_interface_state()
-    running: set[str] = set()
+    running_pids: dict[str, int] = {}
     stale_state = False
-    running_pid: int | None = None
 
     if state and isinstance(state, dict):
-        pid = state.get("pid")
-        if isinstance(pid, int) and _is_running(pid):
-            running_pid = pid
-            iface_map = state.get("interfaces") or {}
-            running = {name for name in iface_map if name in _KNOWN_INTERFACES}
-        else:
+        legacy_pid = state.get("pid")
+        iface_map = state.get("interfaces") or {}
+        if isinstance(iface_map, dict):
+            stale_interfaces: list[str] = []
+            for name, details in iface_map.items():
+                if name not in _KNOWN_INTERFACES:
+                    continue
+                pid = details.get("pid") if isinstance(details, dict) else None
+                if not isinstance(pid, int):
+                    pid = legacy_pid
+                if isinstance(pid, int) and _is_running(pid):
+                    running_pids[name] = pid
+                else:
+                    stale_state = True
+                    stale_interfaces.append(name)
+
+            if stale_interfaces:
+                _remove_interface_state(stale_interfaces)
+        elif isinstance(legacy_pid, int) and not _is_running(legacy_pid):
             stale_state = True
             _clear_interface_state()
 
@@ -671,17 +760,18 @@ def interfaces_status() -> None:
     table.add_column("Details")
 
     for name in _KNOWN_INTERFACES:
-        is_running = name in running
+        pid = running_pids.get(name)
+        is_running = pid is not None
         status_text = Text("running", style="green") if is_running else Text("stopped", style="dim")
-        pid_text = str(running_pid) if is_running and running_pid is not None else "-"
+        pid_text = str(pid) if pid is not None else "-"
         details = _interface_details(name) if is_running else "not running"
-        if stale_state and not running:
+        if stale_state and not running_pids:
             details = "stale runtime state"
         table.add_row(name, status_text, pid_text, details)
 
     console.print(table)
 
-    if not running:
+    if not running_pids:
         console.print("No interfaces running. Start one with: vela web")
 
 
@@ -706,22 +796,44 @@ def shutdown(
         error_console.print("[red]Error:[/red] No running assistant process found.")
         raise typer.Exit(code=1)
 
-    pid = state.get("pid")
-    if not isinstance(pid, int) or not _is_running(pid):
+    legacy_pid = state.get("pid")
+    iface_map = state.get("interfaces") or {}
+    pid_by_interface: dict[str, int] = {}
+    stale_interfaces: list[str] = []
+
+    if isinstance(iface_map, dict):
+        for name, details in iface_map.items():
+            if name not in _KNOWN_INTERFACES:
+                continue
+            pid = details.get("pid") if isinstance(details, dict) else None
+            if not isinstance(pid, int):
+                pid = legacy_pid
+            if isinstance(pid, int) and _is_running(pid):
+                pid_by_interface[name] = pid
+            else:
+                stale_interfaces.append(name)
+    elif isinstance(legacy_pid, int) and _is_running(legacy_pid):
+        pid_by_interface = {name: legacy_pid for name in _KNOWN_INTERFACES}
+
+    if stale_interfaces:
+        _remove_interface_state(stale_interfaces)
+
+    if not pid_by_interface:
         _clear_interface_state()
         error_console.print("[red]Error:[/red] No running assistant process found.")
         raise typer.Exit(code=1)
 
-    iface_map = state.get("interfaces") or {}
-    if "web" in iface_map and _request_web_shutdown():
+    gracefully_stopped_pids: set[int] = set()
+    if "web" in pid_by_interface and _request_web_shutdown():
+        gracefully_stopped_pids.add(pid_by_interface["web"])
         console.print("Shutdown requested via web interface.")
-        return
 
-    try:
-        _terminate_process(pid)
-    except OSError as exc:
-        error_console.print(f"[red]Error:[/red] {exc}")
-        raise typer.Exit(code=1)
+    for pid in sorted(set(pid_by_interface.values()) - gracefully_stopped_pids):
+        try:
+            _terminate_process(pid)
+        except OSError as exc:
+            error_console.print(f"[red]Error:[/red] {exc}")
+            raise typer.Exit(code=1)
 
     _clear_interface_state()
     console.print("Shutdown signal sent.")
