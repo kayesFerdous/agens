@@ -12,9 +12,14 @@ Examples:
 from __future__ import annotations
 
 import asyncio
+import ctypes
+import errno
 import json
 import os
 import signal
+import subprocess
+import sys
+from ctypes import wintypes
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -91,8 +96,38 @@ def _mask_hint(hint: str | None) -> str:
     return "*" * 8 + tail
 
 
-def _pid_running(pid: int) -> bool:
-    return Path(f"/proc/{pid}").exists()
+def _is_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+
+    if os.name == "nt":
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        synchronize = 0x00100000
+        error_access_denied = 5
+        wait_timeout = 0x00000102
+        wait_failed = 0xFFFFFFFF
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        kernel32.WaitForSingleObject.restype = wintypes.DWORD
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel32.CloseHandle.restype = wintypes.BOOL
+        handle = kernel32.OpenProcess(synchronize, False, pid)
+        if not handle:
+            if kernel32.GetLastError() == error_access_denied:
+                return True
+            return False
+        try:
+            status = kernel32.WaitForSingleObject(handle, 0)
+            return status == wait_timeout and status != wait_failed
+        finally:
+            kernel32.CloseHandle(handle)
+
+    try:
+        os.kill(pid, 0)
+    except OSError as exc:
+        return exc.errno == errno.EPERM
+    return True
 
 
 def _load_interface_state() -> dict[str, Any] | None:
@@ -136,9 +171,9 @@ def _request_web_shutdown() -> bool:
         return False
 
 
-def _write_interface_state(selected: list[str]) -> None:
+def _write_interface_state(selected: list[str], *, pid: int | None = None) -> None:
     data = {
-        "pid": os.getpid(),
+        "pid": pid if pid is not None else os.getpid(),
         "started_at": datetime.now(timezone.utc).isoformat(),
         "interfaces": {name: {"status": "running"} for name in selected},
     }
@@ -158,6 +193,54 @@ def _clear_interface_state() -> None:
             _INTERFACE_STATE_FILE.unlink()
     except OSError as exc:
         logger.warning("Failed to clear interface state: %s", exc)
+
+
+def _terminate_process(pid: int) -> None:
+    if os.name == "nt":
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        process_terminate = 0x0001
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+        kernel32.TerminateProcess.restype = wintypes.BOOL
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel32.CloseHandle.restype = wintypes.BOOL
+        handle = kernel32.OpenProcess(process_terminate, False, pid)
+        if not handle:
+            raise OSError(kernel32.GetLastError(), "Failed to open process")
+        try:
+            if not kernel32.TerminateProcess(handle, 1):
+                raise OSError(kernel32.GetLastError(), "Failed to terminate process")
+        finally:
+            kernel32.CloseHandle(handle)
+        return
+
+    os.kill(pid, signal.SIGTERM)
+
+
+def _spawn_interface_process(selected: list[str]) -> subprocess.Popen[bytes]:
+    cmd = [
+        sys.executable,
+        str(Path(__file__).resolve()),
+        "_run-interfaces",
+        *selected,
+    ]
+    kwargs: dict[str, Any] = {}
+    if os.name == "nt":
+        kwargs["creationflags"] = (
+            subprocess.CREATE_NEW_PROCESS_GROUP
+            | subprocess.DETACHED_PROCESS
+        )
+    else:
+        kwargs["start_new_session"] = True
+
+    return subprocess.Popen(
+        cmd,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        **kwargs,
+    )
 
 
 def _validate_interfaces(interfaces: list[str]) -> list[str]:
@@ -260,6 +343,25 @@ def _run_interface_command(interfaces: list[str]) -> None:
         raise typer.Exit(code=1)
 
     try:
+        process = _spawn_interface_process(selected)
+        _write_interface_state(selected, pid=process.pid)
+    except OSError as exc:
+        error_console.print(f"[red]Error:[/red] Failed to launch interface process: {exc}")
+        raise typer.Exit(code=1)
+
+    console.print(
+        f"Started {', '.join(selected)} interface(s) in the background "
+        f"(PID {process.pid})."
+    )
+
+
+@app.command("_run-interfaces", hidden=True)
+def run_interfaces_process(
+    interfaces: list[str] = typer.Argument(..., help="Interfaces to launch."),
+) -> None:
+    """Internal blocking runner used by detached interface processes."""
+    selected = _validate_interfaces(interfaces)
+    try:
         _run(_run_interfaces(selected))
     except KeyboardInterrupt:
         console.print("\nShutting down. Goodbye.")
@@ -284,7 +386,15 @@ def start_web_interface() -> None:
     _run_interface_command(["web"])
 
 
-@app.command("telegram")
+@telegram_app.callback(invoke_without_command=True)
+def telegram(
+    ctx: typer.Context,
+) -> None:
+    """Start the Telegram interface, or manage Telegram integration."""
+    if ctx.invoked_subcommand is None:
+        _run_interface_command(["telegram"])
+
+
 def start_telegram_interface() -> None:
     """Start the Telegram interface."""
     _run_interface_command(["telegram"])
@@ -542,27 +652,32 @@ def interfaces_status() -> None:
     state = _load_interface_state()
     running: set[str] = set()
     stale_state = False
+    running_pid: int | None = None
 
     if state and isinstance(state, dict):
         pid = state.get("pid")
-        if isinstance(pid, int) and _pid_running(pid):
+        if isinstance(pid, int) and _is_running(pid):
+            running_pid = pid
             iface_map = state.get("interfaces") or {}
             running = {name for name in iface_map if name in _KNOWN_INTERFACES}
         else:
             stale_state = True
+            _clear_interface_state()
 
     table = Table(title="Interfaces", header_style="bold")
     table.add_column("Interface")
     table.add_column("Status")
+    table.add_column("PID")
     table.add_column("Details")
 
     for name in _KNOWN_INTERFACES:
         is_running = name in running
         status_text = Text("running", style="green") if is_running else Text("stopped", style="dim")
+        pid_text = str(running_pid) if is_running and running_pid is not None else "-"
         details = _interface_details(name) if is_running else "not running"
         if stale_state and not running:
             details = "stale runtime state"
-        table.add_row(name, status_text, details)
+        table.add_row(name, status_text, pid_text, details)
 
     console.print(table)
 
@@ -592,7 +707,8 @@ def shutdown(
         raise typer.Exit(code=1)
 
     pid = state.get("pid")
-    if not isinstance(pid, int) or not _pid_running(pid):
+    if not isinstance(pid, int) or not _is_running(pid):
+        _clear_interface_state()
         error_console.print("[red]Error:[/red] No running assistant process found.")
         raise typer.Exit(code=1)
 
@@ -602,11 +718,12 @@ def shutdown(
         return
 
     try:
-        os.kill(pid, signal.SIGTERM)
+        _terminate_process(pid)
     except OSError as exc:
         error_console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(code=1)
 
+    _clear_interface_state()
     console.print("Shutdown signal sent.")
 
 
