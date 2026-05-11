@@ -2,12 +2,14 @@
   import '@fontsource/inter';
   import { onMount } from 'svelte';
   import { activeSessionId, theme, messages, activePage, restoredConfirmation } from './lib/store.js';
-  import { getSession, shutdownAssistant } from './lib/api.js';
+  import { getSession, shutdownAssistant, getSetupStatus } from './lib/api.js';
   import { sessionService } from './lib/sessionService.svelte.js';
 
   let showShutdownConfirm = false;
   let shutdownPending = false;
   let shutdownError = null;
+  let setupLoading = true;
+  let noApiKeys = false;
 
   function toggleTheme() {
     theme.update(t => t === 'dark' ? 'light' : 'dark');
@@ -32,6 +34,7 @@
   import Sidebar from './components/Sidebar.svelte';
   import ChatArea from './components/ChatArea.svelte';
   import SettingsPage from './components/settings/SettingsPage.svelte';
+  import SetupPage from './components/SetupPage.svelte';
 
   async function loadSession(id) {
     if (!id) {
@@ -113,6 +116,10 @@
   onMount(() => {
     (async () => {
       try {
+        const setup = await getSetupStatus();
+        noApiKeys = !!setup.no_api_keys;
+        if (noApiKeys) return;
+
         await sessionService.loadInitial();
         
         
@@ -130,6 +137,8 @@
         }
       } catch (err) {
         console.error('Failed to load sessions:', err);
+      } finally {
+        setupLoading = false;
       }
     })();
 
@@ -138,7 +147,7 @@
       const sid = params.get('session');
       const page = params.get('page') || 'chat';
 
-      if (sid !== $activeSessionId) {
+      if (!noApiKeys && sid !== $activeSessionId) {
         activeSessionId.set(sid);
         loadSession(sid);
       }
@@ -189,7 +198,9 @@
 
   // Reload messages when activeSessionId changes
   $: {
-    loadSession($activeSessionId);
+    if (!noApiKeys) {
+      loadSession($activeSessionId);
+    }
   }
 </script>
 
@@ -248,7 +259,11 @@
       <div class="glow-tr"></div>
       <div class="glow-bl"></div>
       
-      {#if $activePage === 'settings'}
+      {#if setupLoading}
+        <div class="setup-loading">Checking setup...</div>
+      {:else if noApiKeys}
+        <SetupPage />
+      {:else if $activePage === 'settings'}
         <SettingsPage />
       {:else}
         <ChatArea />
@@ -543,6 +558,16 @@
     flex: 1;
     position: relative;
     overflow: hidden;
+  }
+
+  .setup-loading {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    font-size: 14px;
   }
 
   /* Aesthetic Decorative Elements */

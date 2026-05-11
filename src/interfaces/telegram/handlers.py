@@ -16,6 +16,11 @@ from db.database import async_session
 from db import repository as session_repo
 from db.models import APIKey, KeyStatus
 from db.repositories.api_key import APIKeyRepository
+from interfaces.api_key_state import (
+    NO_API_KEYS_TELEGRAM_MESSAGE,
+    has_any_api_keys,
+    user_key_unavailable_message,
+)
 from .prefs import get_selected_model, set_selected_model
 
 logger = logging.getLogger(__name__)
@@ -68,6 +73,11 @@ async def error_handler(update: object, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def start_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    async with async_session() as db:
+        if not await has_any_api_keys(APIKeyRepository(db)):
+            await update.message.reply_text(NO_API_KEYS_TELEGRAM_MESSAGE)  # type: ignore[union-attr]
+            return
+
     model_name = None
     if update.effective_user:
         model_name = get_selected_model(update.effective_user.id)
@@ -702,6 +712,11 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     chat_id: int = update.effective_chat.id  # type: ignore[union-attr]
     selected_model = get_selected_model(user_id)
 
+    async with async_session() as db:
+        if not await has_any_api_keys(APIKeyRepository(db)):
+            await update.message.reply_text(NO_API_KEYS_TELEGRAM_MESSAGE)
+            return
+
     await ctx.bot.send_chat_action(chat_id=chat_id, action="typing")
     placeholder = None
     typing_task: asyncio.Task[None] | None = None
@@ -743,7 +758,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
 
             elif event.type == "error" and event.error:
                 logger.error("Agent error: %s", event.error)
-                error_text = _md(f"⚠️ Something went wrong: {event.error}")
+                error_text = _md(user_key_unavailable_message(event.error))
                 if placeholder:
                     await placeholder.edit_text(error_text, parse_mode=ParseMode.MARKDOWN_V2)
                 else:
@@ -758,7 +773,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
 
     except RuntimeError as e:
         logger.warning("Agent unavailable: %s", e)
-        error_text = _md("⚠️ The assistant is not configured yet. Please add an API key first.")
+        error_text = _md(user_key_unavailable_message(str(e)))
         if placeholder:
             await placeholder.edit_text(error_text, parse_mode=ParseMode.MARKDOWN_V2)
         else:

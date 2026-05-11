@@ -100,6 +100,7 @@
 
   // Default model — kept in sync with ModelSelector default
   const DEFAULT_MODEL = "gemini/gemini-2.5-flash-lite";
+  const KEY_UNAVAILABLE_PREFIX = "All API keys are currently exhausted or unavailable.";
 
   function handleSubmit(textOrPayload) {
     let text, model;
@@ -355,7 +356,11 @@
         messages.update((m) => {
           const am = m.find((x) => x.id === assistantId);
           if (am) {
-            am.content += `\n\n> **Error:** ${err}`;
+            if (String(err).startsWith(KEY_UNAVAILABLE_PREFIX)) {
+              am.content = err;
+            } else {
+              am.content += `\n\n> **Error:** ${err}`;
+            }
             am.isThinking = false;
           }
           return m;

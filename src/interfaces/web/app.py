@@ -13,6 +13,9 @@ from fastapi.staticfiles import StaticFiles
 from agent.agent import Agent
 from config.logging import get_logger, setup_logging
 from config.settings import settings
+from db.database import async_session
+from db.repositories.api_key import APIKeyRepository
+from interfaces.api_key_state import NO_API_KEYS_SETUP_MESSAGE, has_any_api_keys
 
 setup_logging()
 logger = get_logger(__name__)
@@ -27,6 +30,7 @@ def _create_app(agent: Agent) -> FastAPI:
         # Agent is already built — just attach it so routers can reach it.
         app.state.agent = agent
         app.state.active_chat_tasks = {}
+        app.state.no_api_keys_at_startup = bool(getattr(agent, "no_api_keys_at_startup", False))
         # fernet lives on the agent; expose it here for the api-keys router
         # which needs it to encrypt keys added via the REST API.
         app.state.fernet = agent._fernet
@@ -82,9 +86,19 @@ def _create_app(agent: Agent) -> FastAPI:
 
         return {"shutdown": True}
 
+    @app.get("/setup/status", include_in_schema=False)
+    async def setup_status():
+        async with async_session() as db:
+            no_api_keys = not await has_any_api_keys(APIKeyRepository(db))
+        return {
+            "no_api_keys": no_api_keys,
+            "message": NO_API_KEYS_SETUP_MESSAGE,
+            "command": "vela apikey add <label> <provider> <key>",
+        }
+
     @app.get("/{path:path}", include_in_schema=False)
     async def serve_frontend(path: str):
-        api_prefixes = ("sessions", "chat", "api-keys", "settings", "shutdown")
+        api_prefixes = ("sessions", "chat", "api-keys", "settings", "setup", "shutdown")
         if path in api_prefixes or path.startswith(tuple(f"{prefix}/" for prefix in api_prefixes)):
             raise HTTPException(status_code=404)
         return FileResponse(FRONTEND_DIST / "index.html")

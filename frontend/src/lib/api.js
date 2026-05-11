@@ -50,6 +50,15 @@ export async function shutdownAssistant() {
   return { ok: res.ok, data };
 }
 
+export async function getSetupStatus() {
+  const res = await fetch('/setup/status');
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(error.detail || 'Failed to fetch setup status');
+  }
+  return res.json();
+}
+
 /**
  * @typedef {Object} DoneEventPayload
  * @property {"done"} type
@@ -72,7 +81,8 @@ export function streamChat(sessionId, message, model, callbacks) {
       });
 
       if (!res.ok) {
-        callbacks.onError(`HTTP ${res.status}: ${res.statusText}`);
+        const error = await res.json().catch(() => ({ detail: `HTTP ${res.status}: ${res.statusText}` }));
+        callbacks.onError(error.detail || `HTTP ${res.status}: ${res.statusText}`);
         return;
       }
 

@@ -7,6 +7,16 @@ Screen {
     layout: vertical;
 }
 
+#setup-screen {
+    width: 100%;
+    height: 100%;
+    content-align: center middle;
+    text-align: center;
+    padding: 4 8;
+    color: #f4f4f5;
+    background: #0d0d0d;
+}
+
 AppHeader {
     height: 1;
     background: #111827;

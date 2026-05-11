@@ -25,6 +25,7 @@ from .widgets.inline_confirmation import ConfirmationRequest, InlineConfirmation
 from .widgets.input_row import InputRow
 from .widgets.tool_block import ToolBlock
 from .widgets.tool_group import ToolGroup
+from interfaces.api_key_state import NO_API_KEYS_SETUP_MESSAGE, user_key_unavailable_message
 
 
 class AssistantTUI(App):
@@ -43,6 +44,7 @@ class AssistantTUI(App):
     def __init__(self, agent: Any, **kwargs) -> None:
         super().__init__(**kwargs)
         self.agent = agent
+        self._no_api_keys_at_startup = bool(getattr(agent, "no_api_keys_at_startup", False))
         self.session_id = str(uuid.uuid4())
         self._history = InputHistory(max_size=50)
         self._stream_task: asyncio.Task[None] | None = None
@@ -62,6 +64,9 @@ class AssistantTUI(App):
         self._stop_requested = False
 
     def compose(self) -> ComposeResult:
+        if self._no_api_keys_at_startup:
+            yield Static(NO_API_KEYS_SETUP_MESSAGE, id="setup-screen")
+            return
         yield AppHeader(id="app-header")
         yield ChatView(id="chat")
         yield HorizontalRule()
@@ -70,6 +75,8 @@ class AssistantTUI(App):
         yield Static("", id="model-bar")
 
     async def on_mount(self) -> None:
+        if self._no_api_keys_at_startup:
+            return
         await self._ensure_repo_session()
         from .widgets.model_select import get_model_label
         self.query_one(AppHeader).update_model(get_model_label(self.model_name))
@@ -148,7 +155,7 @@ class AssistantTUI(App):
                 self._current_block.mark_interrupted()
 
         except Exception as exc:
-            await chat.add_system(f"[red]Error:[/red] {exc}")
+            await self._add_assistant_error(user_key_unavailable_message(str(exc)))
 
         finally:
             self._current_generator = None
@@ -213,7 +220,7 @@ class AssistantTUI(App):
             await self.query_one(ChatView).add_system(str(self._event_value(event, "message")))
         elif kind == "error":
             error = self._event_value(event, "error", "Unknown error")
-            await self.query_one(ChatView).add_system(f"[red]Error:[/red] {error}")
+            await self._add_assistant_error(user_key_unavailable_message(str(error)))
         elif kind == "confirmation_required":
             await self._show_confirmation_event(event, kind)
         elif kind == "sudo_auth_required":
@@ -229,6 +236,13 @@ class AssistantTUI(App):
                 self.query_one(AppHeader).update_tokens(self._token_count)
 
         return ""
+
+    async def _add_assistant_error(self, message: str) -> None:
+        if self._spinner is not None:
+            await self._spinner.stop()
+            self._spinner = None
+        block = await self.query_one(ChatView).add_assistant()
+        block.append_chunk(message)
 
     def _event_value(self, event: Any, key: str, default: Any = None) -> Any:
         if isinstance(event, dict):

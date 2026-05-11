@@ -43,6 +43,11 @@ from db.models import KeyStatus
 from db.repositories.api_key import APIKeyRepository
 from services.api_key_manager import APIKeyManager
 from services.settings_service import SettingsService
+from interfaces.api_key_state import (
+    NO_API_KEYS_CLI_MESSAGE,
+    user_key_unavailable_message,
+    has_any_api_keys,
+)
 
 
 initialize_runtime()
@@ -363,12 +368,26 @@ async def _run_interfaces(selected: list[str]) -> None:
 
     from agent.factory import build_agent
     from db.database import async_session
+    from interfaces.dormant_agent import build_dormant_agent
 
     await init_db()
 
-    logger.info("Building agent…")
     async with async_session() as db:
-        agent = await build_agent(db)
+        no_api_keys = not await has_any_api_keys(APIKeyRepository(db))
+
+    logger.info("Building agent…")
+    if no_api_keys:
+        agent = build_dormant_agent()
+        agent.no_api_keys_at_startup = True
+    else:
+        try:
+            async with async_session() as db:
+                agent = await build_agent(db)
+            agent.no_api_keys_at_startup = False
+        except RuntimeError as exc:
+            logger.warning("Agent started without a usable key: %s", exc)
+            agent = build_dormant_agent()
+            agent.no_api_keys_at_startup = False
     logger.info("Agent ready. Starting interface(s): %s", ", ".join(selected))
 
     _write_interface_state(selected)
@@ -489,6 +508,57 @@ def start_telegram_interface() -> None:
 def start_tui_interface() -> None:
     """Start the terminal UI interface."""
     _run_interface_command(["tui"])
+
+
+@app.command("chat")
+def chat_command(
+    message: str = typer.Argument(..., help="Message to send to the assistant."),
+    model: str | None = typer.Option(None, "--model", "-m", help="Model to use."),
+) -> None:
+    """Send one message from the CLI."""
+    _ensure_db_ready()
+
+    async def _chat_once() -> tuple[int, str]:
+        from agent.agent import Channel
+        from agent.factory import build_agent
+        from db import repository as session_repo
+        from interfaces.dormant_agent import build_dormant_agent
+
+        async with async_session() as db:
+            repo = APIKeyRepository(db)
+            if not await has_any_api_keys(repo):
+                return 1, NO_API_KEYS_CLI_MESSAGE
+
+        try:
+            async with async_session() as db:
+                agent = await build_agent(db)
+        except RuntimeError:
+            agent = build_dormant_agent()
+
+        async with async_session() as db:
+            session = await session_repo.insert_session(db, title=message[:60])
+
+        parts: list[str] = []
+        async for event in agent.chat(message, session.id, channel=Channel.WEB, model=model):
+            if event.type == "token" and event.content:
+                parts.append(event.content)
+            elif event.type == "error" and event.error:
+                return 1, user_key_unavailable_message(event.error)
+
+        return 0, "".join(parts).strip()
+
+    try:
+        code, output = _run(_chat_once())
+    except RuntimeError as exc:
+        console.print(user_key_unavailable_message(str(exc)))
+        raise typer.Exit(code=1)
+    except Exception as exc:
+        error_console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(code=1)
+
+    if output:
+        console.print(output)
+    raise typer.Exit(code=code)
 
 
 # ---------------------------------------------------------------------------

@@ -17,6 +17,12 @@ from interfaces.api.chat.schemas import ChatRequest
 from config.logging import get_logger
 from config.settings import settings
 from core.types import SUDO_AUTHORIZATION_TTL_SECONDS
+from db.repositories.api_key import APIKeyRepository
+from interfaces.api_key_state import (
+    NO_API_KEYS_SETUP_MESSAGE,
+    has_any_api_keys,
+    user_key_unavailable_message,
+)
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -107,6 +113,9 @@ async def chat(
     # FastAPI's dependency teardown tries to rollback a session that
     # outlived a disconnected streaming response.
     async with async_session() as db:
+        if not await has_any_api_keys(APIKeyRepository(db)):
+            raise HTTPException(status_code=409, detail=NO_API_KEYS_SETUP_MESSAGE)
+
         if body.session_id:
             session = await session_repo.get_session(db, body.session_id)
             if not session:
@@ -181,7 +190,7 @@ async def chat(
                     }
 
                 elif event.type == "error":
-                    payload = {"type": "error", "error": event.error}
+                    payload = {"type": "error", "error": user_key_unavailable_message(event.error)}
 
                 elif event.type == "done":
                     usage_data = None
@@ -215,7 +224,7 @@ async def chat(
 
         except Exception as e:
             logger.exception("Unhandled error in event_stream: %s", e)
-            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'error': user_key_unavailable_message(str(e))})}\n\n"
 
         finally:
             if current_task is not None and tasks.get(session_id) is current_task:
