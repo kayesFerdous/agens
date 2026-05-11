@@ -18,20 +18,19 @@ class AppHeader(Widget):
     def compose(self) -> ComposeResult:
         # Left zone
         yield Static("◆ Assistant", classes="header-title")
-        sid = f"  {self._session_id[:8]}" if self._session_id else ""
+        sid = f"  session id: {self._session_id}" if self._session_id else ""
         yield Static(sid, classes="header-session", id="header-session")
         # Spacer — pushes right zone to far edge
         yield Static("", classes="header-spacer")
         # Right zone
-        yield Static("/models", classes="header-key-hint", id="header-key-hint")
-        yield Static("  tokens: 0", classes="header-tokens", id="header-tokens")
+        yield Static("tokens: 0", classes="header-tokens", id="header-tokens")
         yield Static("  ●", classes="header-status", id="header-status")
 
     def update_session(self, session_id: str) -> None:
         self._session_id = session_id
         try:
             self.query_one("#header-session", Static).update(
-                f"  {session_id[:8]}" if session_id else ""
+                f"  session id: {session_id}" if session_id else ""
             )
         except Exception:
             pass
@@ -42,7 +41,7 @@ class AppHeader(Widget):
 
     def update_tokens(self, count: int) -> None:
         try:
-            self.query_one("#header-tokens", Static).update(f"  tokens: {count:,}")
+            self.query_one("#header-tokens", Static).update(f"tokens: {count:,}")
         except Exception:
             pass
 

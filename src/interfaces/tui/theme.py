@@ -164,7 +164,13 @@ HorizontalRule {
     display: none;
 }
 
-/* ── BOTTOM BAR — stacked status + input rows ───────────────────────── */
+/* ── BOTTOM BAR — docked bottom zone container ──────────────────────── */
+#bottom-zone {
+    height: auto;
+    width: 100%;
+    dock: bottom;
+    background: transparent;
+}
 
 /* ── 6. BOTTOM INPUT ROW ──────────────────────────────────────────── */
 InputRow {

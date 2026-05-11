@@ -69,12 +69,14 @@ class AssistantTUI(App):
         self._stop_requested = False
 
     def compose(self) -> ComposeResult:
+        from textual.containers import Vertical
         yield AppHeader(id="app-header")
         yield ChatView(id="chat")
         yield HorizontalRule()
-        yield CommandPalette(id="command-palette")
-        yield Static("", id="model-bar")
-        yield InputRow(id="input-row")
+        with Vertical(id="bottom-zone"):
+            yield CommandPalette(id="command-palette")
+            yield InputRow(id="input-row")
+            yield Static("", id="model-bar")
 
     async def on_mount(self) -> None:
         await self._ensure_repo_session()
