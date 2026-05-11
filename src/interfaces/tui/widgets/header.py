@@ -17,8 +17,11 @@ class AppHeader(Widget):
 
     def compose(self) -> ComposeResult:
         # Left zone
-        yield Static("◆ Assistant", classes="header-title")
-        sid = f"  session id: {self._session_id}" if self._session_id else ""
+        yield Static("◆ Agens", classes="header-title")
+        # Spacer
+        yield Static("", classes="header-spacer")
+        # Center zone
+        sid = f"session id: {self._session_id}" if self._session_id else ""
         yield Static(sid, classes="header-session", id="header-session")
         # Spacer — pushes right zone to far edge
         yield Static("", classes="header-spacer")
@@ -30,7 +33,7 @@ class AppHeader(Widget):
         self._session_id = session_id
         try:
             self.query_one("#header-session", Static).update(
-                f"  session id: {session_id}" if session_id else ""
+                f"session id: {session_id}" if session_id else ""
             )
         except Exception:
             pass
