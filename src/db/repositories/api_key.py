@@ -74,6 +74,13 @@ class APIKeyRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_label(self, label: str) -> APIKey | None:
+        result = await self.session.execute(
+            select(APIKey)
+            .where(APIKey.label == label)
+        )
+        return result.scalar_one_or_none()
+
     async def get_by_hash(self, key_hash: str) -> APIKey | None:
         result = await self.session.execute(
             select(APIKey)

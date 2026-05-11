@@ -10,11 +10,14 @@ Usage:
 """
 from __future__ import annotations
 import asyncio
+import json
+import os
 import sys
+from datetime import datetime, timezone
 from typing import Any
 
 from config.settings import settings
-from config.runtime import initialize_runtime
+from config.runtime import get_runtime_root, initialize_runtime
 from config.logging import get_logger, setup_logging
 
 
@@ -22,6 +25,32 @@ initialize_runtime()
 
 setup_logging(settings.LOG_LEVEL)
 logger = get_logger(__name__)
+
+_INTERFACE_STATE_FILE = get_runtime_root() / "interfaces.json"
+
+
+def _write_interface_state(selected: list[str]) -> None:
+    data = {
+        "pid": os.getpid(),
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "interfaces": {name: {"status": "running"} for name in selected},
+    }
+    try:
+        _INTERFACE_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _INTERFACE_STATE_FILE.write_text(
+            json.dumps(data, indent=2, ensure_ascii=True),
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        logger.warning("Failed to write interface state: %s", exc)
+
+
+def _clear_interface_state() -> None:
+    try:
+        if _INTERFACE_STATE_FILE.exists():
+            _INTERFACE_STATE_FILE.unlink()
+    except OSError as exc:
+        logger.warning("Failed to clear interface state: %s", exc)
 
 
 
@@ -127,6 +156,8 @@ async def main() -> None:
         agent = await build_agent(db)
     logger.info("Agent ready. Starting interface(s): %s", ", ".join(selected))
 
+    _write_interface_state(selected)
+
     shutdown_event = asyncio.Event()
 
     def request_shutdown(source: str = "unknown") -> None:
@@ -142,20 +173,23 @@ async def main() -> None:
             raise ValueError(f"Unsupported interface: {name}")
         starters.append(asyncio.create_task(starter, name=f"{name}-interface"))
 
-    interfaces = asyncio.gather(*starters)
-    shutdown_waiter = asyncio.create_task(shutdown_event.wait(), name="shutdown-waiter")
-    done, _ = await asyncio.wait(
-        {interfaces, shutdown_waiter},
-        return_when=asyncio.FIRST_COMPLETED,
-    )
+    try:
+        interfaces = asyncio.gather(*starters)
+        shutdown_waiter = asyncio.create_task(shutdown_event.wait(), name="shutdown-waiter")
+        done, _ = await asyncio.wait(
+            {interfaces, shutdown_waiter},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
 
-    if shutdown_waiter in done:
-        interfaces.cancel()
-        await asyncio.gather(interfaces, return_exceptions=True)
-    else:
-        shutdown_waiter.cancel()
-        await asyncio.gather(shutdown_waiter, return_exceptions=True)
-        await interfaces
+        if shutdown_waiter in done:
+            interfaces.cancel()
+            await asyncio.gather(interfaces, return_exceptions=True)
+        else:
+            shutdown_waiter.cancel()
+            await asyncio.gather(shutdown_waiter, return_exceptions=True)
+            await interfaces
+    finally:
+        _clear_interface_state()
 
 
 def cli() -> None:
