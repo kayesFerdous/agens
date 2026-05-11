@@ -23,6 +23,7 @@
 
 {#if message.role === 'user'}
   <section class="user-msg">
+    <div class="avatar user-avatar" aria-hidden="true">K</div>
     <div class="bubble">
       {message.content}
     </div>
@@ -40,6 +41,8 @@
   </section>
 {:else}
   <section class="ai-msg">
+    <div class="avatar ai-avatar" aria-hidden="true">A</div>
+    <div class="ai-body">
     {#if message.isThinking}
       <ThinkingIndicator />
     {/if}
@@ -93,112 +96,169 @@
         <MarkdownRenderer content={message.content} isLive={isLive} />
       </div>
     {/if}
+    </div>
   </section>
 {/if}
 
 <style>
-  .user-msg {
+  .user-msg,
+  .ai-msg,
+  .status-msg {
+    width: 100%;
     display: flex;
-    flex-direction: column;
-    gap: 8px;
-    align-self: flex-end;
-    max-width: 85%;
-    font-family: 'Inter', sans-serif;
+    gap: 12px;
+    animation: slideUp 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
-  .bubble {
-    background: var(--bg-surface);
-    padding: 12px 18px;
-    border-radius: 10px;
-    border-bottom-right-radius: 2px;
-    border: 0.5px solid var(--border-main);
-    color: var(--text-primary);
-    line-height: 1.6;
-    font-size: 15px;
+  .user-msg {
+    flex-direction: row-reverse;
+    align-items: flex-end;
   }
 
   .ai-msg {
-    position: relative;
+    align-items: flex-start;
+  }
+
+  .avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
     display: flex;
-    flex-direction: column;
-    gap: 24px;
-    font-family: 'Inter', sans-serif;
+    align-items: center;
+    justify-content: center;
+    font-weight: 500;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  .user-avatar {
+    background: var(--ag-surface);
+    color: var(--ag-ink-2);
+    border: 0.5px solid var(--ag-border);
+  }
+
+  .ai-avatar {
+    background: var(--ag-accent-light);
+    color: var(--ag-accent);
+    border: 0.5px solid rgba(123,110,170,0.25);
+  }
+
+  .bubble {
+    padding: 10px 16px;
+    font-size: 14px;
+    line-height: 1.7;
+    max-width: min(72%, 660px);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .user-msg .bubble {
+    background: var(--ag-ink);
+    color: var(--ag-cream);
+    border-radius: 18px 18px 4px 18px;
+  }
+
+  .ai-body {
+    min-width: 0;
+    max-width: min(76%, 700px);
+  }
+
+  .content {
+    background: var(--ag-surface);
+    color: var(--ag-ink);
+    border-radius: 18px 18px 18px 4px;
+    padding: 12px 16px;
+    border: 0.5px solid rgba(60,50,30,0.08);
   }
 
   .status-msg {
-    display: flex;
     justify-content: center;
-    width: 100%;
-    margin: 8px 0;
   }
 
   .status-bubble {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 12px;
-    background: var(--surface-container-high);
-    border: 1px solid var(--border-main);
-    border-radius: 6px;
-    color: var(--text-secondary);
-    font-size: 13px;
-    font-family: 'Inter', sans-serif;
-    animation: fadeSlideIn 0.3s ease-out;
+    max-width: min(680px, 100%);
+    padding: 7px 12px;
+    border-radius: 8px;
+    background: var(--ag-accent-light);
+    border: 0.5px solid rgba(123,110,170,0.20);
+    color: var(--ag-accent);
+    font-size: 12px;
   }
 
   .status-icon {
-    color: var(--accent-primary);
+    flex: 0 0 auto;
   }
 
-  .status-text {
-    line-height: 1.4;
+  .trace-wrapper {
+    margin: 0 0 8px;
   }
 
-  @keyframes fadeSlideIn {
+  .trace-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin: 0 0 6px;
+    color: var(--ag-ink-3);
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .trace-chevron {
+    transition: transform 0.16s ease;
+  }
+
+  .trace-chevron.open {
+    transform: rotate(90deg);
+  }
+
+  .tools-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  @keyframes slideUp {
     from {
       opacity: 0;
-      transform: translateY(4px);
+      transform: translateY(8px);
     }
     to {
       opacity: 1;
       transform: translateY(0);
     }
   }
-
-  .tools-timeline {
-    display: flex;
-    flex-direction: column;
-    padding-left: 12px;
+  
+  :global(.bubble p) {
+    margin: 0 0 12px;
+  }
+  :global(.bubble p:last-child) {
+    margin-bottom: 0;
+  }
+  :global(.bubble code) {
+    background: var(--ag-accent-light);
+    color: var(--ag-accent-deep);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+  }
+  :global(.user .bubble code) {
+    background: var(--ag-ink-2);
+    color: var(--ag-warm-white);
   }
 
-  .trace-toggle {
-    font-size: 11px;
-    font-family: monospace;
-    color: var(--text-tertiary);
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    margin-bottom: 12px;
-    user-select: none;
-    transition: color 0.15s;
-  }
-  .trace-toggle:hover {
-    color: var(--text-secondary);
+  @media (max-width: 720px) {
+    .avatar {
+      display: none;
+    }
+
+    .bubble,
+    .ai-body {
+      max-width: 100%;
+    }
   }
 
-  .trace-chevron {
-    transition: transform 0.15s;
-  }
-  .trace-chevron.open {
-    transform: rotate(90deg);
-  }
-
-  .content {
-    color: var(--text-primary);
-    line-height: 1.8;
-    font-size: 14px;
-  }
-
-  /* Markdown styles are fully managed by MarkdownRenderer.svelte */
 </style>

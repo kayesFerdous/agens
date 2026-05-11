@@ -21,7 +21,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 16px 20px;
-    border-bottom: 1px solid var(--border-main);
+    border-bottom: 0.5px solid var(--ag-border);
   }
   .setting-row:last-child {
     border-bottom: none;
@@ -33,12 +33,12 @@
   .label {
     font-size: 15px;
     font-weight: 500;
-    color: var(--text-primary);
+    color: var(--ag-ink);
     margin-bottom: 4px;
   }
   .description {
     font-size: 13px;
-    color: var(--text-secondary);
+    color: var(--ag-ink-2);
     line-height: 1.4;
   }
   .control {

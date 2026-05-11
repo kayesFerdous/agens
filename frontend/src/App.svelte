@@ -1,5 +1,5 @@
 <script>
-  import '@fontsource/inter';
+  
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
   import { activeSessionId, theme, messages, activePage, restoredConfirmation, noApiKeys, settingsTab } from './lib/store.js';
@@ -233,13 +233,13 @@
   <div class="main-content">
     <header class="top-nav">
       <div class="left">
-        <span class="app-title">The intelligence layer</span>
+        <span class="app-title">Agens</span>
       </div>
       
       <div class="right">
         <div class="engine-status">
           <span class="dot"></span>
-          Local Engine Active
+          Local engine active
         </div>
         
         <div class="nav-icons">
@@ -262,9 +262,11 @@
               </svg>
             {/if}
           </button>
-          <button class="icon-btn" aria-label="Cloud sync">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.36 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM10 17l-3.5-3.5 1.41-1.41L10 14.17 15.18 9l1.41 1.41L10 17z"/>
+          
+          <button class="icon-btn" aria-label="Settings" onclick={() => activePage.set('settings')}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
             </svg>
           </button>
           <button class="icon-btn danger" aria-label="Shutdown assistant" title="Shutdown assistant" onclick={() => showShutdownConfirm = true}>
@@ -316,125 +318,27 @@
 {/if}
 
 <style>
-  :global(:root) {
-    --bg-base: #08080a;
-    --bg-surface: #0f0f12;
-    --border-main: #1c1c22;
-    --text-primary: #e8e6e1;
-    --text-highlight: #ffffff;
-    --text-secondary: #a0a0ab;
-    --text-tertiary: #6b6b76;
-    --accent-primary: #D97757;
-    --accent-gold: var(--accent-primary);
-    --status-err: #c0574f;
-    
-    --bg-input: #141418;
-    --text-placeholder: #2e2e3a;
-    --text-disclaimer: #2a2a35;
-    
-    --badge-done-bg: #1e1a13;
-    --badge-done-border: #3a3020;
-    
-    --badge-err-bg: #1a1010;
-    --badge-err-border: #3a1515;
-    
-    --bg-nav: rgba(14, 14, 14, 0.7);
-    --glow-bg: rgba(217, 119, 87, 0.05);
-    --shadow-input: 0 12px 24px rgba(0, 0, 0, 0.3);
-    
-    --surface-container-high: #141418;
-    
-    /* Legacy fallbacks for components */
-    --background: var(--bg-base);
-    --surface: var(--bg-surface);
-    --on-surface: var(--text-primary);
-    --on-surface-variant: var(--text-secondary);
-    --outline-variant: var(--border-main);
-    --surface-container: #111116;
-    --surface-bright: #1b1b22;
-  }
-
-  :global(:root[data-theme="light"]) {
-    --bg-base: #f8f7f4;
-    --bg-surface: #ffffff;
-    --border-main: #e1ded6;
-    --text-primary: #1f1f21;
-    --text-highlight: #000000;
-    --text-secondary: #5a5854;
-    --text-tertiary: #84817a;
-    --accent-primary: #D97757;
-    --accent-gold: var(--accent-primary);
-    --status-err: #b14840;
-    
-    --bg-input: #ffffff;
-    --text-placeholder: #a39f97;
-    --text-disclaimer: #8c8983;
-    
-    --badge-done-bg: #faf7f0;
-    --badge-done-border: #e0d2b6;
-    
-    --badge-err-bg: #fbeded;
-    --badge-err-border: #f0b0ab;
-    
-    --bg-nav: rgba(248, 247, 244, 0.85);
-    --glow-bg: rgba(217, 119, 87, 0.15);
-    --shadow-input: 0 12px 24px rgba(0, 0, 0, 0.06);
-    
-    --surface-container-high: #fbf9f6;
-    
-    /* Legacy fallbacks for components */
-    --background: var(--bg-base);
-    --surface: var(--bg-surface);
-    --on-surface: var(--text-primary);
-    --on-surface-variant: var(--text-secondary);
-    --outline-variant: var(--border-main);
-    --surface-container: #f0eee9;
-    --surface-bright: #ffffff;
-  }
-
-
-
-  :global(body) {
-    margin: 0;
-    padding: 0;
-    background-color: var(--bg-base);
-    color: var(--text-primary);
-    font-family: 'Inter', sans-serif;
-    -webkit-font-smoothing: antialiased;
-    overflow: hidden; /* Prevent body scroll, everything handled internally */
-    transition: background-color 0.3s ease, color 0.3s ease;
-  }
-
-  :global(*) {
-    box-sizing: border-box;
-  }
-
-  :global(::selection) {
-    background: rgba(217, 119, 87, 0.3); /* primary matching */
-  }
 
   .app-layout {
     display: flex;
-    width: 100vw;
+    width: 100%;
     height: 100vh;
+    overflow: hidden;
   }
 
   .main-content {
     flex: 1;
-    margin-left: 264px; /* match sidebar width */
+    margin-left: 264px;
     display: flex;
     flex-direction: column;
     position: relative;
-    background: var(--bg-surface);
-    border-left: 1px solid var(--border-main);
+    background: var(--ag-cream);
   }
 
   .top-nav {
     height: 56px;
-    background: var(--bg-nav);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border-bottom: 1px solid var(--border-main);
+    background: var(--ag-warm-white);
+    border-bottom: 0.5px solid var(--ag-border);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -443,9 +347,9 @@
   }
 
   .app-title {
-    font-weight: 600;
-    font-size: 14px;
-    color: var(--text-primary);
+    font-weight: 400;
+    font-size: 13px;
+    color: var(--ag-ink-3);
   }
 
   .right {
@@ -458,48 +362,48 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 4px 12px;
-    background: var(--surface-container-high);
-    border-radius: 4px;
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ag-ink-3);
+    letter-spacing: 0.01em;
   }
 
-  .dot {
-    width: 8px;
-    height: 8px;
+  .engine-status .dot {
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
-    background-color: #10b981; /* emerald-500 matching design */
+    background-color: var(--ag-accent);
   }
 
   .nav-icons {
     display: flex;
     align-items: center;
     gap: 16px;
-    opacity: 0.5;
   }
 
   .icon-btn {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: transparent;
+    border: 0.5px solid transparent;
+    color: var(--ag-ink-3);
     cursor: pointer;
-    padding: 4px;
+    padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: color 0.2s;
+    transition: color 0.1s;
   }
 
   .icon-btn:hover {
-    color: var(--text-primary);
+    color: var(--ag-ink);
+    background: var(--ag-surface);
+    border-color: var(--ag-border);
   }
 
   .icon-btn.danger:hover {
-    color: var(--status-err);
+    color: var(--ag-warm);
   }
 
   .shutdown-modal-overlay {
@@ -510,36 +414,35 @@
     align-items: center;
     justify-content: center;
     padding: 24px;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(28, 24, 20, 0.4);
     backdrop-filter: blur(8px);
   }
 
   .shutdown-modal {
     width: min(420px, 100%);
-    background: var(--bg-surface);
-    border: 1px solid var(--border-main);
-    border-radius: 12px;
-    padding: 22px;
-    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+    background: var(--ag-warm-white);
+    border: 0.5px solid var(--ag-border);
+    border-radius: 24px;
+    padding: 24px;
   }
 
   .shutdown-modal h2 {
     margin: 0 0 8px;
-    color: var(--text-primary);
+    color: var(--ag-ink);
     font-size: 18px;
-    font-weight: 700;
+    font-weight: 500;
   }
 
   .shutdown-modal p {
     margin: 0;
-    color: var(--text-secondary);
+    color: var(--ag-ink-2);
     font-size: 14px;
     line-height: 1.5;
   }
 
   .shutdown-error {
     margin-top: 12px !important;
-    color: var(--status-err) !important;
+    color: var(--ag-warm) !important;
   }
 
   .shutdown-actions {
@@ -551,24 +454,25 @@
 
   .shutdown-cancel,
   .shutdown-confirm {
-    border-radius: 8px;
+    border-radius: 12px;
     padding: 9px 14px;
     font: inherit;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
   }
 
   .shutdown-cancel {
-    border: 1px solid var(--border-main);
+    border: 0.5px solid var(--ag-border);
     background: transparent;
-    color: var(--text-primary);
+    color: var(--ag-ink);
   }
+  .shutdown-cancel:hover { background: var(--ag-surface); }
 
   .shutdown-confirm {
-    border: 1px solid var(--badge-err-border);
-    background: var(--badge-err-bg);
-    color: var(--status-err);
+    border: 0.5px solid rgba(201,124,74,0.25);
+    background: var(--ag-warm-light);
+    color: var(--ag-warm);
   }
 
   .shutdown-cancel:disabled,
@@ -589,34 +493,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--text-secondary);
+    color: var(--ag-ink-2);
     font-size: 14px;
   }
 
-  /* Aesthetic Decorative Elements */
-  .glow-tr {
-    position: absolute;
-    top: 25%;
-    right: -128px;
-    width: 500px;
-    height: 500px;
-    background: var(--glow-bg);
-    filter: blur(120px);
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: -1;
-  }
+  /* Clear ugly glow artifacts entirely */
+  .glow-tr, .glow-bl { display: none; }
 
-  .glow-bl {
-    position: absolute;
-    bottom: -128px;
-    left: -128px;
-    width: 500px;
-    height: 500px;
-    background: var(--glow-bg);
-    filter: blur(120px);
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: -1;
-  }
 </style>

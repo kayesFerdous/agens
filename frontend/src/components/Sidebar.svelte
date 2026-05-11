@@ -62,8 +62,8 @@
       </svg>
     </div>
     <div>
-      <h1 class="brand-name">The Intelligence Layer</h1>
-      <p class="brand-version">V1.0.4 - STABLE</p>
+      <h1 class="brand-name">Agens</h1>
+      <p class="brand-version">v1.0.4 stable</p>
     </div>
   </div>
 
@@ -76,7 +76,7 @@
   </button>
 
   <nav class="sessions-list">
-    <p class="sessions-label">Recent Chats</p>
+    <p class="sessions-label">Recent chats</p>
     {#each sessionService.sessions as session (session.id)}
       <div
         class="session-item"
@@ -133,7 +133,7 @@
         <h2 class="modal-title">Delete Chat</h2>
       </div>
       <p class="modal-body">
-        Are you sure you want to delete this conversation? This action cannot be undone.
+        Delete this conversation? This action cannot be undone.
       </p>
       <div class="modal-actions">
         <button class="btn-cancel" onclick={cancelDelete}>Cancel</button>
@@ -144,20 +144,22 @@
 {/if}
 
 <style>
+
   .sidebar {
     position: fixed;
     left: 0;
     top: 0;
     width: 264px;
     height: 100vh;
-    background: var(--bg-base);
-    border-right: 1px solid var(--border-main);
+    box-sizing: border-box;
+    background: var(--ag-surface);
+    border-right: 0.5px solid var(--ag-border);
     display: flex;
     flex-direction: column;
     padding: 24px 16px;
     gap: 32px;
     z-index: 50;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
 
@@ -172,26 +174,25 @@
     width: 32px;
     height: 32px;
     border-radius: 6px;
-    background: var(--glow-bg);
+    background: transparent;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--accent-primary);
+    color: var(--ag-ink);
   }
 
   .brand-name {
-    font-size: 18px;
-    font-weight: 700;
-    letter-spacing: -0.04em;
-    color: var(--text-primary);
+    font-size: 16px;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    color: var(--ag-ink);
     margin: 0;
   }
 
   .brand-version {
     font-size: 10px;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
+    color: var(--ag-ink-3);
+    letter-spacing: 0.01em;
     margin: 2px 0 0;
     font-weight: 500;
   }
@@ -203,22 +204,22 @@
     gap: 8px;
     padding: 10px 16px;
     border-radius: 12px;
-    background: var(--glow-bg);
-    color: var(--accent-primary);
-    font-weight: 600;
+    background: var(--ag-accent-light);
+    color: var(--ag-accent);
+    border: 0.5px solid rgba(123,110,170,0.25);
+    font-weight: 500;
     font-size: 14px;
-    border: none;
     cursor: pointer;
     transition: all 0.15s ease;
     font-family: inherit;
   }
-
-  .new-chat-btn:hover {
-    filter: brightness(1.1);
+  .new-chat-btn svg {
+    color: var(--ag-accent);
   }
 
-  .new-chat-btn:active {
-    transform: scale(0.98);
+  .new-chat-btn:hover {
+    background: var(--ag-accent-mid);
+    color: var(--ag-cream);
   }
 
   .sessions-list {
@@ -231,11 +232,10 @@
 
   .sessions-label {
     font-size: 10px;
-    font-weight: 700;
-    color: var(--text-tertiary);
+    font-weight: 500;
+    color: var(--ag-ink-3);
     padding: 0 8px 8px;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.01em;
     margin: 0;
   }
 
@@ -244,191 +244,178 @@
     align-items: center;
     justify-content: space-between;
     padding: 10px 12px;
-    border-radius: 4px;
-    color: var(--text-secondary);
+    border-radius: 8px;
+    color: var(--ag-ink-2);
+    font-size: 13px;
+    font-weight: 400;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.1s ease;
+    text-decoration: none;
+    border: 0.5px solid transparent;
   }
 
   .session-item:hover {
-    color: var(--text-primary);
-    background: var(--surface-container-high);
+    background: rgba(60,50,30,0.05);
   }
 
   .session-item.active {
-    color: var(--accent-primary);
-    font-weight: 600;
-    border-left: 2px solid var(--accent-primary);
-    background: var(--glow-bg);
+    background: var(--ag-warm-white);
+    border: 0.5px solid var(--ag-border);
+    color: var(--ag-ink);
   }
 
   .session-info {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    min-width: 0;
+    gap: 4px;
     flex: 1;
+    min-width: 0;
   }
 
   .session-title {
-    font-size: 13px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .session-time {
-    font-size: 10px;
-    color: var(--text-tertiary);
+    font-size: 11px;
+    color: var(--ag-ink-3);
   }
 
   .delete-btn {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 4px;
-    opacity: 0;
-    transition: opacity 0.15s ease;
-    display: flex;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 4px;
+    flex: 0 0 auto;
+    border: 0.5px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ag-ink-3);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
   }
 
-  .session-item:hover .delete-btn {
-    opacity: 0.5;
+  .session-item:hover .delete-btn,
+  .session-item:focus-within .delete-btn {
+    opacity: 1;
   }
 
   .delete-btn:hover {
-    opacity: 1;
-    color: var(--status-err);
+    color: var(--ag-warm);
+    background: var(--ag-warm-light);
+    border-color: rgba(201,124,74,0.25);
   }
 
   .settings-link {
-    margin-top: auto;
-    padding-top: 24px;
-    padding-bottom: 24px;
-    border-top: 1px solid var(--border-main);
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding-left: 12px;
-    padding-right: 12px;
-    color: var(--text-secondary);
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    color: var(--ag-ink-2);
     cursor: pointer;
-    font-size: 14px;
-    transition: color 0.2s ease;
+    border: 0.5px solid transparent;
+    transition: background 0.12s ease, border-color 0.12s ease;
   }
 
   .settings-link:hover {
-    color: var(--text-primary);
+    background: var(--ag-warm-white);
+    border-color: var(--ag-border);
+    color: var(--ag-ink);
   }
 
   .modal-overlay {
     position: fixed;
     inset: 0;
-    z-index: 9999;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    z-index: 2000;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 24px;
-    animation: fadeIn 0.2s ease-out;
+    background: rgba(28,24,20,0.38);
+    backdrop-filter: blur(8px);
   }
 
   .modal-content {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-main);
-    border-radius: 16px;
-    padding: 24px;
-    width: 100%;
-    max-width: 400px;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    font-family: 'Inter', sans-serif;
+    width: min(420px, 100%);
+    background: var(--ag-warm-white);
+    border: 0.5px solid var(--ag-border);
+    border-radius: 24px;
+    padding: 22px;
+    color: var(--ag-ink);
   }
 
   .modal-header {
     display: flex;
     align-items: center;
-    gap: 16px;
-    margin-bottom: 12px;
+    gap: 12px;
   }
 
   .modal-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    background: var(--badge-err-bg); /* error-container soft */
-    color: var(--status-err);
-    display: flex;
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
+    border-radius: 12px;
+    background: var(--ag-warm-light);
+    color: var(--ag-warm);
+    border: 0.5px solid rgba(201,124,74,0.25);
   }
 
   .modal-title {
     margin: 0;
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
-    letter-spacing: -0.01em;
+    font-size: 20px;
+    font-weight: 400;
+    letter-spacing: -0.02em;
   }
 
   .modal-body {
-    margin: 0 0 32px;
-    font-size: 14px;
-    color: var(--text-secondary);
-    line-height: 1.5;
+    margin: 16px 0 0;
+    color: var(--ag-ink-2);
+    line-height: 1.6;
   }
 
   .modal-actions {
     display: flex;
-    gap: 12px;
     justify-content: flex-end;
+    gap: 10px;
+    margin-top: 24px;
+  }
+
+  .btn-cancel,
+  .btn-delete {
+    border-radius: 12px;
+    padding: 8px 18px;
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
   }
 
   .btn-cancel {
-    padding: 10px 16px;
-    border-radius: 8px;
-    border: 1px solid var(--border-main);
     background: transparent;
-    color: var(--text-primary);
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
+    color: var(--ag-ink);
+    border: 0.5px solid var(--ag-border);
   }
 
   .btn-cancel:hover {
-    background: var(--surface-container-high);
+    background: var(--ag-surface);
   }
 
   .btn-delete {
-    padding: 10px 16px;
-    border-radius: 8px;
-    border: 1px solid var(--badge-err-border);
-    background: var(--badge-err-bg);
-    color: var(--status-err);
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
+    background: var(--ag-warm-light);
+    color: var(--ag-warm);
+    border: 0.5px solid rgba(201,124,74,0.25);
   }
 
-  .btn-delete:hover {
-    background: var(--badge-err-border);
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  @keyframes slideUp {
-    from { opacity: 0; transform: translateY(16px) scale(0.96); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
+  @media (max-width: 820px) {
+    .sidebar {
+      width: 232px;
+      padding: 18px 12px;
+    }
   }
 </style>

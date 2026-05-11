@@ -1,5 +1,5 @@
 <script>
-  export let title = "Confirm Action";
+  export let title = "Confirm action";
   export let message = "Are you sure you want to proceed?";
   export let confirmText = "Delete";
   export let cancelText = "Cancel";
@@ -47,7 +47,7 @@
     position: fixed;
     inset: 0;
     z-index: 1000;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(28, 24, 20, 0.42);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     display: flex;
@@ -58,13 +58,13 @@
   }
 
   .modal-content {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-main);
-    border-radius: 16px;
+    background: var(--ag-warm-white);
+    border: 0.5px solid var(--ag-border);
+    border-radius: 24px;
     padding: 24px;
     width: 100%;
     max-width: 400px;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    box-shadow: none;
     animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
@@ -79,8 +79,8 @@
     width: 48px;
     height: 48px;
     border-radius: 12px;
-    background: var(--badge-err-bg);
-    color: var(--status-err);
+    background: var(--ag-warm-light);
+    color: var(--ag-warm);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -89,15 +89,15 @@
   .modal-title {
     margin: 0;
     font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
+    font-weight: 500;
+    color: var(--ag-ink);
     letter-spacing: -0.01em;
   }
 
   .modal-body {
     margin: 0 0 32px;
     font-size: 14px;
-    color: var(--text-secondary);
+    color: var(--ag-ink-2);
     line-height: 1.5;
   }
 
@@ -110,9 +110,9 @@
   .btn-cancel {
     padding: 10px 16px;
     border-radius: 8px;
-    border: 1px solid var(--border-main);
+    border: 0.5px solid var(--ag-border);
     background: transparent;
-    color: var(--text-primary);
+    color: var(--ag-ink);
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
@@ -120,23 +120,23 @@
   }
 
   .btn-cancel:hover {
-    background: var(--surface-container-high);
+    background: var(--ag-surface);
   }
 
   .btn-danger {
     padding: 10px 16px;
     border-radius: 8px;
-    border: 1px solid var(--badge-err-border);
-    background: var(--badge-err-bg);
-    color: var(--status-err);
+    border: 0.5px solid var(--ag-border);
+    background: var(--ag-warm-light);
+    color: var(--ag-warm);
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
   }
 
   .btn-danger:hover {
-    background: var(--badge-err-border);
+    background: var(--ag-surface);
   }
 
   @keyframes fadeIn {

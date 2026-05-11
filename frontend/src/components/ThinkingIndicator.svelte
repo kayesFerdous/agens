@@ -16,13 +16,13 @@
   }
   
   .t-pill {
-    background: var(--surface-container-high);
-    border: 0.5px solid var(--border-main);
+    background: var(--ag-accent-light);
+    border: 0.5px solid var(--ag-border);
     border-radius: 20px;
     padding: 3px 10px;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-sans);
     font-size: 11px;
-    color: var(--text-secondary);
+    color: var(--ag-accent);
     display: flex;
     align-items: center;
     gap: 5px;
@@ -32,7 +32,7 @@
     width: 3px;
     height: 3px;
     border-radius: 50%;
-    background: var(--text-secondary);
+    background: var(--ag-accent-mid);
     display: inline-block;
     animation: b 1.2s infinite;
   }
@@ -47,7 +47,7 @@
   
   .t-hint {
     font-size: 11px;
-    color: var(--text-tertiary);
-    font-family: 'Inter', sans-serif;
+    color: var(--ag-ink-3);
+    font-family: var(--font-sans);
   }
 </style>

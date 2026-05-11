@@ -85,15 +85,16 @@
   </div>
   
   <p class="disclaimer">
-    The Intelligence Layer may provide inaccurate information. Verify critical outputs.
+    Agens may provide inaccurate information. Verify critical outputs.
   </p>
 </div>
 
 <style>
+
   .input-container {
     width: 100%;
     margin-top: 16px;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-sans);
   }
 
   .wrapper {
@@ -101,19 +102,20 @@
     display: flex;
     flex-direction: column;
     gap: 0;
-    padding: 8px 14px 10px;
-    background: var(--bg-input);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border-radius: 12px;
-    border: 0.5px solid var(--border-main);
-    box-shadow: var(--shadow-input);
+    padding: 12px 16px;
+    background: var(--ag-warm-white);
+    border-radius: 24px;
+    border: 0.5px solid var(--ag-border);
     transition: all 0.3s ease;
   }
 
+  .wrapper:focus-within {
+    border-color: var(--ag-accent);
+    box-shadow: 0 0 0 3px var(--ag-accent-glow);
+  }
+
   .wrapper.disabled {
-    background: var(--surface-container-high);
-    border-color: var(--border-main);
+    background: var(--ag-surface);
     opacity: 0.8;
   }
 
@@ -121,8 +123,8 @@
     flex: 1;
     background: transparent;
     border: none;
-    color: var(--text-primary);
-    font-size: 16px;
+    color: var(--ag-ink);
+    font-size: 14px;
     line-height: 1.5;
     padding: 10px 4px 6px;
     resize: none;
@@ -134,15 +136,14 @@
   }
 
   textarea::placeholder {
-    color: var(--text-placeholder);
+    color: var(--ag-ink-3);
   }
 
   textarea:disabled {
-    color: var(--text-tertiary);
+    color: var(--ag-ink-3);
     pointer-events: none;
   }
 
-  /* Hide scrollbar */
   textarea::-webkit-scrollbar {
     display: none;
   }
@@ -151,7 +152,6 @@
     scrollbar-width: none;
   }
 
-  /* Bottom row: model selector + actions */
   .bottom-bar {
     display: flex;
     align-items: center;
@@ -166,67 +166,58 @@
   }
 
   .send-btn {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 50%;
     border: none;
-    background: var(--accent-primary);
-    color: var(--bg-surface);
-    box-shadow: 0 4px 14px var(--glow-bg);
+    background: var(--ag-ink);
+    color: var(--ag-cream);
     cursor: pointer;
     transition: all 0.2s ease;
-    opacity: 0.5;
   }
 
-  .send-btn.active {
-    opacity: 1;
+  .send-btn:hover {
+    background: var(--ag-ink-2);
   }
-
-  .send-btn.active:hover {
-    transform: scale(1.05);
-  }
-
-  .send-btn.active:active {
+  .send-btn:active {
     transform: scale(0.95);
   }
 
-  /* Dim send button when input is locked. */
   .send-btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
+    background: var(--ag-ink-3);
   }
 
   .stop-btn {
     display: flex;
     align-items: center;
     gap: 8px;
-    background: rgba(127, 39, 55, 0.2);
-    color: var(--status-err);
-    border: 1px solid rgba(127, 39, 55, 0.3);
+    background: var(--ag-warm-light);
+    color: var(--ag-warm);
+    border: 0.5px solid rgba(201,124,74,0.25);
     padding: 6px 16px;
     border-radius: 8px;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
     transition: background 0.2s;
   }
 
   .stop-btn:hover {
-    background: rgba(127, 39, 55, 0.4);
+    background: var(--ag-surface);
   }
 
   .disclaimer {
     text-align: center;
     font-size: 10px;
-    color: var(--text-disclaimer);
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
+    color: var(--ag-ink-3);
+    letter-spacing: 0.01em;
     font-weight: 500;
     margin-top: 12px;
   }
+
 </style>

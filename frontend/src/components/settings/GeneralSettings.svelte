@@ -56,7 +56,7 @@
 
 <div class="general-settings">
   <div class="section-header">
-    <h2>General Preferences</h2>
+    <h2>General preferences</h2>
     {#if saveStatus === "saving"}
       <span class="status-indicator">Saving...</span>
     {:else if saveStatus === "success"}
@@ -79,7 +79,7 @@
   {:else}
     <div class="settings-card">
       <SettingRow
-        label="Safety Mode"
+        label="Safety mode"
         description="When enabled, the agent will ask for your confirmation before running any shell command."
       >
         <label class="safety-toggle" class:off={!settings.safety_mode}>
@@ -87,7 +87,7 @@
             type="checkbox"
             checked={settings.safety_mode}
             onchange={handleSafetyModeChange}
-            aria-label="Safety Mode"
+            aria-label="Safety mode"
           />
           <span class="toggle-track"></span>
           <span class="toggle-thumb"></span>
@@ -116,25 +116,25 @@
   h2 {
     margin: 0;
     font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
+    font-weight: 500;
+    color: var(--ag-ink);
   }
 
   .status-indicator {
     font-size: 12px;
-    color: var(--text-secondary);
+    color: var(--ag-ink-2);
     transition: color 0.2s;
   }
   .status-indicator.success {
-    color: #10b981; /* green */
+    color: var(--ag-accent);
   }
   .status-indicator.error {
-    color: var(--status-err);
+    color: var(--ag-warm);
   }
 
   .settings-card {
-    background: var(--surface-container-high);
-    border: 1px solid var(--border-main);
+    background: var(--ag-warm-white);
+    border: 0.5px solid var(--ag-border);
     border-radius: 12px;
     overflow: hidden;
   }
@@ -143,11 +143,11 @@
   .error-state {
     padding: 32px;
     text-align: center;
-    color: var(--text-secondary);
+    color: var(--ag-ink-2);
     font-size: 14px;
-    background: var(--surface-container-high);
+    background: var(--ag-warm-white);
     border-radius: 12px;
-    border: 1px solid var(--border-main);
+    border: 0.5px solid var(--ag-border);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -155,17 +155,17 @@
   }
 
   .error-state {
-    color: var(--status-err);
+    color: var(--ag-warm);
   }
 
   .btn-retry {
     background: none;
-    border: 1px solid currentColor;
+    border: 0.5px solid var(--ag-border);
     color: inherit;
     border-radius: 4px;
     padding: 4px 12px;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
     transition: opacity 0.2s;
   }
@@ -177,8 +177,8 @@
   .spinner {
     width: 16px;
     height: 16px;
-    border: 2px solid var(--border-main);
-    border-top-color: var(--accent-primary);
+    border: 2px solid var(--ag-border);
+    border-top-color: var(--ag-accent);
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
@@ -210,7 +210,7 @@
     height: 26px;
     border-radius: 999px;
     background: rgba(217, 119, 87, 0.35);
-    border: 1px solid rgba(217, 119, 87, 0.6);
+    border: 0.5px solid var(--ag-border);
     transition:
       background 0.2s ease,
       border-color 0.2s ease;
@@ -223,7 +223,7 @@
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: var(--text-highlight);
+    background: var(--ag-accent);
     transition: transform 0.2s ease;
   }
 
@@ -232,20 +232,19 @@
   }
 
   .safety-toggle.off .toggle-track {
-    background: rgba(192, 87, 79, 0.3);
-    border-color: rgba(192, 87, 79, 0.7);
+    background: var(--ag-warm-light);
+    border-color: rgba(201,124,74,0.25);
   }
 
   .safety-toggle.off .toggle-label {
-    color: var(--status-err);
+    color: var(--ag-warm);
   }
 
   .toggle-label {
     font-size: 12px;
-    font-weight: 600;
-    color: var(--text-secondary);
+    font-weight: 500;
+    color: var(--ag-ink-2);
     min-width: 28px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.01em;
   }
 </style>

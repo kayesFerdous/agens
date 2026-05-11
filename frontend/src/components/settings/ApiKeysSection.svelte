@@ -83,7 +83,7 @@
 <div class="api-keys-section">
   <div class="section-header">
     <div class="header-content">
-      <h2 class="section-title">API Keys Configuration</h2>
+      <h2 class="section-title">API keys</h2>
       <p class="section-description">Manage your API keys for different providers to power the local AI engine.</p>
     </div>
     <div class="header-actions">
@@ -99,7 +99,7 @@
           <line x1="12" y1="5" x2="12" y2="19"/>
           <line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
-        Add Key
+        Add key
       </button>
     </div>
   </div>
@@ -130,10 +130,10 @@
             <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
           </svg>
         </div>
-        <h3>No API Keys configured</h3>
+        <h3>No API keys configured</h3>
         <p>Add your first API key to start using the intelligence engine.</p>
         <button class="btn-primary mt-4" onclick={() => showCreateModal = true}>
-          Add Key
+          Add key
         </button>
       </div>
     {:else}
@@ -155,8 +155,8 @@
 
 {#if keyToDelete}
   <ConfirmActionModal 
-    title="Delete API Key"
-    message="Are you sure you want to delete this API key? Outstanding requests might fail."
+    title="Delete API key"
+    message="Delete this API key? Outstanding requests might fail."
     onCancel={cancelDelete}
     onConfirm={executeDelete}
   />
@@ -184,14 +184,14 @@
   .section-title {
     margin: 0;
     font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
+    font-weight: 500;
+    color: var(--ag-ink);
   }
 
   .section-description {
     margin: 0;
     font-size: 14px;
-    color: var(--text-secondary);
+    color: var(--ag-ink-2);
   }
 
   .btn-primary {
@@ -199,10 +199,10 @@
     align-items: center;
     gap: 8px;
     padding: 10px 18px;
-    border-radius: 8px;
-    background: var(--accent-primary);
-    color: var(--bg-base);
-    font-weight: 600;
+    border-radius: 12px;
+    background: var(--ag-ink);
+    color: var(--ag-cream);
+    font-weight: 500;
     font-size: 14px;
     border: none;
     cursor: pointer;
@@ -220,18 +220,18 @@
     align-items: center;
     gap: 8px;
     padding: 10px 18px;
-    border-radius: 8px;
-    background: var(--surface-container-high);
-    color: var(--text-primary);
-    font-weight: 600;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--ag-ink);
+    font-weight: 500;
     font-size: 14px;
-    border: 1px solid var(--border-main);
+    border: 0.5px solid var(--ag-border);
     cursor: pointer;
     transition: all 0.2s ease;
   }
 
   .btn-secondary:hover {
-    background: var(--border-main);
+    background: var(--ag-surface);
   }
 
   .btn-secondary:active {
@@ -241,7 +241,7 @@
   .btn-primary:hover {
     filter: brightness(1.1);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(217, 119, 87, 0.3);
+    box-shadow: none;
   }
 
   .btn-primary:active {
@@ -253,28 +253,28 @@
     align-items: center;
     gap: 12px;
     padding: 16px;
-    background: var(--badge-err-bg);
-    border: 1px solid var(--badge-err-border);
-    border-radius: 8px;
-    color: var(--status-err);
+    background: var(--ag-warm-light);
+    border: 0.5px solid var(--ag-border);
+    border-radius: 12px;
+    color: var(--ag-warm);
     font-size: 14px;
   }
 
   .btn-retry {
     margin-left: auto;
     background: none;
-    border: 1px solid currentColor;
+    border: 0.5px solid var(--ag-border);
     color: inherit;
     border-radius: 4px;
     padding: 4px 12px;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
     transition: background 0.2s;
   }
 
   .btn-retry:hover {
-    background: rgba(255,255,255,0.1);
+    background: var(--ag-warm-light);
   }
 
   .empty-state {
@@ -283,8 +283,8 @@
     align-items: center;
     justify-content: center;
     padding: 64px 24px;
-    background: var(--surface-container-high);
-    border: 1px dashed var(--border-main);
+    background: var(--ag-warm-white);
+    border: 0.5px dashed var(--ag-border);
     border-radius: 12px;
     text-align: center;
   }
@@ -293,8 +293,8 @@
     width: 64px;
     height: 64px;
     border-radius: 16px;
-    background: var(--glow-bg);
-    color: var(--accent-primary);
+    background: var(--ag-accent-light);
+    color: var(--ag-accent);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -304,14 +304,14 @@
   .empty-state h3 {
     margin: 0 0 8px;
     font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
+    font-weight: 500;
+    color: var(--ag-ink);
   }
 
   .empty-state p {
     margin: 0;
     font-size: 14px;
-    color: var(--text-secondary);
+    color: var(--ag-ink-2);
     max-width: 300px;
   }
 
@@ -323,15 +323,15 @@
     justify-content: center;
     gap: 12px;
     padding: 64px;
-    color: var(--text-secondary);
+    color: var(--ag-ink-2);
     font-size: 14px;
   }
 
   .spinner {
     width: 20px;
     height: 20px;
-    border: 2px solid var(--border-main);
-    border-top-color: var(--accent-primary);
+    border: 2px solid var(--ag-border);
+    border-top-color: var(--ag-accent);
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }

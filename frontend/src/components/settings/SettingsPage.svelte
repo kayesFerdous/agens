@@ -6,7 +6,7 @@
 
   const tabs = [
     { id: 'general', label: 'General' },
-    { id: 'apikeys', label: 'API Keys' }
+    { id: 'apikeys', label: 'API keys' }
   ];
   let activeTab = $state($settingsTab);
   let scrollContainer = $state();
@@ -45,7 +45,7 @@
     height: 100%;
     overflow-y: auto;
     padding: 32px 48px;
-    background: var(--bg-surface);
+    background: var(--ag-cream);
     display: flex;
     flex-direction: column;
   }
@@ -57,9 +57,9 @@
   .settings-page > .page-header .page-title {
     margin: 0;
     font-size: 24px;
-    font-weight: 600;
+    font-weight: 400;
     letter-spacing: -0.02em;
-    color: var(--text-primary);
+    color: var(--ag-ink);
   }
 
   .tab-content {

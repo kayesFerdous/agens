@@ -42,8 +42,7 @@
   }
   .loading-indicator {
     font-size: 11px;
-    color: var(--text-tertiary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    color: var(--ag-ink-3);
+    letter-spacing: 0.01em;
   }
 </style>

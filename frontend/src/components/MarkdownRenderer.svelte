@@ -40,11 +40,11 @@
 <style>
   /* ── Reset / base ───────────────────────────────────────────────────── */
   .markdown-body {
-    color: var(--text-primary, #e2e2e9);
+    color: inherit;
     font-size: 14.5px;
     line-height: 1.85;
     word-break: break-word;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: inherit;
   }
 
   /* ── Headings ───────────────────────────────────────────────────────── */
@@ -52,16 +52,16 @@
   .markdown-body :global(h2),
   .markdown-body :global(h3),
   .markdown-body :global(h4) {
-    font-family: 'Inter', system-ui, sans-serif;
-    font-weight: 600;
-    color: var(--text-highlight, #f3f4f6);
+    font-family: inherit;
+    font-weight: 500;
+    color: inherit;
     line-height: 1.35;
     margin: 1.4em 0 0.45em;
   }
   .markdown-body :global(h1) { font-size: 1.55em; letter-spacing: -0.02em; }
   .markdown-body :global(h2) { font-size: 1.25em; letter-spacing: -0.01em; }
   .markdown-body :global(h3) { font-size: 1.05em; }
-  .markdown-body :global(h4) { font-size: 0.95em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-primary, #a78bfa); }
+  .markdown-body :global(h4) { font-size: 0.95em; letter-spacing: 0; color: var(--ag-accent); }
 
   /* First heading should not have extra top margin */
   .markdown-body :global(h1:first-child),
@@ -81,12 +81,12 @@
 
   /* ── Inline emphasis ────────────────────────────────────────────────── */
   .markdown-body :global(strong) {
-    font-weight: 600;
-    color: var(--text-highlight, #f3f4f6);
+    font-weight: 500;
+    color: inherit;
   }
   .markdown-body :global(em) {
     font-style: italic;
-    color: var(--text-primary, #e2e2e9);
+    color: inherit;
   }
   .markdown-body :global(del) {
     text-decoration: line-through;
@@ -95,13 +95,13 @@
 
   /* ── Links ──────────────────────────────────────────────────────────── */
   .markdown-body :global(a) {
-    color: var(--accent-primary, #a78bfa);
+    color: var(--ag-accent);
     text-decoration: none;
-    border-bottom: 1px solid transparent;
+    border-bottom: 0.5px solid transparent;
     transition: border-color 0.15s;
   }
   .markdown-body :global(a:hover) {
-    border-bottom-color: var(--accent-primary, #a78bfa);
+    border-bottom-color: var(--ag-accent);
   }
 
   /* ── Lists ──────────────────────────────────────────────────────────── */
@@ -121,7 +121,7 @@
     padding-left: 0.25em;
   }
   .markdown-body :global(li::marker) {
-    color: var(--accent-primary, #a78bfa);
+    color: var(--ag-accent);
   }
   /* Nested lists */
   .markdown-body :global(li > ul),
@@ -133,10 +133,10 @@
   .markdown-body :global(blockquote) {
     margin: 0.8em 0;
     padding: 0.6em 1em;
-    border-left: 3px solid var(--accent-primary, #a78bfa);
-    background: var(--surface-container-high, rgba(255,255,255,0.04));
+    border-left: 0.5px solid var(--ag-accent);
+    background: var(--ag-accent-light);
     border-radius: 0 6px 6px 0;
-    color: var(--text-secondary, #9ca3af);
+    color: var(--ag-ink-2);
     font-style: italic;
   }
   .markdown-body :global(blockquote p) {
@@ -146,39 +146,39 @@
   /* ── Horizontal rule ────────────────────────────────────────────────── */
   .markdown-body :global(hr) {
     border: none;
-    border-top: 1px solid var(--border-main, rgba(255,255,255,0.1));
+    border-top: 0.5px solid var(--ag-border);
     margin: 1.6em 0;
   }
 
   /* ── Inline code ────────────────────────────────────────────────────── */
   .markdown-body :global(code) {
-    font-family: ui-monospace, 'Cascadia Code', 'Fira Code', Menlo, Consolas, monospace;
-    font-size: 0.865em;
-    background: var(--surface-container-high, rgba(255,255,255,0.08));
-    color: var(--accent-primary, #a78bfa);
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    background: var(--ag-warm-white);
+    color: var(--ag-ink-2);
     padding: 0.17em 0.45em;
-    border-radius: 5px;
-    border: 1px solid var(--border-main, rgba(255,255,255,0.1));
+    border-radius: 4px;
+    border: 0.5px solid var(--ag-border);
   }
 
   /* ── Code blocks ────────────────────────────────────────────────────── */
   .markdown-body :global(pre) {
-    background: var(--code-block-bg, #0f1117);
-    border: 1px solid var(--border-main, rgba(255,255,255,0.1));
-    border-radius: 10px;
-    padding: 1em 1.25em;
+    background: var(--ag-warm-white);
+    border: 0.5px solid var(--ag-border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 1em 0;
     overflow-x: auto;
-    margin: 0.9em 0;
-    position: relative;
+    font-family: var(--font-mono);
   }
   .markdown-body :global(pre code) {
     background: transparent;
-    border: none;
     padding: 0;
     border-radius: 0;
-    font-size: 0.875em;
-    color: var(--code-text, #d4d4d8);
-    line-height: 1.7;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ag-ink-2);
+    border: none;
   }
 
   /* Scrollbar inside code blocks */
@@ -201,30 +201,29 @@
     margin: 1em 0;
     border-radius: 8px;
     overflow: hidden;         /* clips the rounded corners on the wrapper */
-    border: 1px solid var(--border-main, rgba(255,255,255,0.12));
+    border: 0.5px solid var(--ag-border);
   }
   .markdown-body :global(thead) {
-    background: var(--surface-container-high, rgba(255,255,255,0.06));
+    background: var(--ag-surface);
   }
   .markdown-body :global(th) {
-    font-weight: 600;
+    font-weight: 500;
     font-size: 0.8em;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--text-highlight, #f3f4f6);
+    letter-spacing: 0;
+    color: inherit;
     padding: 9px 14px;
     text-align: left;
-    border-bottom: 1px solid var(--border-main, rgba(255,255,255,0.12));
+    border-bottom: 0.5px solid var(--ag-border);
   }
   .markdown-body :global(td) {
     padding: 8px 14px;
-    border-bottom: 1px solid var(--border-main, rgba(255,255,255,0.06));
-    color: var(--text-primary, #e2e2e9);
+    border-bottom: 0.5px solid var(--ag-border);
+    color: inherit;
     vertical-align: top;
   }
   /* Alternating row tint */
   .markdown-body :global(tbody tr:nth-child(even)) {
-    background: var(--table-row-alt, rgba(255,255,255,0.025));
+    background: var(--ag-warm-white);
   }
   /* Remove bottom border on last row */
   .markdown-body :global(tbody tr:last-child td) {
@@ -232,7 +231,7 @@
   }
   /* Hover highlight */
   .markdown-body :global(tbody tr:hover) {
-    background: var(--table-row-hover, rgba(167,139,250,0.07));
+    background: var(--ag-accent-light);
   }
 
   /* ── Images ─────────────────────────────────────────────────────────── */
@@ -248,10 +247,10 @@
     display: inline-block;
     width: 2px;
     height: 1.1em;
-    background-color: var(--accent-primary, #a78bfa);
+    background-color: var(--ag-accent);
     vertical-align: text-bottom;
     margin-left: 2px;
-    border-radius: 1px;
+    border-radius: 0.5px;
     animation: md-blink 0.9s ease-in-out infinite;
   }
 

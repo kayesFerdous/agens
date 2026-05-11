@@ -24,8 +24,8 @@ const initialSettingsTab = typeof window !== 'undefined'
   : 'general';
 export const settingsTab = writable(initialSettingsTab);
 
-const storedTheme = typeof window !== 'undefined' ? localStorage.getItem('theme') : 'dark';
-export const theme = writable(storedTheme || 'dark');
+const storedTheme = typeof window !== 'undefined' ? localStorage.getItem('theme') : 'light';
+export const theme = writable(storedTheme || 'light');
 if (typeof window !== 'undefined') {
   theme.subscribe(val => {
     localStorage.setItem('theme', val);

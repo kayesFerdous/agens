@@ -29,7 +29,7 @@
   let sudoAuthError = $state(null);
   let sudoAuthSuccess = $state(false);
   // Keep a ref for autofocus when the modal opens.
-  let sudoInputRef;
+  let sudoInputRef = $state();
 
   // Keep the view pinned to the latest content in runes mode.
   $effect(() => {
@@ -466,16 +466,16 @@
           <!-- Render the inline confirmation card under the latest assistant message. -->
           <div class="confirmation-card" role="alert">
             <div class="confirmation-header">
-              <span class="warning-icon" aria-hidden="true">⚠️</span>
-              <span class="confirmation-title">Confirm Command</span>
+              <span class="warning-icon" aria-hidden="true"></span>
+              <span class="confirmation-title">Confirm command</span>
             </div>
             <code class="confirm-code">{pendingConfirmation.preview}</code>
             <p class="confirm-reason">{pendingConfirmation.reason}</p>
             {#if pendingConfirmation.requires_sudo_auth}
               <!-- Warn that a secret will be required after confirming. -->
               <p class="confirm-sudo-note">
-                ⚠️ This command requires elevated privileges. After confirming,
-                you will be prompted for your agent secret.
+                This command requires elevated privileges. After confirming,
+                enter your agent secret.
               </p>
             {/if}
             <div class="confirm-actions">
@@ -518,12 +518,19 @@
 
   {#if sudoAuthPending}
     <!-- Modal overlay for sudo secret authorization. -->
-    <div class="sudo-modal-overlay" onclick={handleSudoBackdrop}>
-      <div class="sudo-modal" onclick={(e) => e.stopPropagation()}>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div class="sudo-modal-overlay" role="presentation" onclick={handleSudoBackdrop}>
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <div class="sudo-modal" role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => e.stopPropagation()}>
         <div class="sudo-modal-header">
-          <div class="sudo-modal-icon">🔐</div>
+          <div class="sudo-modal-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <rect x="4" y="11" width="16" height="10" rx="2"></rect>
+              <path d="M8 11V7a4 4 0 0 1 8 0v4"></path>
+            </svg>
+          </div>
           <div>
-            <h2 class="sudo-modal-title">Authorize Sudo Command</h2>
+            <h2 class="sudo-modal-title">Authorize sudo command</h2>
             <p class="sudo-modal-subtitle">
               Enter your agent secret to authorize this command. This is not
               your system password.
@@ -603,7 +610,7 @@
     max-width: 880px;
     display: flex;
     flex-direction: column;
-    padding: 0 16px;
+    padding: 32px 16px 0;
   }
 
   .welcome-wrapper {
@@ -622,7 +629,7 @@
   }
 
   .scroll-spacer {
-    height: 160px; /* guarantees message fully clears input box */
+    height: 190px;
     flex-shrink: 0;
     width: 100%;
   }
@@ -637,7 +644,7 @@
     padding-bottom: 16px;
     padding-top: 24px;
     pointer-events: none;
-    background: linear-gradient(to top, var(--bg-surface) 60%, transparent);
+    background: linear-gradient(to top, var(--ag-cream) 68%, rgba(245,240,232,0));
     z-index: 10;
   }
 
@@ -652,37 +659,41 @@
   .confirmation-card {
     margin-top: 16px;
     padding: 16px 18px;
-    border-radius: 12px;
-    border: 1px solid rgba(245, 158, 11, 0.35);
-    background: rgba(245, 158, 11, 0.12);
-    color: var(--text-primary);
+    border-radius: 18px;
+    border: 0.5px solid rgba(201,124,74,0.25);
+    background: var(--ag-warm-light);
+    color: var(--ag-ink);
     display: flex;
     flex-direction: column;
     gap: 12px;
-    box-shadow: 0 10px 24px rgba(245, 158, 11, 0.15);
+    box-shadow: none;
   }
 
   .confirmation-header {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-weight: 700;
+    font-weight: 500;
   }
 
   .warning-icon {
-    font-size: 16px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--ag-warm);
   }
 
   .confirmation-title {
     font-size: 14px;
-    letter-spacing: 0.02em;
+    letter-spacing: 0;
   }
 
   .confirm-code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
       "Liberation Mono", "Courier New", monospace;
-    background: #1e1e1e;
-    color: #f8fafc;
+    background: var(--ag-warm-white);
+    color: var(--ag-ink-2);
+    border: 0.5px solid var(--ag-border);
     padding: 10px 12px;
     border-radius: 8px;
     display: block;
@@ -691,14 +702,14 @@
 
   .confirm-reason {
     margin: 0;
-    color: var(--text-secondary);
+    color: var(--ag-ink-2);
     font-size: 13px;
     line-height: 1.5;
   }
 
   .confirm-sudo-note {
     margin: 0;
-    color: #f59e0b;
+    color: var(--ag-warm);
     font-size: 12px;
     line-height: 1.4;
   }
@@ -710,12 +721,12 @@
   }
 
   .confirm-yes {
-    background: #f59e0b;
-    color: #1f2937;
-    border: none;
+    background: var(--ag-warm-light);
+    color: var(--ag-warm);
+    border: 0.5px solid rgba(201,124,74,0.25);
     padding: 8px 14px;
-    border-radius: 8px;
-    font-weight: 600;
+    border-radius: 12px;
+    font-weight: 500;
     cursor: pointer;
   }
 
@@ -727,21 +738,20 @@
 
   .confirm-cancel {
     background: transparent;
-    color: var(--text-primary);
-    border: 1px solid rgba(245, 158, 11, 0.5);
+    color: var(--ag-ink);
+    border: 0.5px solid var(--ag-border);
     padding: 8px 14px;
-    border-radius: 8px;
-    font-weight: 600;
+    border-radius: 12px;
+    font-weight: 500;
     cursor: pointer;
   }
 
   .confirm-hint {
     margin: 8px 0 0;
     font-size: 11px;
-    color: var(--text-tertiary);
+    color: var(--ag-ink-3);
     text-align: center;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    letter-spacing: 0.01em;
   }
 
   /* Sudo authorization modal styles. */
@@ -749,7 +759,8 @@
     position: fixed;
     inset: 0;
     z-index: 2000;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(28, 24, 20, 0.42);
+    backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -759,11 +770,11 @@
   .sudo-modal {
     width: 100%;
     max-width: 520px;
-    background: var(--bg-surface);
-    border: 1px solid var(--border-main);
-    border-radius: 16px;
+    background: var(--ag-warm-white);
+    border: 0.5px solid var(--ag-border);
+    border-radius: 24px;
     padding: 24px;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    box-shadow: none;
     display: flex;
     flex-direction: column;
     gap: 14px;
@@ -779,8 +790,9 @@
     width: 40px;
     height: 40px;
     border-radius: 10px;
-    background: rgba(245, 158, 11, 0.15);
-    color: #f59e0b;
+    background: var(--ag-warm-light);
+    color: var(--ag-warm);
+    border: 0.5px solid rgba(201,124,74,0.25);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -790,22 +802,23 @@
   .sudo-modal-title {
     margin: 0;
     font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
+    font-weight: 500;
+    color: var(--ag-ink);
   }
 
   .sudo-modal-subtitle {
     margin: 4px 0 0;
     font-size: 13px;
-    color: var(--text-secondary);
+    color: var(--ag-ink-2);
     line-height: 1.5;
   }
 
   .sudo-code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
       "Liberation Mono", "Courier New", monospace;
-    background: #1e1e1e;
-    color: #f8fafc;
+    background: var(--ag-warm-white);
+    color: var(--ag-ink-2);
+    border: 0.5px solid var(--ag-border);
     padding: 10px 12px;
     border-radius: 8px;
     display: block;
@@ -815,10 +828,10 @@
   .sudo-input {
     width: 100%;
     padding: 12px 14px;
-    border-radius: 8px;
-    border: 1px solid var(--border-main);
-    background: var(--bg-input);
-    color: var(--text-primary);
+    border-radius: 12px;
+    border: 0.5px solid var(--ag-border);
+    background: var(--ag-warm-white);
+    color: var(--ag-ink);
     font-size: 14px;
     font-family: inherit;
   }
@@ -830,7 +843,7 @@
   .sudo-error {
     margin: 0;
     font-size: 12px;
-    color: var(--status-err);
+    color: var(--ag-warm);
   }
 
   .sudo-actions {
@@ -841,21 +854,21 @@
 
   .sudo-btn-primary {
     padding: 10px 16px;
-    border-radius: 8px;
-    border: none;
-    background: #f59e0b;
-    color: #1f2937;
-    font-weight: 600;
+    border-radius: 12px;
+    border: 0.5px solid rgba(201,124,74,0.25);
+    background: var(--ag-warm-light);
+    color: var(--ag-warm);
+    font-weight: 500;
     cursor: pointer;
   }
 
   .sudo-btn-ghost {
     padding: 10px 16px;
-    border-radius: 8px;
-    border: 1px solid rgba(245, 158, 11, 0.5);
+    border-radius: 12px;
+    border: 0.5px solid var(--ag-border);
     background: transparent;
-    color: var(--text-primary);
-    font-weight: 600;
+    color: var(--ag-ink);
+    font-weight: 500;
     cursor: pointer;
   }
 

@@ -44,7 +44,7 @@
     <div class="output" class:open={expanded}>
       <div class="out-section">
         {#if arguments_obj && Object.keys(arguments_obj).length > 0}
-          <div class="section-label">INPUT</div>
+          <div class="section-label">Input</div>
           {#each Object.entries(arguments_obj) as [k, v]}
             <div class="out-kv">
               <span class="k">{k}</span>
@@ -57,7 +57,7 @@
           {#if arguments_obj && Object.keys(arguments_obj).length > 0}
             <div class="divider"></div>
           {/if}
-          <div class="section-label">OUTPUT</div>
+          <div class="section-label">Output</div>
           
           {#if error}
             <div class="out-kv">
@@ -85,153 +85,148 @@
 
 <style>
   .tool-row {
-    font-family: inherit;
-    position: relative;
-    padding-bottom: 4px;
-  }
-  
-  .tool-row.has-timeline::before {
-    content: "";
-    position: absolute;
-    left: 4px; /* Center of 8px dot */
-    top: 14px; /* Start below the dot */
-    bottom: -6px; /* Stretch exactly to the center of the next dot */
-    width: 1px;
-    background: var(--border-main);
-    z-index: 0;
+    background: var(--ag-accent-light);
+    border: 0.5px solid rgba(123,110,170,0.20);
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 12px;
+    color: var(--ag-accent);
+    font-family: var(--font-sans);
   }
 
   .row-head {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 5px 0;
-    user-select: none;
-    position: relative;
-    z-index: 10;
     cursor: pointer;
+    user-select: none;
+    min-width: 0;
   }
-  
-  .row-head:hover .tool-name { color: var(--text-highlight); }
+
+  .dot-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 
   .dot {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
+    background: var(--ag-accent-mid);
     flex-shrink: 0;
   }
-  .dot.done { background: var(--accent-primary); }
-  .dot.running { background: var(--text-tertiary); animation: glow 1.2s infinite; }
-  .dot.err { background: var(--status-err); }
-  
-  @keyframes glow {
-    0%, 100% { opacity: 1; }
-    50% { opacity: .25; }
+
+  .dot.err {
+    background: var(--ag-warm);
   }
 
   .tool-name {
-    font-size: 13px;
-    font-family: monospace;
-    color: var(--text-primary);
-    flex-shrink: 0;
-    transition: color 0.2s;
-  }
-  
-  .tool-arg {
     font-size: 12px;
-    color: var(--text-tertiary);
-    white-space: nowrap;
+    font-weight: 500;
+    color: var(--ag-accent);
     overflow: hidden;
     text-overflow: ellipsis;
-    flex: 1;
-    font-family: monospace;
+    white-space: nowrap;
   }
-  .tool-arg::before { content: "· "; }
+
+  .tool-arg {
+    color: var(--ag-ink-3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
 
   .pusher {
     flex: 1;
   }
 
-  .badge {
-    font-size: 10px;
-    padding: 1px 7px;
-    border-radius: 3px;
-    flex-shrink: 0;
-    letter-spacing: .03em;
-    text-transform: uppercase;
-    font-family: 'Inter', sans-serif;
-  }
-  .badge.done { background: var(--badge-done-bg); color: var(--accent-primary); border: 0.5px solid var(--badge-done-border); }
-  .badge.running { background: var(--badge-done-bg); color: var(--accent-primary); border: 0.5px solid var(--badge-done-border); }
-  .badge.err { background: var(--badge-err-bg); color: var(--status-err); border: 0.5px solid var(--badge-err-border); }
-
   .chevron {
-    transition: transform .18s, color .15s;
-    display: block;
-    color: var(--text-tertiary);
-    margin-right: 4px;
+    flex-shrink: 0;
+    transition: transform 0.15s ease;
   }
-  .row-head:hover .chevron { color: var(--text-secondary); }
-  .chevron.open { transform: rotate(180deg); }
+
+  .chevron.open {
+    transform: rotate(180deg);
+  }
+
+  .badge {
+    background: var(--ag-accent-glow);
+    color: var(--ag-accent);
+    font-size: 10px;
+    letter-spacing: 0.01em;
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+
+  .badge.err {
+    background: var(--ag-warm-light);
+    color: var(--ag-warm);
+  }
 
   .output {
     display: none;
-    padding: 8px 0 16px 20px; /* Aligns with tool-name cleanly */
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 0.5px solid rgba(123,110,170,0.20);
   }
-  .output.open { display: block; }
+
+  .output.open {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .section-label {
+    font-size: 10px;
+    letter-spacing: 0.01em;
+    color: var(--ag-ink-3);
+    font-weight: 500;
+  }
 
   .out-section {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding-left: 6px;
-  }
-
-  .section-label {
-    font-size: 10px;
-    color: var(--text-tertiary);
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    font-family: 'Inter', sans-serif;
-    margin-bottom: 2px;
-    margin-top: 4px;
-  }
-
-  .divider {
-    height: 1px;
-    background: var(--border-main);
-    margin: 4px 0;
-    width: 100%;
+    background: var(--ag-warm-white);
+    border-radius: 8px;
+    padding: 8px 10px;
+    border: 0.5px solid var(--ag-border);
   }
 
   .out-kv {
-    display: flex;
-    align-items: baseline;
-    gap: 16px;
-    font-family: monospace;
     font-size: 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
   }
-  
-  .k { 
-    color: var(--text-secondary); 
-    white-space: nowrap;
-    width: 110px; /* increased to prevent overlap with value */
-    flex-shrink: 0;
+
+  .k {
+    color: var(--ag-ink-3);
+    font-weight: 500;
+    min-width: 60px;
   }
-  
-  .v { 
-    color: var(--text-secondary); 
-  }
-  
-  .v.input-val {
-    color: var(--accent-primary);
-  }
-  
-  .v.pre {
-    white-space: pre-wrap; 
+
+  .v {
+    color: var(--ag-ink-2);
+    font-family: var(--font-mono);
     word-break: break-all;
   }
-  .v.err { 
-    color: var(--status-err); 
+
+  .pre {
+    white-space: pre-wrap;
+  }
+
+  .err {
+    color: var(--ag-warm);
+  }
+
+  .divider {
+    height: 0;
+    border-top: 0.5px solid var(--ag-border);
+    margin: 2px 0;
   }
 </style>

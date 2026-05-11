@@ -19,7 +19,7 @@
   }
 
   function getStatusLabel(status) {
-    if (status === 'rate_limited') return 'Rate Limited';
+    if (status === 'rate_limited') return 'Rate limited';
     return status.charAt(0).toUpperCase() + status.slice(1);
   }
 
@@ -71,7 +71,7 @@
         </div>
         
         <code class="key-hint">{key.key_hint}</code>
-        <span class="last-used">Last Used: {formatDate(key.last_used_at)}</span>
+        <span class="last-used">Last used: {formatDate(key.last_used_at)}</span>
         
         <div class="status-indicator status-{key.status}">
           <span class="status-dot"></span>
@@ -116,7 +116,7 @@
       <div class="model-status-section">
         {#if !key.model_cooldowns || Object.keys(key.model_cooldowns).length === 0}
           <div class="all-ready">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
             <span class="ready-text">All models ready</span>
@@ -133,7 +133,7 @@
                   <span class="dot-green"></span>
                 {:else}
                   <span class="model-reason {m.reason === 'exhausted' ? 'reason-exhausted' : 'reason-rate'}">
-                    {m.reason === 'exhausted' ? 'Exhausted' : 'Rate Limited'}
+                    {m.reason === 'exhausted' ? 'Exhausted' : 'Rate limited'}
                   </span>
                   <span class="dot-{m.reason === 'exhausted' ? 'red' : 'amber'}"></span>
                   <span class="cooldown-badge">{cdText}</span>
@@ -155,8 +155,8 @@
   }
 
   .key-card {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-main);
+    background: var(--ag-warm-white);
+    border: 0.5px solid var(--ag-border);
     border-radius: 12px;
     overflow: visible;
     display: flex;
@@ -168,7 +168,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    border-bottom: 1px solid var(--border-main);
+    border-bottom: 0.5px solid var(--ag-border);
     gap: 16px;
   }
 
@@ -191,37 +191,37 @@
     width: 24px;
     height: 24px;
     border-radius: 4px;
-    background: var(--surface-container-high);
-    color: var(--text-primary);
+    background: var(--ag-accent-light);
+    color: var(--ag-ink);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 500;
   }
 
   .provider-name {
-    font-weight: 600;
+    font-weight: 500;
     font-size: 15px;
-    color: var(--text-primary);
+    color: var(--ag-ink);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .key-hint {
-    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-family: var(--font-mono);
     font-size: 13px;
-    color: var(--text-secondary);
-    background: var(--bg-input);
+    color: var(--ag-ink-2);
+    background: var(--ag-warm-white);
     padding: 4px 8px;
     border-radius: 4px;
-    border: 1px solid var(--border-main);
+    border: 0.5px solid var(--ag-border);
   }
 
   .last-used {
     font-size: 13px;
-    color: var(--text-secondary);
+    color: var(--ag-ink-2);
     white-space: nowrap;
   }
 
@@ -239,20 +239,20 @@
     border-radius: 50%;
   }
 
-  .status-active { color: #10b981; }
-  .status-active .status-dot { background: #10b981; box-shadow: 0 0 8px rgba(16, 185, 129, 0.4); }
+  .status-active { color: var(--ag-accent); }
+  .status-active .status-dot { background: var(--ag-accent); }
   
-  .status-inactive { color: var(--text-secondary); }
-  .status-inactive .status-dot { background: var(--text-tertiary); }
+  .status-inactive { color: var(--ag-ink-2); }
+  .status-inactive .status-dot { background: var(--ag-ink-3); }
   
-  .status-rate_limited { color: #f59e0b; }
-  .status-rate_limited .status-dot { background: #f59e0b; box-shadow: 0 0 8px rgba(245, 158, 11, 0.4); }
+  .status-rate_limited { color: var(--ag-warm); }
+  .status-rate_limited .status-dot { background: var(--ag-warm); }
 
-  .status-exhausted { color: #ef4444; }
-  .status-exhausted .status-dot { background: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
+  .status-exhausted { color: var(--ag-warm); }
+  .status-exhausted .status-dot { background: var(--ag-warm); }
 
-  .status-invalid { color: #ef4444; }
-  .status-invalid .status-dot { background: #ef4444; }
+  .status-invalid { color: var(--ag-warm); }
+  .status-invalid .status-dot { background: var(--ag-warm); }
 
   .actions {
     display: flex;
@@ -263,7 +263,7 @@
   .action-btn {
     background: transparent;
     border: none;
-    color: var(--text-secondary);
+    color: var(--ag-ink-2);
     cursor: pointer;
     padding: 6px;
     border-radius: 6px;
@@ -272,8 +272,8 @@
   }
 
   .action-btn:hover {
-    background: var(--border-main);
-    color: var(--text-primary);
+    background: var(--ag-surface);
+    color: var(--ag-ink);
   }
 
   .action-menu {
@@ -281,10 +281,10 @@
     right: 0;
     top: 36px;
     width: 160px;
-    background: var(--bg-surface);
-    border: 1px solid var(--border-main);
+    background: var(--ag-warm-white);
+    border: 0.5px solid var(--ag-border);
     border-radius: 8px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    box-shadow: none;
     z-index: 100;
     display: flex;
     flex-direction: column;
@@ -301,33 +301,33 @@
     background: none;
     border: none;
     border-radius: 6px;
-    color: var(--text-primary);
+    color: var(--ag-ink);
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
   }
 
   .action-menu button:hover {
-    background: var(--surface-container-high);
+    background: var(--ag-surface);
   }
 
   .action-menu button.text-danger {
-    color: var(--status-err);
+    color: var(--ag-warm);
   }
 
   .action-menu button.text-danger:hover {
-    background: var(--badge-err-bg);
+    background: var(--ag-warm-light);
   }
 
   .menu-divider {
-    height: 1px;
-    background: var(--border-main);
+    height: 0;
+    background: var(--ag-border);
     margin: 4px 0;
   }
 
   .model-status-section {
     padding: 10px 20px;
-    border-top: 1px solid var(--border-main);
+    border-top: 0.5px solid var(--ag-border);
   }
 
   .all-ready {
@@ -335,7 +335,7 @@
     align-items: center;
     gap: 8px;
     font-size: 13px;
-    color: #10b981;
+    color: var(--ag-accent);
     font-weight: 500;
   }
 
@@ -356,40 +356,40 @@
   }
 
   .model-name {
-    color: var(--text-primary);
+    color: var(--ag-ink);
     font-weight: 500;
   }
 
   .divider {
-    color: var(--text-tertiary);
+    color: var(--ag-ink-3);
   }
 
   .model-ready {
-    color: #10b981;
+    color: var(--ag-accent);
   }
 
   .model-reason {
     font-weight: 500;
   }
-  .reason-rate { color: #f59e0b; }
-  .reason-exhausted { color: #ef4444; }
+  .reason-rate { color: var(--ag-warm); }
+  .reason-exhausted { color: var(--ag-warm); }
 
   .dot-green, .dot-amber, .dot-red {
     width: 6px;
     height: 6px;
     border-radius: 50%;
   }
-  .dot-green { background: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.4); }
-  .dot-amber { background: #f59e0b; box-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
-  .dot-red { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
+  .dot-green { background: var(--ag-accent); }
+  .dot-amber { background: var(--ag-warm); }
+  .dot-red { background: var(--ag-warm); }
 
   .cooldown-badge {
-    background: rgba(245, 158, 11, 0.1);
-    color: #f59e0b;
-    border: 1px solid rgba(245, 158, 11, 0.2);
+    background: var(--ag-warm-light);
+    color: var(--ag-warm);
+    border: 0.5px solid var(--ag-border);
     padding: 2px 8px;
     border-radius: 12px;
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 500;
   }
 </style>

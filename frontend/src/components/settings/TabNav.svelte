@@ -20,7 +20,7 @@
   .tab-nav {
     display: flex;
     gap: 8px;
-    border-bottom: 1px solid var(--border-main);
+    border-bottom: 0.5px solid var(--ag-border);
     margin-bottom: 24px;
   }
 
@@ -30,18 +30,18 @@
     padding: 12px 16px;
     font-size: 14px;
     font-weight: 500;
-    color: var(--text-secondary);
+    color: var(--ag-ink-2);
     cursor: pointer;
     position: relative;
     transition: color 0.2s;
   }
 
   .tab-btn:hover {
-    color: var(--text-primary);
+    color: var(--ag-ink);
   }
 
   .tab-btn.active {
-    color: var(--text-primary);
+    color: var(--ag-ink);
   }
 
   .tab-btn.active::after {
@@ -51,7 +51,7 @@
     left: 0;
     right: 0;
     height: 2px;
-    background: var(--accent-primary);
+    background: var(--ag-accent);
     border-radius: 2px 2px 0 0;
   }
 </style>

@@ -64,7 +64,7 @@
         </svg>
       </div>
       <div>
-        <h2 class="modal-title">Add API Key</h2>
+        <h2 class="modal-title">Add API key</h2>
         <p class="modal-subtitle">
           Connect a new provider to power the intelligence layer.
         </p>
@@ -101,12 +101,12 @@
       </div>
 
       <div class="form-group">
-        <label for="label">Label (Optional)</label>
+        <label for="label">Label (optional)</label>
         <input
           id="label"
           type="text"
           bind:value={label}
-          placeholder="e.g. My Production Key"
+          placeholder="e.g. production key"
           disabled={loading}
         />
         <span class="hint"
@@ -115,7 +115,7 @@
       </div>
 
       <div class="form-group">
-        <label for="apiKey">API Key</label>
+        <label for="apiKey">API key</label>
         <input
           id="apiKey"
           type="password"
@@ -146,7 +146,7 @@
             <div class="spinner-small"></div>
             Saving...
           {:else}
-            Save Key
+            Save key
           {/if}
         </button>
       </div>
@@ -159,7 +159,7 @@
     position: fixed;
     inset: 0;
     z-index: 1000;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(28, 24, 20, 0.42);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     display: flex;
@@ -170,13 +170,13 @@
   }
 
   .modal-content {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-main);
-    border-radius: 16px;
+    background: var(--ag-warm-white);
+    border: 0.5px solid var(--ag-border);
+    border-radius: 24px;
     padding: 32px;
     width: 100%;
     max-width: 480px;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    box-shadow: none;
     animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
@@ -192,8 +192,8 @@
     height: 48px;
     flex-shrink: 0;
     border-radius: 12px;
-    background: var(--glow-bg);
-    color: var(--accent-primary);
+    background: var(--ag-accent-light);
+    color: var(--ag-accent);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -202,15 +202,15 @@
   .modal-title {
     margin: 0 0 4px;
     font-size: 20px;
-    font-weight: 600;
-    color: var(--text-primary);
+    font-weight: 500;
+    color: var(--ag-ink);
     letter-spacing: -0.01em;
   }
 
   .modal-subtitle {
     margin: 0;
     font-size: 14px;
-    color: var(--text-secondary);
+    color: var(--ag-ink-2);
     line-height: 1.5;
   }
 
@@ -220,10 +220,10 @@
     gap: 8px;
     padding: 12px;
     margin-bottom: 24px;
-    background: var(--badge-err-bg);
-    border: 1px solid var(--badge-err-border);
+    background: var(--ag-warm-light);
+    border: 0.5px solid var(--ag-border);
     border-radius: 8px;
-    color: var(--status-err);
+    color: var(--ag-warm);
     font-size: 14px;
     font-weight: 500;
   }
@@ -242,18 +242,18 @@
 
   label {
     font-size: 13px;
-    font-weight: 600;
-    color: var(--text-primary);
+    font-weight: 500;
+    color: var(--ag-ink);
   }
 
   input,
   select {
     width: 100%;
     padding: 12px 16px;
-    background: var(--bg-input);
-    border: 1px solid var(--border-main);
-    border-radius: 8px;
-    color: var(--text-primary);
+    background: var(--ag-warm-white);
+    border: 0.5px solid var(--ag-border);
+    border-radius: 12px;
+    color: var(--ag-ink);
     font-size: 14px;
     font-family: inherit;
     transition:
@@ -264,8 +264,8 @@
   input:focus,
   select:focus {
     outline: none;
-    border-color: var(--accent-primary);
-    box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.2);
+    border-color: var(--ag-accent);
+    box-shadow: 0 0 0 3px var(--ag-accent-glow);
   }
 
   input:disabled,
@@ -275,12 +275,12 @@
   }
 
   input::placeholder {
-    color: var(--text-placeholder);
+    color: var(--ag-ink-3);
   }
 
   .hint {
     font-size: 12px;
-    color: var(--text-tertiary);
+    color: var(--ag-ink-3);
   }
 
   .modal-actions {
@@ -292,10 +292,10 @@
 
   .btn-cancel {
     padding: 10px 16px;
-    border-radius: 8px;
-    border: 1px solid var(--border-main);
+    border-radius: 12px;
+    border: 0.5px solid var(--ag-border);
     background: transparent;
-    color: var(--text-primary);
+    color: var(--ag-ink);
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
@@ -303,7 +303,7 @@
   }
 
   .btn-cancel:hover:not(:disabled) {
-    background: var(--surface-container-high);
+    background: var(--ag-surface);
   }
 
   .btn-submit {
@@ -311,12 +311,12 @@
     align-items: center;
     gap: 8px;
     padding: 10px 16px;
-    border-radius: 8px;
+    border-radius: 12px;
     border: none;
-    background: var(--accent-primary);
-    color: var(--bg-surface);
+    background: var(--ag-accent);
+    color: var(--ag-cream);
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
   }
@@ -334,7 +334,7 @@
     width: 14px;
     height: 14px;
     border: 2px solid rgba(255, 255, 255, 0.3);
-    border-top-color: #fff;
+    border-top-color: var(--ag-cream);
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }

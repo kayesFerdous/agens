@@ -47,3 +47,6 @@ frontend/dist-ssr/
 *.njsproj
 *.sln
 *.sw?
+
+# Miscellaneous
+# DESIGN_SYSTEM.MD

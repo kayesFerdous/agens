@@ -125,55 +125,49 @@
 </div>
 
 <style>
+
   .model-selector {
     position: relative;
     display: inline-flex;
+    font-family: var(--font-sans);
   }
 
   .trigger {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 4px 10px 4px 6px;
+    padding: 6px 12px;
     border-radius: 8px;
-    border: 1px solid var(--border-main);
-    background: transparent;
-    color: var(--text-secondary);
-    font-family: 'Inter', sans-serif;
-    font-size: 12px;
+    border: none;
+    background: var(--ag-accent-light);
+    color: var(--ag-accent);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    transition: background 0.15s ease, color 0.15s ease;
     white-space: nowrap;
     user-select: none;
   }
 
   .trigger:hover {
-    background: var(--surface-container-high);
-    border-color: rgba(217, 119, 87, 0.3);
-    color: var(--text-primary);
+    background: var(--ag-accent-mid);
+    color: var(--ag-warm-white);
   }
 
   .trigger.open {
-    background: var(--surface-container-high);
-    border-color: rgba(217, 119, 87, 0.45);
-    color: var(--text-primary);
+    background: var(--ag-accent);
+    color: var(--ag-warm-white);
   }
 
   .provider-chip {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--accent-primary);
-    background: rgba(217, 119, 87, 0.1);
-    border-radius: 4px;
-    padding: 1px 5px;
-    line-height: 1.4;
+    display: none; /* Combine text instead */
   }
 
   .model-name {
-    font-size: 12px;
-    font-weight: 500;
+    font-size: inherit;
+    font-weight: inherit;
     color: inherit;
     max-width: 160px;
     overflow: hidden;
@@ -181,7 +175,7 @@
   }
 
   .chevron {
-    opacity: 0.6;
+    opacity: 0.8;
     transition: transform 0.2s ease;
     flex-shrink: 0;
   }
@@ -195,14 +189,15 @@
     position: absolute;
     bottom: calc(100% + 8px);
     left: 0;
-    min-width: 280px;
-    background: var(--bg-surface);
-    border: 1px solid var(--border-main);
+    min-width: 250px;
+    background: var(--ag-warm-white);
+    border: 0.5px solid var(--ag-border);
     border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
     z-index: 100;
     overflow: hidden;
     animation: dropIn 0.15s ease;
+    padding: 4px 0;
   }
 
   @keyframes dropIn {
@@ -217,52 +212,51 @@
   }
 
   .group {
-    padding: 8px 0;
+    padding: 4px 0;
   }
 
   .group + .group {
-    border-top: 1px solid var(--border-main);
+    border-top: 0.5px solid var(--ag-border);
   }
 
   .group-header {
     display: block;
-    padding: 4px 14px 6px;
+    padding: 4px 14px;
     font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-tertiary);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    color: var(--ag-ink-3);
   }
 
   .option {
     display: flex;
     align-items: center;
     width: 100%;
-    padding: 7px 14px;
+    padding: 8px 14px;
     border: none;
     background: none;
     text-align: left;
-    font-family: 'Inter', sans-serif;
+    font-family: inherit;
     font-size: 13px;
     cursor: pointer;
     transition: background 0.1s ease;
-    color: var(--text-secondary);
+    color: var(--ag-ink-2);
     gap: 0;
   }
 
   .option:hover {
-    background: var(--surface-container-high);
-    color: var(--text-primary);
+    background: rgba(60,50,30,0.05);
+    color: var(--ag-ink);
   }
 
   .option.selected {
-    color: var(--text-primary);
+    background: rgba(123,110,170,0.05);
+    color: var(--ag-accent);
   }
 
   .option-provider {
-    color: var(--accent-primary);
-    opacity: 0.7;
-    font-weight: 500;
+    color: var(--ag-ink-3);
+    font-weight: 400;
     flex-shrink: 0;
   }
 
@@ -271,11 +265,13 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-weight: 400;
   }
 
   .check {
     flex-shrink: 0;
     margin-left: 8px;
-    color: var(--accent-primary);
+    color: var(--ag-accent);
   }
+
 </style>
