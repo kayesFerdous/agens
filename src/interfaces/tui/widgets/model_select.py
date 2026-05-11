@@ -31,9 +31,9 @@ def _build_options(query: str, current_model: str | None) -> list[Option]:
     # Grouped — disabled header rows + model rows
     items = []
     for header, models in PROVIDER_GROUPS:
-        # Disabled header row (id prefixed so we can skip it on select)
+        # Group headers: uppercase, muted dividers (not headings)
         items.append(
-            Option(f"[dim]{header}[/dim]", id=f"__hdr__{header}", disabled=True)
+            Option(f"[dim]{header.upper()}[/dim]", id=f"__hdr__{header}", disabled=True)
         )
         for mid, lbl in models:
             marker = "✓ " if mid == current_model else "  "
@@ -75,9 +75,9 @@ class ModelSelectScreen(ModalScreen[str | None]):
                     "[bold]Select model[/bold]  [dim]esc to cancel[/dim]",
                     id="model-title",
                 )
-            # Search field
+            # Search field — sticky at top
             yield Input(placeholder="Search models…", id="model-search")
-            # Options
+            # Options — fixed-height scrollable list
             yield OptionList(*_build_options("", self._current_model), id="model-list")
             # Footer hint
             yield Static(

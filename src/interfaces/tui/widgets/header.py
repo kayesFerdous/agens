@@ -6,6 +6,8 @@ from textual.widgets import Static
 
 
 class AppHeader(Widget):
+    """Top bar: left-aligned identity anchor, right-aligned model + token metadata."""
+
     def compose(self) -> ComposeResult:
         yield Static("◆ Assistant", classes="header-title")
         yield Static("", classes="header-model", id="header-model")
@@ -15,4 +17,4 @@ class AppHeader(Widget):
         self.query_one("#header-model", Static).update(model)
 
     def update_tokens(self, count: int) -> None:
-        self.query_one("#header-tokens", Static).update(f"tokens: {count}")
+        self.query_one("#header-tokens", Static).update(f"tokens: {count:,}")

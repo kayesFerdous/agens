@@ -1,47 +1,82 @@
 from __future__ import annotations
 
+# ── Design System Tokens (reference) ──────────────────────────────────
+# Background (chat body):     #0F0D0A   — warm near-black
+# Surface (top bar, modals):  #1A1713   — slightly elevated warm dark
+# Accent violet:              #7B6EAA   — primary interactive/selection
+# Accent mid:                 #A99DD1   — secondary violet, hints/captions
+# Warm copper:                #C97C4A   — tool execution, confirm ONLY
+# Text primary:               #F5F0E8
+# Text secondary:             #8C877E   (≈ rgba(245,240,232,0.55))
+# Text muted:                 #56524C   (≈ rgba(245,240,232,0.30))
+# Border:                     #28251F   (≈ rgba(245,240,232,0.10))
+# ──────────────────────────────────────────────────────────────────────
+
 ASSISTANT_CSS = """
 Screen {
-    background: #0d0d0d;
-    color: #d4d4d4;
+    background: #0F0D0A;
+    color: #F5F0E8;
     layout: vertical;
 }
 
+/* ── 1. TOP BAR — fixed height 1, surface bg ───────────────────────── */
 AppHeader {
     height: 1;
-    background: #111827;
+    background: #1A1713;
     layout: horizontal;
-    padding: 0 1;
+    padding: 0 2;
+    border-bottom: solid #28251F;
+    dock: top;
 }
 
+/* Left: app name */
 AppHeader .header-title {
-    color: #cc785c;
+    color: #F5F0E8;
     text-style: bold;
     width: auto;
 }
 
-AppHeader .header-model {
-    color: #4b5563;
-    width: 1fr;
-    content-align: center middle;
-}
-
-AppHeader .header-tokens {
-    color: #4b5563;
+/* Left: session id — muted, after app name */
+AppHeader .header-session {
+    color: #56524C;
     width: auto;
 }
 
+/* Spacer pushes right zone to the edge */
+AppHeader .header-spacer {
+    width: 1fr;
+}
+
+/* Right: key hint */
+AppHeader .header-key-hint {
+    color: #56524C;
+    width: auto;
+}
+
+/* Right: token count — rgba(245,240,232,0.50) ≈ #7C7872 */
+AppHeader .header-tokens {
+    color: #7C7872;
+    width: auto;
+}
+
+/* Right: status dot */
+AppHeader .header-status {
+    color: #50fa7b;
+    width: auto;
+}
+
+/* ── 2. CHAT BODY — READING COLUMN ─────────────────────────────────── */
 ChatView {
     height: 1fr;
     min-height: 10;
-    background: #0d0d0d;
+    background: #0F0D0A;
     border: none !important;
     outline: none !important;
     padding: 1 1;
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-size: 1 1;
-    scrollbar-color: #1f1f1f #0d0d0d;
+    scrollbar-color: #28251F #0F0D0A;
 }
 
 ScrollView {
@@ -49,25 +84,31 @@ ScrollView {
     outline: none !important;
 }
 
+/* ── 3. MESSAGE VISUAL HIERARCHY ───────────────────────────────────── */
+
+/* User messages: subtle tint + left border accent.
+   No max-width — fills reading column width set by ChatView padding. */
 UserBlock {
     height: auto;
-    width: 100%;
-    background: #1a1a1a;
-    border: none;
-    padding: 0 2;
+    width: 1fr;
+    background: #16140F;
+    border-left: wide #28251F;
+    padding: 0 3;
     margin: 0;
-    margin-top: 1;
+    margin-top: 2;
 }
 
+/* 4. LEFT-EDGE RHYTHM — AI messages get violet left rail */
 AssistantBlock {
     height: auto;
     min-height: 1;
     width: 100%;
+    max-width: 112;
     background: transparent;
-    border: none;
-    padding: 0 2;
+    border-left: wide #7B6EAA;
+    padding: 0 3 0 2;
     margin: 0;
-    margin-top: 1;
+    margin-top: 2;
 }
 
 AssistantBlock Markdown {
@@ -85,22 +126,26 @@ Markdown {
     width: 100%;
 }
 
+/* System messages */
 SystemLine {
     height: auto;
     min-height: 1;
     width: 100%;
+    max-width: 112;
     background: transparent;
     border: none;
-    color: #4b5563;
+    color: #8C877E;
     text-style: italic;
-    padding: 0 2;
+    padding: 0 3;
     margin: 0;
     margin-top: 1;
 }
 
+/* Spinner */
 LiveSpinner {
     height: 1;
     width: 100%;
+    max-width: 112;
     background: transparent;
     border: none;
     margin: 0;
@@ -111,27 +156,30 @@ HorizontalRule {
     display: none;
 }
 
+/* ── BOTTOM BAR — docked, two rows, fixed ───────────────────────────── */
+
+/* ── 6. BOTTOM INPUT ROW ──────────────────────────────────────────── */
 InputRow {
     height: auto;
     min-height: 3;
-    background: #0d0d0d;
+    background: #0F0D0A;
     layout: vertical;
     padding: 0;
-    margin: 0 0 1 0;
+    margin: 0;
     border: none;
 }
 
 InputRow .input-top-rule {
     height: 1;
-    color: #2a2a2a;
-    background: #0d0d0d;
+    color: #28251F;
+    background: #0F0D0A;
     padding: 0;
 }
 
 InputRow .input-bottom-rule {
     height: 1;
-    color: #2a2a2a;
-    background: #0d0d0d;
+    color: #28251F;
+    background: #0F0D0A;
     padding: 0;
 }
 
@@ -139,13 +187,13 @@ InputRow .input-line {
     height: 1;
     min-height: 1;
     layout: horizontal;
-    background: #0d0d0d;
-    padding: 0 2;
+    background: #0F0D0A;
+    padding: 0 3;
 }
 
 InputRow .prompt-char {
     width: 3;
-    color: #cc785c;
+    color: #7B6EAA;
     text-style: bold;
     background: transparent;
     padding: 0;
@@ -157,7 +205,7 @@ InputRow Input {
     width: 1fr;
     background: transparent;
     border: none;
-    color: #d4d4d4;
+    color: #F5F0E8;
     padding: 0;
 }
 
@@ -171,22 +219,23 @@ InputRow.locked {
 }
 
 InputRow.locked Input {
-    color: #4b5563;
+    color: #56524C;
 }
 
 InputRow Horizontal {
     height: 1;
     min-height: 1;
-    background: #0d0d0d;
-    padding: 0 2;
+    background: #0F0D0A;
+    padding: 0 3;
 }
 
 /* ── Inline confirmation ─────────────────────────────────────────── */
 InlineConfirmation {
     height: auto;
     width: 100%;
+    max-width: 112;
     background: transparent;
-    padding: 0 0 0 2;
+    padding: 0 0 0 3;
     margin: 0;
 }
 
@@ -194,8 +243,8 @@ InlineConfirmation .confirm-box {
     width: 72;
     max-width: 96%;
     height: auto;
-    background: #101010;
-    border-left: solid #cc785c;
+    background: #1A1713;
+    border-left: wide #C97C4A;
     border-top: none;
     border-right: none;
     border-bottom: none;
@@ -205,7 +254,7 @@ InlineConfirmation .confirm-box {
 InlineConfirmation .confirm-title {
     height: 1;
     width: 100%;
-    color: #9a9a9a;
+    color: #8C877E;
     text-style: bold;
     padding: 0;
 }
@@ -213,8 +262,8 @@ InlineConfirmation .confirm-title {
 InlineConfirmation .confirm-command {
     height: 1;
     width: 100%;
-    color: #d7d7d7;
-    background: #0b0b0b;
+    color: #F5F0E8;
+    background: #0F0D0A;
     padding: 0 1;
     margin: 0;
 }
@@ -224,13 +273,15 @@ InlineConfirmation .confirm-warning {
     min-height: 1;
     width: 100%;
     background: transparent;
-    color: #777777;
+    color: #8C877E;
     padding: 0;
 }
 
+/* ── Command result block ────────────────────────────────────────── */
 CommandResultBlock {
     height: auto;
     width: 100%;
+    max-width: 112;
     background: transparent;
     padding: 0;
     margin: 0;
@@ -247,22 +298,22 @@ CommandResultBlock .command-result-box {
 
 CommandResultBlock .command-result-title {
     height: 1;
-    color: #d4d4d4;
+    color: #F5F0E8;
     text-style: bold;
     padding: 0;
 }
 
 CommandResultBlock .command-result-command {
     height: 1;
-    color: #d7d7d7;
-    background: #0b0b0b;
+    color: #F5F0E8;
+    background: #1A1713;
     padding: 0 1;
     margin: 0;
 }
 
 CommandResultBlock .command-result-exit {
     height: 1;
-    color: #777777;
+    color: #8C877E;
     padding: 0;
     margin: 0;
 }
@@ -270,8 +321,8 @@ CommandResultBlock .command-result-exit {
 CommandResultBlock .command-result-output {
     height: auto;
     width: 100%;
-    color: #f1f1f1;
-    background: #0b0b0b;
+    color: #F5F0E8;
+    background: #1A1713;
     padding: 0 1;
     margin: 0;
 }
@@ -290,13 +341,13 @@ InlineConfirmation .confirm-actions Button {
     min-width: 7;
     margin: 0 1 0 0;
     padding: 0 1;
-    background: #1a1a1a;
+    background: #28251F;
     border: none;
-    color: #bdbdbd;
+    color: #8C877E;
 }
 
 InlineConfirmation .confirm-actions Button.selected {
-    background: #cc785c;
+    background: #C97C4A;
     color: #ffffff;
     text-style: bold;
 }
@@ -306,18 +357,20 @@ InlineConfirmation .confirm-yes.selected {
 }
 
 InlineConfirmation .confirm-no.selected {
-    background: #cc785c;
+    background: #C97C4A;
 }
 
 InlineConfirmation.resolved .confirm-title {
-    color: #777777;
+    color: #56524C;
 }
 
+/* ── No API Keys onboarding ──────────────────────────────────────── */
 NoAPIKeysOnboarding {
     height: auto;
     width: 100%;
+    max-width: 112;
     background: transparent;
-    padding: 0 0 0 2;
+    padding: 0 0 0 3;
     margin: 1 0 0 0;
 }
 
@@ -325,40 +378,40 @@ NoAPIKeysOnboarding .no-keys-box {
     width: 74;
     max-width: 96%;
     height: auto;
-    background: #101010;
-    border-left: solid #cc785c;
+    background: #1A1713;
+    border-left: wide #7B6EAA;
     padding: 0 1;
 }
 
 NoAPIKeysOnboarding .no-keys-title {
     height: 1;
-    color: #f4f4f5;
+    color: #F5F0E8;
     text-style: bold;
 }
 
 NoAPIKeysOnboarding .no-keys-copy {
     height: auto;
     min-height: 1;
-    color: #9a9a9a;
+    color: #8C877E;
 }
 
 NoAPIKeysOnboarding .no-keys-option {
     height: 1;
     width: 100%;
-    color: #d4d4d4;
+    color: #F5F0E8;
     background: transparent;
     margin: 1 0 0 0;
     padding: 0;
 }
 
 NoAPIKeysOnboarding .no-keys-option.selected {
-    color: #f4f4f5;
+    color: #F5F0E8;
     text-style: bold;
 }
 
 NoAPIKeysOnboarding .no-keys-shortcuts {
     height: 1;
-    color: #4b5563;
+    color: #56524C;
     margin: 1 0 0 0;
 }
 
@@ -379,40 +432,41 @@ Footer {
     display: none;
 }
 
-/* ── Model status bar (below InputRow) ─────────────────────────────── */
+/* ── Status strip — second row of bottom bar, surface bg ─────────────── */
 #model-bar {
     height: 1;
     width: 100%;
-    background: #0d0d0d;
-    color: #4b5563;
-    padding: 0 1;
+    background: #1A1713;
+    color: #56524C;
+    padding: 0 3;
+    border-top: solid #28251F;
 }
 
-/* ── Model selection modal ─────────────────────────────────────────── */
+/* ── 7 & 8. Model selection modal ──────────────────────────────────── */
 ModelSelectScreen {
     align: center middle;
-    background: rgba(0, 0, 0, 0.80);
+    background: rgba(0, 0, 0, 0.60);
 }
 
 #model-panel {
-    width: 68;
+    width: 60;
     height: auto;
     max-height: 34;
-    background: #111111;
-    border: solid #2a2a2a;
+    background: #1A1713;
+    border: solid #28251F;
 }
 
 #model-title-bar {
     height: auto;
-    background: #0d0d0d;
-    border-bottom: solid #2a2a2a;
+    background: #1A1713;
+    border-bottom: solid #28251F;
     padding: 0 2;
 }
 
 #model-title {
     height: 1;
     width: 100%;
-    color: #cc785c;
+    color: #F5F0E8;
     text-style: bold;
     padding: 0;
 }
@@ -420,43 +474,44 @@ ModelSelectScreen {
 #model-search {
     height: 1;
     width: 100%;
-    background: #1a1a1a;
-    border: solid #2a2a2a;
-    color: #d4d4d4;
+    background: #0F0D0A;
+    border: solid #28251F;
+    color: #F5F0E8;
     padding: 0 2;
     margin: 1 1;
 }
 
 #model-search:focus {
-    border: solid #cc785c;
+    border: solid #7B6EAA;
 }
 
 #model-list {
     height: auto;
     max-height: 22;
     width: 100%;
-    background: #111111;
+    background: #1A1713;
     border: none;
-    color: #d4d4d4;
+    color: #F5F0E8;
     padding: 0;
     overflow-y: auto;
     scrollbar-size: 1 1;
-    scrollbar-color: #2a2a2a #111111;
+    scrollbar-color: #28251F #1A1713;
 }
 
+/* CRITICAL FIX: selection highlight uses violet, NOT copper */
 #model-list > .option-list--option {
     padding: 0 2;
-    color: #d4d4d4;
+    color: #F5F0E8;
 }
 
 #model-list > .option-list--option-highlighted {
-    background: #cc785c;
-    color: #ffffff;
+    background: #2A2558;
+    color: #F5F0E8;
     text-style: bold;
 }
 
 #model-list > .option-list--option-disabled {
-    color: #4b5563;
+    color: #56524C;
     text-style: bold;
     background: transparent;
     padding: 0 2;
@@ -465,37 +520,37 @@ ModelSelectScreen {
 #model-footer {
     height: 1;
     width: 100%;
-    color: #4b5563;
-    background: #0d0d0d;
-    border-top: solid #2a2a2a;
+    color: #56524C;
+    background: #1A1713;
+    border-top: solid #28251F;
     padding: 0;
 }
 
-/* ── API Key list modal ───────────────────────────────────────────── */
+/* ── 9. API Key list modal ───────────────────────────────────────────── */
 APIKeyListScreen {
     align: center middle;
-    background: rgba(0, 0, 0, 0.80);
+    background: rgba(0, 0, 0, 0.60);
 }
 
 #apikey-panel {
     width: 96;
     height: auto;
     max-height: 34;
-    background: #111111;
-    border: solid #2a2a2a;
+    background: #1A1713;
+    border: solid #28251F;
 }
 
 #apikey-title-bar {
     height: auto;
-    background: #0d0d0d;
-    border-bottom: solid #2a2a2a;
+    background: #1A1713;
+    border-bottom: solid #28251F;
     padding: 0 2;
 }
 
 #apikey-title {
     height: 1;
     width: 100%;
-    color: #cc785c;
+    color: #F5F0E8;
     text-style: bold;
     padding: 0;
 }
@@ -504,15 +559,15 @@ APIKeyListScreen {
     height: 2;
     min-height: 2;
     width: 100%;
-    background: #0d0d0d;
-    border-top: solid #2a2a2a;
+    background: #1A1713;
+    border-top: solid #28251F;
     padding: 0;
 }
 
 #apikey-header-row {
     height: 1;
     width: 100%;
-    background: #111111;
+    background: #1A1713;
     padding: 0 2;
 }
 
@@ -520,59 +575,60 @@ APIKeyListScreen {
     height: auto;
     max-height: 18;
     width: 100%;
-    background: #111111;
+    background: #1A1713;
     border: none;
-    color: #d4d4d4;
+    color: #F5F0E8;
     padding: 0;
     overflow-y: auto;
     scrollbar-size: 1 1;
-    scrollbar-color: #2a2a2a #111111;
+    scrollbar-color: #28251F #1A1713;
 }
 
+/* CRITICAL FIX: selection uses violet, NOT copper */
 #apikey-list > .option-list--option {
     padding: 0 2;
-    color: #d4d4d4;
+    color: #F5F0E8;
 }
 
 #apikey-list > .option-list--option-highlighted {
-    background: #1e293b;
-    color: #ffffff;
+    background: #2A2558;
+    color: #F5F0E8;
 }
 
 #apikey-summary {
     height: auto;
     min-height: 1;
     width: 100%;
-    background: #111111;
+    background: #1A1713;
     padding: 0 2;
-    color: #4b5563;
+    color: #56524C;
 }
 
-/* ── Add API Key modal ────────────────────────────────────────────── */
+/* ── 10. Add API Key modal ────────────────────────────────────────────── */
 APIKeyAddScreen {
     align: center middle;
-    background: rgba(0, 0, 0, 0.80);
+    background: rgba(0, 0, 0, 0.60);
 }
 
 #addkey-panel {
     width: 60;
     height: auto;
     max-height: 28;
-    background: #111111;
-    border: solid #2a2a2a;
+    background: #1A1713;
+    border: solid #28251F;
 }
 
 #addkey-title-bar {
     height: auto;
-    background: #0d0d0d;
-    border-bottom: solid #2a2a2a;
+    background: #1A1713;
+    border-bottom: solid #28251F;
     padding: 0 2;
 }
 
 #addkey-title {
     height: 1;
     width: 100%;
-    color: #cc785c;
+    color: #F5F0E8;
     text-style: bold;
     padding: 0;
 }
@@ -587,28 +643,29 @@ APIKeyAddScreen {
     margin: 1 0 0 0;
     padding: 0;
     background: transparent;
+    color: #8C877E;
 }
 
 #addkey-form .field-hint {
     height: 1;
     margin: 0;
     padding: 0;
-    color: #4b5563;
+    color: #A99DD1;
     background: transparent;
 }
 
 #addkey-form Input {
     height: 1;
     width: 100%;
-    background: #1a1a1a;
-    border: solid #2a2a2a;
-    color: #d4d4d4;
+    background: #16140F;
+    border: solid #28251F;
+    color: #F5F0E8;
     padding: 0 1;
     margin: 0 0 0 0;
 }
 
 #addkey-form Input:focus {
-    border: solid #cc785c;
+    border: solid #7B6EAA;
 }
 
 #addkey-status {
@@ -630,24 +687,24 @@ APIKeyAddScreen {
 }
 
 #addkey-save {
-    background: #cc785c;
+    background: #C97C4A;
     color: #ffffff;
     text-style: bold;
     border: none;
 }
 
 #addkey-cancel {
-    background: #2a2a2a;
-    color: #d4d4d4;
+    background: #28251F;
+    color: #8C877E;
     border: none;
 }
 
 #addkey-footer {
     height: 1;
     width: 100%;
-    color: #4b5563;
-    background: #0d0d0d;
-    border-top: solid #2a2a2a;
+    color: #56524C;
+    background: #1A1713;
+    border-top: solid #28251F;
     padding: 0;
 }
 """

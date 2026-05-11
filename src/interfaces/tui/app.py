@@ -618,10 +618,10 @@ class AssistantTUI(App):
             bar = self.query_one("#model-bar", Static)
             if self._selected_model:
                 label = get_model_label(self._selected_model)
-                bar.update(f"  [dim]model:[/dim] [#cc785c]{label}[/#cc785c]  [dim]· /models to change[/dim]")
+                bar.update(f"  [dim]model:[/dim] [#7B6EAA]{label}[/#7B6EAA]  [#A99DD1]· /models to change[/#A99DD1]")
             else:
                 label = get_model_label(self.model_name)
-                bar.update(f"  [dim]model:[/dim] {label}  [dim]· /models to change[/dim]")
+                bar.update(f"  [dim]model:[/dim] [#7B6EAA]{label}[/#7B6EAA]  [#A99DD1]· /models to change[/#A99DD1]")
         except Exception:
             pass
 

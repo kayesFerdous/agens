@@ -81,5 +81,6 @@ class NoAPIKeysOnboarding(Widget):
     def _option_label(self, value: str, key: str, label: str) -> str:
         selected = self._selected == value
         prefix = ">" if selected else " "
-        style = "#0d0d0d on #cc785c" if selected else "#9a9a9a"
+        # Use violet for selection, not copper
+        style = "#0F0D0A on #7B6EAA" if selected else "#8C877E"
         return f"{prefix} [bold {style}] {key} [/bold {style}]  {label}"

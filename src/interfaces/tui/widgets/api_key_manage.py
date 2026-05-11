@@ -24,7 +24,7 @@ from cryptography.fernet import Fernet
 
 _STATUS_DISPLAY: dict[KeyStatus, tuple[str, str, str]] = {
     KeyStatus.ACTIVE:       ("●", "active",       "#50fa7b"),
-    KeyStatus.INACTIVE:     ("○", "inactive",     "#6272a4"),
+    KeyStatus.INACTIVE:     ("○", "inactive",     "#56524C"),
     KeyStatus.RATE_LIMITED: ("◐", "rate-limited", "#f1fa8c"),
     KeyStatus.EXHAUSTED:    ("✕", "exhausted",    "#ff5555"),
     KeyStatus.INVALID:      ("✕", "invalid",      "#ff5555"),
@@ -50,13 +50,14 @@ def _time_plain(dt) -> str:
 
 
 def _build_header() -> Text:
+    """Table header row: small, muted, spaced-out labels."""
     t = Text()
     t.append("   ")
-    t.append("PROVIDER".ljust(_W_PROV), style="bold dim")
-    t.append("HINT".ljust(_W_HINT),     style="bold dim")
-    t.append("STATUS".ljust(_W_STAT),   style="bold dim")
-    t.append("LAST USED".ljust(_W_USED), style="bold dim")
-    t.append("LABEL",                    style="bold dim")
+    t.append("PROVIDER".ljust(_W_PROV), style="#56524C")
+    t.append("HINT".ljust(_W_HINT),     style="#56524C")
+    t.append("STATUS".ljust(_W_STAT),   style="#56524C")
+    t.append("LAST USED".ljust(_W_USED), style="#56524C")
+    t.append("LABEL",                    style="#56524C")
     return t
 
 
@@ -65,10 +66,11 @@ def _build_row(key: APIKey) -> Text:
     icon = _PROVIDER_ICON.get(key.provider, "·")
     t.append(f" {icon} ", style="dim")
     t.append(key.provider.ljust(_W_PROV), style="bold")
-    t.append(key.key_hint.ljust(_W_HINT), style="#cc785c")
+    # HINT column: accent-mid violet, NOT copper
+    t.append(key.key_hint.ljust(_W_HINT), style="#A99DD1")
 
     s_icon, s_label, s_color = _STATUS_DISPLAY.get(
-        key.status, ("?", key.status.value, "#d4d4d4")
+        key.status, ("?", key.status.value, "#F5F0E8")
     )
     t.append(f"{s_icon} ", style=s_color)
     t.append(s_label.ljust(_W_STAT - 2), style=s_color)
@@ -134,27 +136,28 @@ class APIKeyListScreen(ModalScreen[None]):
     # ── Footer helpers ────────────────────────────────────────────
 
     def _set_footer_normal(self) -> None:
+        """Keyboard hint bar: muted text, hotkeys in accent-mid violet."""
         footer = self.query_one("#apikey-footer", Static)
         t = Text()
-        t.append("  ↑↓", style="dim")
-        t.append(" navigate  ·  ", style="dim")
-        t.append("t", style="bold #cc785c")
-        t.append(" toggle  ·  ", style="dim")
-        t.append("d", style="bold #cc785c")
-        t.append(" delete  ·  ", style="dim")
-        t.append("esc", style="bold #cc785c")
-        t.append(" close", style="dim")
+        t.append("  ↑↓", style="#56524C")
+        t.append(" navigate  ·  ", style="#56524C")
+        t.append("t", style="bold #A99DD1")
+        t.append(" toggle  ·  ", style="#56524C")
+        t.append("d", style="bold #A99DD1")
+        t.append(" delete  ·  ", style="#56524C")
+        t.append("esc", style="bold #A99DD1")
+        t.append(" close", style="#56524C")
         footer.update(t)
 
     def _set_footer_confirm(self, key: APIKey) -> None:
         footer = self.query_one("#apikey-footer", Static)
         t = Text()
         t.append("  Delete ", style="bold #ff5555")
-        t.append(key.key_hint, style="#cc785c")
-        t.append(f" ({key.provider})?  ", style="dim")
-        t.append("y", style="bold #d4d4d4")
-        t.append("  /  ", style="dim")
-        t.append("N", style="dim")
+        t.append(key.key_hint, style="#A99DD1")
+        t.append(f" ({key.provider})?  ", style="#56524C")
+        t.append("y", style="bold #F5F0E8")
+        t.append("  /  ", style="#56524C")
+        t.append("N", style="#56524C")
         footer.update(t)
 
     # ── Data loading ──────────────────────────────────────────────
@@ -318,18 +321,18 @@ class APIKeyAddScreen(ModalScreen[str | None]):
                 )
 
             with Vertical(id="addkey-form"):
-                yield Static("[bold #d4d4d4]Provider[/bold #d4d4d4]", classes="field-label")
+                yield Static("[#8C877E]Provider[/#8C877E]", classes="field-label")
                 yield Static(
-                    "[dim]gemini · openai · anthropic[/dim]",
+                    "[#A99DD1]gemini · openai · anthropic[/#A99DD1]",
                     classes="field-hint",
                 )
                 yield Input(placeholder="e.g. gemini", id="addkey-provider")
 
-                yield Static("[bold #d4d4d4]API Key[/bold #d4d4d4]", classes="field-label")
+                yield Static("[#8C877E]API Key[/#8C877E]", classes="field-label")
                 yield Input(placeholder="Paste your API key", id="addkey-key", password=True)
 
                 yield Static(
-                    "[bold #d4d4d4]Label[/bold #d4d4d4]  [dim](optional)[/dim]",
+                    "[#8C877E]Label[/#8C877E]  [#56524C](optional)[/#56524C]",
                     classes="field-label",
                 )
                 yield Input(placeholder="e.g. Prod-Gemini-Main", id="addkey-label")
@@ -384,7 +387,7 @@ class APIKeyAddScreen(ModalScreen[str | None]):
                 )
             self.dismiss(
                 f"[#50fa7b]✓[/#50fa7b]  Key added — "
-                f"[#cc785c]{created.key_hint}[/#cc785c] ({created.provider})"
+                f"[#A99DD1]{created.key_hint}[/#A99DD1] ({created.provider})"
             )
         except ValueError as exc:
             status.update(f"[#ff5555]✕  {exc}[/#ff5555]")

@@ -11,16 +11,18 @@ from textual.widgets import Static
 
 
 class ToolBlock(Widget):
+    """Discrete enclosed tool trace block with collapsible output."""
+
     expanded: reactive[bool] = reactive(False)
 
     DEFAULT_CSS = """
     ToolBlock {
         height: auto;
         width: 100%;
-        background: transparent;
-        border: none;
-        padding: 0 0 0 4;
-        margin: 0;
+        background: #1A1713;
+        border-left: wide #7B6EAA;
+        padding: 1 1 1 2;
+        margin: 1 0 0 0;
     }
     ToolBlock Static {
         height: auto;
@@ -100,16 +102,18 @@ class ToolBlock(Widget):
     def _render_line(self) -> Text:
         text = Text()
         if self._output:
-            text.append("  ✓ ", style=Style(color="#4a7c59"))
+            text.append("✓ ", style=Style(color="#4a7c59"))
         else:
-            text.append("  ● ", style=Style(color="#cc785c"))
+            text.append("● ", style=Style(color="#C97C4A"))
 
-        text.append(self._tool_name, style=Style(color="#9a9a9a", bold=True))
+        # Tool name in accent-mid violet
+        text.append(self._tool_name, style=Style(color="#A99DD1", bold=True))
         if self._args:
-            text.append("  ", style=Style(color="#3f3f3f"))
-            text.append(self._args, style=Style(color="#5a5a5a"))
+            text.append("  ", style=Style(color="#28251F"))
+            # Args in muted text
+            text.append(self._args, style=Style(color="#8C877E"))
         if self._output:
-            text.append("  ▼" if self.expanded else "  ▶", style=Style(color="#3f3f3f"))
+            text.append("  ▼" if self.expanded else "  ▶", style=Style(color="#56524C"))
         return text
 
     def _render_detail(self) -> Text:
@@ -117,8 +121,8 @@ class ToolBlock(Widget):
             return Text("")
 
         text = Text()
-        text.append("    ", style=Style(color="#3f3f3f"))
-        text.append(self._output_summary, style=Style(color="#555555", italic=True))
+        # Tool execution result in warm copper
+        text.append(self._output_summary, style=Style(color="#C97C4A", italic=True))
         return text
 
     def set_output(self, output: str) -> None:

@@ -18,14 +18,15 @@ class ToolGroup(Widget):
     ToolGroup {
         height: auto;
         width: 100%;
+        max-width: 112;
         background: transparent;
         border: none;
         padding: 0 0 1 0;
         margin: 0;
     }
     ToolGroup .tg-header {
-        color: #4b5563;
-        padding: 0 2;
+        color: #56524C;
+        padding: 0 3;
     }
     """
 
@@ -55,11 +56,11 @@ class ToolGroup(Widget):
         if done:
             text = Text(
                 f"  ✓ {count} tool{plural} complete",
-                style=Style(color="#3a3a3a"),
+                style=Style(color="#56524C"),
             )
         else:
             text = Text(
                 f"  ● {count} tool{plural} running",
-                style=Style(color="#cc785c"),
+                style=Style(color="#C97C4A"),
             )
         self.query_one("#tg-header", Static).update(text)

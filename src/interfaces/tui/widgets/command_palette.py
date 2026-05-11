@@ -31,9 +31,9 @@ class CommandPalette(Widget):
     CommandPalette {
         height: auto;
         width: 100%;
-        background: #111111;
-        border-top: solid #2a2a2a;
-        padding: 0 2;
+        background: #1A1713;
+        border-top: solid #28251F;
+        padding: 0 3;
         display: none;
     }
     CommandPalette.visible {
@@ -65,9 +65,9 @@ class CommandPalette(Widget):
         for i, (cmd, desc) in enumerate(matches):
             if i > 0:
                 lines.append("\n")
-            lines.append(cmd, style=Style(color="#cc785c", bold=True))
+            lines.append(cmd, style=Style(color="#7B6EAA", bold=True))
             lines.append("  ")
-            lines.append(desc, style=Style(color="#4b5563"))
+            lines.append(desc, style=Style(color="#8C877E"))
 
         self.query_one("#palette-content", Static).update(lines)
         self.add_class("visible")

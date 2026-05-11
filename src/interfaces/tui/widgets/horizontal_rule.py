@@ -10,4 +10,4 @@ class HorizontalRule(Widget):
 
     def render(self) -> Text:
         width = self.app.console.width
-        return Text("─" * width, style=Style(color="#1f1f1f"))
+        return Text("─" * width, style=Style(color="#28251F"))

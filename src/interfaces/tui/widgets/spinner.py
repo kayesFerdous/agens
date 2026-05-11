@@ -32,9 +32,9 @@ class LiveSpinner(Widget):
         right = "esc to stop"
         padding = max(0, width - len(left) - len(right))
         line = Text()
-        line.append(left, style=Style(color="#cc785c"))
+        line.append(left, style=Style(color="#7B6EAA"))
         line.append(" " * padding)
-        line.append(right, style=Style(color="#3f3f3f"))
+        line.append(right, style=Style(color="#56524C"))
         return line
 
     async def stop(self) -> None:
