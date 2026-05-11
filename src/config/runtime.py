@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 # Application identity
 # ---------------------------------------------------------------------------
 
-APP_NAME = "vela"  # change to your actual application name
+APP_NAME = "vela"
 APP_AUTHOR = None     # set to your org/author string if desired on Windows
 
 # ---------------------------------------------------------------------------

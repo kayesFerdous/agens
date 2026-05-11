@@ -5,11 +5,12 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
 
-from db.database import Base, engine
+from db.database import Base, engine, ensure_database_directory
 
 
 async def init_db():
     """Run Alembic migrations to create/update tables."""
+    ensure_database_directory()
     alembic_cfg = Config(Path(__file__).resolve().parent.parent.parent / "alembic.ini")
     
     # Check if alembic_version table exists
@@ -52,4 +53,3 @@ async def drop_all_tables():
 
 if __name__ == "__main__":
     asyncio.run(init_db())
-

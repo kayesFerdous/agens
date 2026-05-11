@@ -1,5 +1,7 @@
 from typing import AsyncGenerator
+from pathlib import Path
 
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import NullPool
@@ -8,15 +10,25 @@ from config.settings import settings
 
 DATABASE_URL = settings.DATABASE_URL
 
+
+def ensure_database_directory(database_url: str = DATABASE_URL) -> None:
+    """Create the parent directory for file-backed SQLite databases."""
+    url = make_url(database_url)
+    if url.get_backend_name() != "sqlite":
+        return
+
+    database = url.database
+    if not database or database == ":memory:":
+        return
+
+    db_path = Path(database)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+ensure_database_directory()
+
 engine = create_async_engine(
     DATABASE_URL,
-    # aiosqlite is a file-based, single-writer DB — connection pooling gives no
-    # throughput benefit and creates a hard-to-fix bug: when an ASGI streaming
-    # task is cancelled (e.g. client disconnects), SQLAlchemy's pool tries to
-    # rollback and return the connection, but the event loop is in a cancelled
-    # state, causing cascading CancelledError / "no active connection" tracebacks.
-    # NullPool sidesteps all of this: each session opens a fresh connection and
-    # closes it directly — no pool, no _finalize_fairy, no reset on cancel.
     poolclass=NullPool,
 )
 

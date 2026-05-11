@@ -38,6 +38,7 @@ from config.runtime import get_runtime_root, initialize_runtime
 from config.logging import get_logger, setup_logging
 from cryptography.fernet import Fernet
 from db.database import async_session
+from db.init import init_db
 from db.models import KeyStatus
 from db.repositories.api_key import APIKeyRepository
 from services.api_key_manager import APIKeyManager
@@ -46,7 +47,7 @@ from services.settings_service import SettingsService
 
 initialize_runtime()
 
-setup_logging(settings.LOG_LEVEL)
+setup_logging("ERROR" if settings.PRODUCTION else "INFO")
 logger = get_logger(__name__)
 
 app = typer.Typer(help="Vela CLI", no_args_is_help=True)
@@ -80,6 +81,11 @@ def _run(coro):
             error_console.print("[red]Error:[/red] Command cannot run inside an active event loop.")
             raise typer.Exit(code=1)
         raise
+
+
+def _ensure_db_ready() -> None:
+    initialize_runtime()
+    _run(init_db())
 
 
 def _mask_secret(value: str, visible: int = 4) -> str:
@@ -358,6 +364,8 @@ async def _run_interfaces(selected: list[str]) -> None:
     from agent.factory import build_agent
     from db.database import async_session
 
+    await init_db()
+
     logger.info("Building agent…")
     async with async_session() as db:
         agent = await build_agent(db)
@@ -495,7 +503,7 @@ def apikey_add(
     api_key: str = typer.Argument(..., help="The raw API key value."),
 ) -> None:
     """Add a new API key."""
-    initialize_runtime()
+    _ensure_db_ready()
 
     label = label.strip()
     provider = provider.strip()
@@ -538,7 +546,7 @@ def apikey_add(
 @apikey_app.command("list")
 def apikey_list() -> None:
     """List stored API keys."""
-    initialize_runtime()
+    _ensure_db_ready()
 
     async def _list():
         async with async_session() as db:
@@ -586,7 +594,7 @@ def apikey_remove(
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation."),
 ) -> None:
     """Remove an API key by label."""
-    initialize_runtime()
+    _ensure_db_ready()
     label = label.strip()
 
     if not label:
@@ -622,7 +630,7 @@ def apikey_toggle(
     label: str = typer.Argument(..., help="Label of the key to toggle."),
 ) -> None:
     """Toggle an API key between active and inactive."""
-    initialize_runtime()
+    _ensure_db_ready()
     label = label.strip()
 
     if not label:
@@ -672,7 +680,7 @@ def apikey_toggle(
 @safety_app.command("toggle")
 def safety_toggle() -> None:
     """Toggle safety mode on or off."""
-    initialize_runtime()
+    _ensure_db_ready()
 
     async def _toggle() -> bool:
         async with async_session() as db:
@@ -696,7 +704,7 @@ def safety_toggle() -> None:
 @safety_app.command("status")
 def safety_status() -> None:
     """Show the current safety mode state."""
-    initialize_runtime()
+    _ensure_db_ready()
 
     async def _status() -> bool:
         async with async_session() as db:

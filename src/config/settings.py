@@ -1,15 +1,24 @@
 # config/settings.py
 from __future__ import annotations
 from pathlib import Path
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from .runtime import get_runtime_root
+
+
+def default_database_path() -> Path:
+    return get_runtime_root() / "vela.db"
+
+
+def default_database_url() -> str:
+    return f"sqlite+aiosqlite:///{default_database_path()}"
 
 
 class Settings(BaseSettings):
-    LOG_LEVEL: str = "ERROR"
     PRODUCTION: bool = True
     DEFAULT_MODEL: str = "gemini-2.5-flash-lite"
-    DATABASE_URL: str
+    DATABASE_URL: str = Field(default_factory=default_database_url)
     FRONTEND_LINK: str
     SESSION_SECRET_KEY: str
     # Defaults to the running user's home dir; override via WORKSPACE_ROOT in .env
