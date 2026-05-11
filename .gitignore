@@ -31,10 +31,9 @@ pnpm-debug.log*
 lerna-debug.log*
 
 frontend/node_modules/
-frontend/dist/
 frontend/dist-ssr/
-!src/interfaces/web/dist/
-!src/interfaces/web/dist/**
+src/interfaces/web/dist/
+src/interfaces/web/dist/**
 *.local
 
 # Editor directories and files
@@ -49,4 +48,4 @@ frontend/dist-ssr/
 *.sw?
 
 # Miscellaneous
-# DESIGN_SYSTEM.MD
+DESIGN_SYSTEM.MD
