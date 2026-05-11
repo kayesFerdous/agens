@@ -19,14 +19,14 @@ Screen {
     layout: vertical;
 }
 
-/* ── 1. TOP BAR — fixed height 1, surface bg ───────────────────────── */
+/* ── 1. TOP BAR — single fixed content row ─────────────────────────── */
 AppHeader {
     height: 1;
+    min-height: 1;
     background: #1A1713;
     layout: horizontal;
     padding: 0 2;
-    border-bottom: solid #28251F;
-    dock: top;
+    border: none;
 }
 
 /* Left: app name */
@@ -63,6 +63,14 @@ AppHeader .header-tokens {
 AppHeader .header-status {
     color: #50fa7b;
     width: auto;
+}
+
+AppHeader .header-status.status-inactive {
+    color: #56524C;
+}
+
+AppHeader .header-status.status-active {
+    color: #50fa7b;
 }
 
 /* ── 2. CHAT BODY — READING COLUMN ─────────────────────────────────── */
@@ -156,7 +164,7 @@ HorizontalRule {
     display: none;
 }
 
-/* ── BOTTOM BAR — docked, two rows, fixed ───────────────────────────── */
+/* ── BOTTOM BAR — stacked status + input rows ───────────────────────── */
 
 /* ── 6. BOTTOM INPUT ROW ──────────────────────────────────────────── */
 InputRow {
@@ -432,14 +440,15 @@ Footer {
     display: none;
 }
 
-/* ── Status strip — second row of bottom bar, surface bg ─────────────── */
+/* ── Status strip — second row of bottom bar, surface bg, uppercase meta ─ */
 #model-bar {
     height: 1;
+    min-height: 1;
     width: 100%;
     background: #1A1713;
     color: #56524C;
     padding: 0 3;
-    border-top: solid #28251F;
+    border: none;
 }
 
 /* ── 7 & 8. Model selection modal ──────────────────────────────────── */

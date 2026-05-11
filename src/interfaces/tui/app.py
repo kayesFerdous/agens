@@ -73,13 +73,13 @@ class AssistantTUI(App):
         yield ChatView(id="chat")
         yield HorizontalRule()
         yield CommandPalette(id="command-palette")
-        yield InputRow(id="input-row")
         yield Static("", id="model-bar")
+        yield InputRow(id="input-row")
 
     async def on_mount(self) -> None:
         await self._ensure_repo_session()
-        from .widgets.model_select import get_model_label
-        self.query_one(AppHeader).update_model(get_model_label(self.model_name))
+        # Wire the session ID into the header now that it's set
+        self.query_one(AppHeader).update_session(self.session_id)
         self._update_model_bar()
         if self._waiting_for_api_key:
             await self._mount_no_api_keys_onboarding()
@@ -612,16 +612,20 @@ class AssistantTUI(App):
         input_row.focus_input()
 
     def _update_model_bar(self) -> None:
-        """Refresh the one-line status bar below the input with the active model."""
+        """Refresh the status strip below the input with model name + shortcut hints."""
         from .widgets.model_select import get_model_label
         try:
             bar = self.query_one("#model-bar", Static)
-            if self._selected_model:
-                label = get_model_label(self._selected_model)
-                bar.update(f"  [dim]model:[/dim] [#7B6EAA]{label}[/#7B6EAA]  [#A99DD1]· /models to change[/#A99DD1]")
-            else:
-                label = get_model_label(self.model_name)
-                bar.update(f"  [dim]model:[/dim] [#7B6EAA]{label}[/#7B6EAA]  [#A99DD1]· /models to change[/#A99DD1]")
+            label = get_model_label(self._selected_model or self.model_name)
+            bar.update(
+                f"  [#7B6EAA]{label}[/#7B6EAA]"
+                f"  [#56524C]·[/#56524C]"
+                f"  [#A99DD1]/models[/#A99DD1]"
+                f"  [#56524C]·[/#56524C]"
+                f"  [#A99DD1]/keys[/#A99DD1]"
+                f"  [#56524C]·[/#56524C]"
+                f"  [#A99DD1]ctrl+l clear[/#A99DD1]"
+            )
         except Exception:
             pass
 

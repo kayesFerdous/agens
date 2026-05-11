@@ -6,15 +6,56 @@ from textual.widgets import Static
 
 
 class AppHeader(Widget):
-    """Top bar: left-aligned identity anchor, right-aligned model + token metadata."""
+    """Top bar — fixed height 1.
+    Left zone:  ◆ Assistant  <session-id>
+    Right zone: ↑↓/models  tokens: N  ●
+    """
+
+    def __init__(self, session_id: str = "", **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._session_id = session_id
 
     def compose(self) -> ComposeResult:
+        # Left zone
         yield Static("◆ Assistant", classes="header-title")
-        yield Static("", classes="header-model", id="header-model")
-        yield Static("tokens: 0", classes="header-tokens", id="header-tokens")
+        sid = f"  {self._session_id[:8]}" if self._session_id else ""
+        yield Static(sid, classes="header-session", id="header-session")
+        # Spacer — pushes right zone to far edge
+        yield Static("", classes="header-spacer")
+        # Right zone
+        yield Static("/models", classes="header-key-hint", id="header-key-hint")
+        yield Static("  tokens: 0", classes="header-tokens", id="header-tokens")
+        yield Static("  ●", classes="header-status", id="header-status")
+
+    def update_session(self, session_id: str) -> None:
+        self._session_id = session_id
+        try:
+            self.query_one("#header-session", Static).update(
+                f"  {session_id[:8]}" if session_id else ""
+            )
+        except Exception:
+            pass
 
     def update_model(self, model: str) -> None:
-        self.query_one("#header-model", Static).update(model)
+        # model label is no longer in the top bar; kept for compat
+        pass
 
     def update_tokens(self, count: int) -> None:
-        self.query_one("#header-tokens", Static).update(f"tokens: {count:,}")
+        try:
+            self.query_one("#header-tokens", Static).update(f"  tokens: {count:,}")
+        except Exception:
+            pass
+
+    def set_status_dot(self, active: bool) -> None:
+        """Set the status dot — green=active key, dim=no active key."""
+        try:
+            dot = self.query_one("#header-status", Static)
+            dot.update("  ●")
+            if active:
+                dot.remove_class("status-inactive")
+                dot.add_class("status-active")
+            else:
+                dot.remove_class("status-active")
+                dot.add_class("status-inactive")
+        except Exception:
+            pass
