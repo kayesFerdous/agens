@@ -175,8 +175,8 @@ HorizontalRule {
 /* ── 6. BOTTOM INPUT ROW ──────────────────────────────────────────── */
 InputRow {
     height: auto;
-    min-height: 3;
-    background: #0F0D0A;
+    min-height: 1;
+    background: transparent;
     layout: vertical;
     padding: 0;
     margin: 0;
@@ -186,14 +186,14 @@ InputRow {
 InputRow .input-top-rule {
     height: 1;
     color: #28251F;
-    background: #0F0D0A;
+    background: transparent;
     padding: 0;
 }
 
 InputRow .input-bottom-rule {
     height: 1;
     color: #28251F;
-    background: #0F0D0A;
+    background: transparent;
     padding: 0;
 }
 
@@ -201,7 +201,7 @@ InputRow .input-line {
     height: 1;
     min-height: 1;
     layout: horizontal;
-    background: #0F0D0A;
+    background: transparent;
     padding: 0 3;
 }
 
@@ -446,12 +446,12 @@ Footer {
     display: none;
 }
 
-/* ── Status strip — second row of bottom bar, surface bg, uppercase meta ─ */
+/* ── Status strip — second row of bottom bar, uppercase meta ───────────── */
 #model-bar {
     height: 1;
     min-height: 1;
     width: 100%;
-    background: #1A1713;
+    background: transparent;
     color: #56524C;
     padding: 0 3;
     border: none;
