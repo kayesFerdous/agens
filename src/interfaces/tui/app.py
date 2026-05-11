@@ -5,6 +5,7 @@ import inspect
 import json
 import uuid
 from collections.abc import AsyncIterator
+from contextlib import suppress
 from typing import Any
 
 from textual import events
@@ -58,6 +59,7 @@ class AssistantTUI(App):
         self._pending_confirmation_response: str | None = None
         self._active_confirmation: InlineConfirmation | None = None
         self._suppress_confirmation_tokens = False
+        self._stop_requested = False
 
     def compose(self) -> ComposeResult:
         yield AppHeader(id="app-header")
@@ -140,8 +142,10 @@ class AssistantTUI(App):
                     chat.maybe_scroll_end(was_near_bottom=was_near_bottom)
 
         except asyncio.CancelledError:
-            if self._current_block is not None:
-                self._current_block.append_chunk("\n\n*[interrupted]*")
+            if self._stop_requested:
+                await self._render_stream_stopped()
+            elif self._current_block is not None:
+                self._current_block.mark_interrupted()
 
         except Exception as exc:
             await chat.add_system(f"[red]Error:[/red] {exc}")
@@ -157,6 +161,7 @@ class AssistantTUI(App):
             pending_confirmation_response = self._pending_confirmation_response
             self._pending_confirmation_response = None
             self._stream_task = None
+            self._stop_requested = False
             chat.maybe_scroll_end()
             if pending_confirmation_response is not None:
                 await self._run_turn(pending_confirmation_response, render_user=False)
@@ -362,7 +367,30 @@ class AssistantTUI(App):
             self._active_confirmation.resolve(False)
             return
         if self._stream_task and not self._stream_task.done():
-            self._stream_task.cancel()
+            asyncio.create_task(self._stop_active_stream())
+
+    async def _stop_active_stream(self) -> None:
+        task = self._stream_task
+        if task is None or task.done():
+            return
+
+        self._stop_requested = True
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
+
+    async def _render_stream_stopped(self) -> None:
+        chat = self.query_one(ChatView)
+        if self._spinner is not None:
+            await self._spinner.stop()
+            self._spinner = None
+
+        if self._current_block is None:
+            self._current_block = await chat.add_assistant()
+
+        prefix = "\n\n" if getattr(self._current_block, "content", "") else ""
+        self._current_block.append_chunk(f"{prefix}*[stopped]*")
+        chat.maybe_scroll_end()
 
     def action_clear_chat(self) -> None:
         if self._awaiting_confirmation:
