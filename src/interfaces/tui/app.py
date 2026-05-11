@@ -93,12 +93,12 @@ class AssistantTUI(App):
         self._active_no_api_key_prompt = await self.query_one(ChatView).add_no_api_keys_onboarding()
         self._active_no_api_key_prompt.focus()
 
-    def on_no_api_keys_onboarding_add_key(
+    def on_no_apikeys_onboarding_add_key(
         self, _: NoAPIKeysOnboarding.AddKey
     ) -> None:
         self.show_api_key_add()
 
-    async def on_no_api_keys_onboarding_dismiss(
+    async def on_no_apikeys_onboarding_dismiss(
         self, _: NoAPIKeysOnboarding.Dismiss
     ) -> None:
         prompt = self._active_no_api_key_prompt
