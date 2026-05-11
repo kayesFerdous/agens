@@ -3,7 +3,6 @@
     <div class="tdots"><span></span><span></span><span></span></div>
     thinking
   </div>
-  <span class="t-hint">working…</span>
 </div>
 
 <style>
