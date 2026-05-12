@@ -108,9 +108,9 @@
             <img src={currentLogoUrl} alt={provider} class="provider-select-logo" />
           {/if}
           <select id="provider" bind:value={provider} disabled={loading} class={currentLogoUrl ? "has-logo" : ""}>
-            <option value="openai">OpenAI</option>
-            <option value="anthropic">Anthropic</option>
-            <option value="deepseek">DeepSeek</option>
+            <!-- <option value="openai">OpenAI</option> -->
+            <!-- <option value="anthropic">Anthropic</option> -->
+            <!-- <option value="deepseek">DeepSeek</option> -->
             <option value="gemini">Gemini</option>
           </select>
         </div>
