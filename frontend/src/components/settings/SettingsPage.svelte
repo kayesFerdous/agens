@@ -9,7 +9,6 @@
     { id: 'apikeys', label: 'API keys' }
   ];
   let activeTab = $state($settingsTab);
-  let scrollContainer = $state();
 
   function handleTabChange(id) {
     activeTab = id;
@@ -23,7 +22,7 @@
   });
 </script>
 
-<div class="settings-page" bind:this={scrollContainer}>
+<div class="settings-page">
   <div class="page-header">
     <h1 class="page-title">Settings</h1>
   </div>
@@ -34,7 +33,7 @@
     {#if activeTab === 'general'}
       <GeneralSettings />
     {:else if activeTab === 'apikeys'}
-      <ApiKeysSection {scrollContainer} />
+      <ApiKeysSection />
     {/if}
   </div>
 </div>

@@ -6,26 +6,12 @@
   import CreateApiKeyModal from './CreateApiKeyModal.svelte';
   import ConfirmActionModal from './ConfirmActionModal.svelte';
 
-  let { scrollContainer } = $props();
   let keys = $state([]);
   let loading = $state(true);
   let error = $state(null);
 
   let showCreateModal = $state(false);
   let keyToDelete = $state(null);
-
-  // Auto-scroll to bottom when keys list grows
-  $effect(() => {
-    if (scrollContainer && keys.length > 0) {
-      // We use a small timeout to ensure DOM has rendered
-      setTimeout(() => {
-        scrollContainer.scrollTo({
-          top: scrollContainer.scrollHeight,
-          behavior: 'smooth'
-        });
-      }, 50);
-    }
-  });
 
   async function loadKeys() {
     loading = true;
