@@ -48,6 +48,15 @@
     });
   }
 
+  const logos = import.meta.glob('../../assets/*.{svg,png}', { eager: true, query: '?url', import: 'default' });
+
+  function getLogoUrl(provider) {
+    const p = provider.toLowerCase();
+    const svgKey = `../../assets/${p}.svg`;
+    const pngKey = `../../assets/${p}.png`;
+    return logos[svgKey] || logos[pngKey] || '';
+  }
+
   function formatDate(isoStr) {
     if (!isoStr) return 'Never';
     const msAgo = Date.now() - new Date(isoStr).getTime();
@@ -65,14 +74,16 @@
     <div class="key-card">
       <div class="key-header">
         <div class="provider-info">
-          <img src={`/src/assets/${key.provider.toLowerCase()}.svg`} alt={key.provider} class="provider-logo" onerror={(e) => { e.currentTarget.style.display='none'; e.currentTarget.nextElementSibling.style.display='flex'; }} />
-          <div class="provider-logo-fallback" style="display: none;">{key.provider.charAt(0).toUpperCase()}</div>
+          {#if getLogoUrl(key.provider)}
+            <img src={getLogoUrl(key.provider)} alt={key.provider} class="provider-logo" onerror={(e) => { e.currentTarget.style.display='none'; e.currentTarget.nextElementSibling.style.display='flex'; }} />
+          {/if}
+          <div class="provider-logo-fallback" style={getLogoUrl(key.provider) ? "display: none;" : ""}>{key.provider.charAt(0).toUpperCase()}</div>
           <span class="provider-name">{key.label ? `${key.label} — ${key.provider}` : key.provider}</span>
         </div>
         
         <code class="key-hint">{key.key_hint}</code>
         <span class="last-used">Last used: {formatDate(key.last_used_at)}</span>
-        
+
         <div class="status-indicator status-{key.status}">
           <span class="status-dot"></span>
           {getStatusLabel(key.status)}

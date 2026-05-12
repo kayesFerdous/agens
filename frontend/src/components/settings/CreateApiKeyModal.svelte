@@ -10,6 +10,17 @@
   let loading = false;
   let error = null;
 
+  const logos = import.meta.glob('../../assets/*.{svg,png}', { eager: true, query: '?url', import: 'default' });
+
+  function getLogoUrl(p) {
+    const pLow = p.toLowerCase();
+    const svgKey = `../../assets/${pLow}.svg`;
+    const pngKey = `../../assets/${pLow}.png`;
+    return logos[svgKey] || logos[pngKey] || '';
+  }
+  
+  $: currentLogoUrl = getLogoUrl(provider);
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!apiKey.trim()) {
@@ -92,12 +103,17 @@
     <form onsubmit={handleSubmit} class="api-form">
       <div class="form-group">
         <label for="provider">Provider</label>
-        <select id="provider" bind:value={provider} disabled={loading}>
-          <option value="openai">OpenAI</option>
-          <option value="anthropic">Anthropic</option>
-          <option value="deepseek">DeepSeek</option>
-          <option value="gemini">Gemini</option>
-        </select>
+        <div class="provider-select-wrapper">
+          {#if currentLogoUrl}
+            <img src={currentLogoUrl} alt={provider} class="provider-select-logo" />
+          {/if}
+          <select id="provider" bind:value={provider} disabled={loading} class={currentLogoUrl ? "has-logo" : ""}>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="gemini">Gemini</option>
+          </select>
+        </div>
       </div>
 
       <div class="form-group">
@@ -281,6 +297,25 @@
   .hint {
     font-size: 12px;
     color: var(--ag-ink-3);
+  }
+
+  .provider-select-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .provider-select-logo {
+    position: absolute;
+    left: 12px;
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    pointer-events: none;
+  }
+
+  select.has-logo {
+    padding-left: 40px;
   }
 
   .modal-actions {
