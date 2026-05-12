@@ -21,10 +21,13 @@
     shutdownError = null;
     try {
       const result = await shutdownAssistant();
-      if (!result.ok) {
-        shutdownError = result.data?.detail ?? 'Shutdown request failed.';
+      if (result.ok && result.data?.shutdown) {
         shutdownPending = false;
+        showShutdownConfirm = false;
+        return;
       }
+      shutdownError = result.data?.detail ?? 'Shutdown request failed.';
+      shutdownPending = false;
     } catch {
       shutdownError = 'Unable to reach the local server.';
       shutdownPending = false;
