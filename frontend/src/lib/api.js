@@ -41,10 +41,11 @@ export async function stopChat(sessionId) {
   return res.json();
 }
 
-export async function shutdownAssistant() {
+export async function shutdownAssistant(options = {}) {
   const res = await fetch('/shutdown', {
     method: 'POST',
-    headers: { 'X-Vela-Action': 'shutdown' }
+    headers: { 'X-Vela-Action': 'shutdown' },
+    ...options
   });
   const data = await res.json().catch(() => ({}));
   return { ok: res.ok, data };

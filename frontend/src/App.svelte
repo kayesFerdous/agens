@@ -8,6 +8,7 @@
 
   let showShutdownConfirm = false;
   let shutdownPending = false;
+  let shutdownComplete = false;
   let shutdownError = null;
   let setupLoading = true;
 
@@ -16,20 +17,29 @@
   }
 
   async function requestShutdown() {
-    if (shutdownPending) return;
+    if (shutdownPending || shutdownComplete) return;
     shutdownPending = true;
     shutdownError = null;
     try {
-      const result = await shutdownAssistant();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      let result;
+      try {
+        result = await shutdownAssistant({ signal: controller.signal });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
       if (result.ok && result.data?.shutdown) {
         shutdownPending = false;
-        showShutdownConfirm = false;
+        shutdownComplete = true;
         return;
       }
-      shutdownError = result.data?.detail ?? 'Shutdown request failed.';
+      shutdownError = 'Shutdown may have failed. You can close this tab or try again.';
       shutdownPending = false;
     } catch {
-      shutdownError = 'Unable to reach the local server.';
+      shutdownError = 'Shutdown may have failed. You can close this tab or try again.';
       shutdownPending = false;
     }
   }
@@ -230,7 +240,7 @@
   }
 </script>
 
-<div class="app-layout" class:sidebar-open={$isSidebarOpen}>
+<div class="app-layout" class:sidebar-open={$isSidebarOpen} class:shutdown-locked={showShutdownConfirm}>
   <Sidebar />
   
   {#if $isSidebarOpen}
@@ -314,21 +324,43 @@
 </div>
 
 {#if showShutdownConfirm}
-  <div class="shutdown-modal-overlay" role="presentation">
+  <!-- Re-enable pointer events for the modal itself so user can click 'Cancel' or 'Try again' if needed -->
+  <div class="shutdown-modal-overlay" role="presentation" style="pointer-events: auto;">
     <div class="shutdown-modal" role="dialog" aria-modal="true" aria-labelledby="shutdown-title">
-      <h2 id="shutdown-title">Shutdown assistant?</h2>
-      <p>This stops the local assistant process and cancels active streams.</p>
-      {#if shutdownError}
-        <p class="shutdown-error">{shutdownError}</p>
+      {#if shutdownComplete}
+        <div class="shutdown-success-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="success-check">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+        </div>
+        <h2 id="shutdown-title" style="margin-top: 1rem;">Agens has stopped</h2>
+        <p>You can close this tab. To restart, run <code>vela web</code>.</p>
+      {:else}
+        <h2 id="shutdown-title">Shutdown assistant?</h2>
+        {#if shutdownError}
+          <p class="shutdown-error">{shutdownError}</p>
+        {:else}
+          <p>This stops the local assistant process and cancels active streams.</p>
+        {/if}
+        <div class="shutdown-actions">
+          {#if shutdownError}
+            <button type="button" class="shutdown-cancel" onclick={() => { showShutdownConfirm = false; shutdownError = null; }} disabled={shutdownPending}>
+              Close
+            </button>
+            <button type="button" class="shutdown-confirm" onclick={requestShutdown} disabled={shutdownPending}>
+              {shutdownPending ? 'Shutting down...' : 'Try again'}
+            </button>
+          {:else}
+            <button type="button" class="shutdown-cancel" onclick={() => showShutdownConfirm = false} disabled={shutdownPending}>
+              Cancel
+            </button>
+            <button type="button" class="shutdown-confirm" onclick={requestShutdown} disabled={shutdownPending}>
+              {shutdownPending ? 'Shutting down...' : 'Shutdown'}
+            </button>
+          {/if}
+        </div>
       {/if}
-      <div class="shutdown-actions">
-        <button type="button" class="shutdown-cancel" onclick={() => showShutdownConfirm = false} disabled={shutdownPending}>
-          Cancel
-        </button>
-        <button type="button" class="shutdown-confirm" onclick={requestShutdown} disabled={shutdownPending}>
-          {shutdownPending ? 'Shutting down...' : 'Shutdown'}
-        </button>
-      </div>
     </div>
   </div>
 {/if}
@@ -340,6 +372,10 @@
     width: 100%;
     height: 100vh;
     overflow: hidden;
+  }
+
+  .app-layout.shutdown-locked {
+    pointer-events: none;
   }
 
   .main-content {
@@ -491,6 +527,13 @@
     border: 0.5px solid var(--ag-border);
     border-radius: 24px;
     padding: 24px;
+  }
+
+  .shutdown-success-icon {
+    display: flex;
+    justify-content: center;
+    color: var(--ag-success, #10b981);
+    margin-bottom: 12px;
   }
 
   .shutdown-modal h2 {
