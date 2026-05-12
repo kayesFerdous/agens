@@ -149,7 +149,6 @@ class Agent:
         max_retries = 3
 
         retry_exhausted_error: str | None = None
-        retry_exhausted_error: str | None = None
         for attempt in range(max_retries):
             try:
                 # Pre-flight: ensure the current key is usable for this model, and swap if not
@@ -336,6 +335,7 @@ class Agent:
         answer_parts: list[str] = []
         last_done_event: StreamEvent | None = None
         max_retries = 20
+        retry_exhausted_error: str | None = None
 
         # ── Gated tool executor ──────────────────────────────────────────────────
         # Wraps self._execute_tool to intercept needs_confirmation responses.
