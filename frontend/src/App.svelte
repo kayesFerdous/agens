@@ -2,7 +2,7 @@
   
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
-  import { activeSessionId, theme, messages, activePage, restoredConfirmation, noApiKeys, settingsTab } from './lib/store.js';
+  import { activeSessionId, theme, messages, activePage, restoredConfirmation, noApiKeys, settingsTab, isSidebarOpen } from './lib/store.js';
   import { getSession, shutdownAssistant, getSetupStatus } from './lib/api.js';
   import { sessionService } from './lib/sessionService.svelte.js';
 
@@ -227,12 +227,25 @@
   }
 </script>
 
-<div class="app-layout">
+<div class="app-layout" class:sidebar-open={$isSidebarOpen}>
   <Sidebar />
   
+  {#if $isSidebarOpen}
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="sidebar-backdrop" onclick={() => isSidebarOpen.set(false)}></div>
+  {/if}
+
   <div class="main-content">
     <header class="top-nav">
       <div class="left">
+        <button class="hamburger-btn" aria-label="Toggle sidebar" onclick={() => isSidebarOpen.update(v => !v)}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
         <span class="app-title">Agens</span>
       </div>
       
@@ -328,11 +341,34 @@
 
   .main-content {
     flex: 1;
-    margin-left: 264px;
+    margin-left: 0;
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     flex-direction: column;
     position: relative;
     background: var(--ag-cream);
+  }
+
+  /* Desktop behavior: push content */
+  @media (min-width: 821px) {
+    .app-layout.sidebar-open .main-content {
+      margin-left: 264px;
+    }
+  }
+
+  .sidebar-backdrop {
+    display: none;
+  }
+  
+  @media (max-width: 820px) {
+    .sidebar-backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      background: rgba(28, 24, 20, 0.4);
+      backdrop-filter: blur(4px);
+      z-index: 45; /* Below sidebar (50) but above main content */
+    }
   }
 
   .top-nav {
@@ -344,6 +380,34 @@
     justify-content: space-between;
     padding: 0 24px;
     z-index: 40;
+  }
+
+  .left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .hamburger-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 0.5px solid transparent;
+    background: transparent;
+    color: var(--ag-ink-2);
+    cursor: pointer;
+    padding: 0;
+    margin-left: -8px; /* Offset slightly to align with edge if desired, or keep 0 */
+    transition: background 0.1s, color 0.1s, border-color 0.1s;
+  }
+
+  .hamburger-btn:hover {
+    background: var(--ag-surface);
+    color: var(--ag-ink);
+    border-color: var(--ag-border);
   }
 
   .app-title {

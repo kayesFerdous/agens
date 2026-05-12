@@ -1,5 +1,5 @@
 <script>
-  import { activeSessionId, messages, activePage } from '../lib/store.js';
+  import { activeSessionId, messages, activePage, isSidebarOpen } from '../lib/store.js';
   import { sessionService } from '../lib/sessionService.svelte.js';
   import InfiniteScroll from './InfiniteScroll.svelte';
 
@@ -17,15 +17,23 @@
     return `${days}d ago`;
   }
 
+  function closeSidebarOnMobile() {
+    if (window.innerWidth <= 820) {
+      isSidebarOpen.set(false);
+    }
+  }
+
   function handleNewChat() {
     activeSessionId.set(null);
     messages.set([]);
     activePage.set('chat');
+    closeSidebarOnMobile();
   }
 
   function selectSession(id) {
     activeSessionId.set(id);
     activePage.set('chat');
+    closeSidebarOnMobile();
   }
 
   let sessionToDelete = null;
@@ -51,7 +59,7 @@
   }
 </script>
 
-<aside class="sidebar">
+<aside class="sidebar" class:open={$isSidebarOpen}>
   <div class="brand">
     <div class="brand-icon">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -153,6 +161,12 @@
     z-index: 50;
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
   }
 
   .brand {

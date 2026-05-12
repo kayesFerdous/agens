@@ -4,6 +4,7 @@ export const activeSessionId = writable(null);
 export const messages = writable([]);
 export const isStreaming = writable(false);
 export const noApiKeys = writable(false);
+export const isSidebarOpen = writable(typeof window !== 'undefined' ? window.innerWidth > 820 : true);
 
 /**
  * Set by App.svelte after loading a session whose last assistant message has
