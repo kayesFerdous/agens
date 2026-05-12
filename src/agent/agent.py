@@ -148,6 +148,8 @@ class Agent:
         api_key_manager = APIKeyManager(repo=APIKeyRepository(db), fernet=self._fernet)
         max_retries = 3
 
+        retry_exhausted_error: str | None = None
+        retry_exhausted_error: str | None = None
         for attempt in range(max_retries):
             try:
                 # Pre-flight: ensure the current key is usable for this model, and swap if not
@@ -333,7 +335,7 @@ class Agent:
 
         answer_parts: list[str] = []
         last_done_event: StreamEvent | None = None
-        max_retries = 3
+        max_retries = 20
 
         # ── Gated tool executor ──────────────────────────────────────────────────
         # Wraps self._execute_tool to intercept needs_confirmation responses.
@@ -551,10 +553,16 @@ class Agent:
                 )
                 try:
                     await self._llm.handle_model_error(db, active_model, e, api_key_manager)
-                    yield StreamEvent(
-                        type="status",
-                        message="API key rotated for this model. Retrying the request.",
-                    )
+                    if attempt < max_retries - 1:
+                        yield StreamEvent(
+                            type="status",
+                            message="API key rotated for this model. Retrying the request.",
+                        )
+                    else:
+                        retry_exhausted_error = (
+                            f"Request failed after {max_retries} attempts due to rate limits for model "
+                            f"'{active_model}'. Please try again later."
+                        )
                 except LLMUnavailable:
                     yield StreamEvent(
                         type="error",
@@ -584,6 +592,10 @@ class Agent:
                 # attempting an async store here would fail inside the cancelled
                 # anyio scope anyway.
                 pass
+
+        if retry_exhausted_error:
+            yield StreamEvent(type="error", error=retry_exhausted_error)
+            return
 
     async def _execute_tool(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         tool = self._registry.get(name)

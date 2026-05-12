@@ -145,7 +145,7 @@ class GeminiLLM(LLM):
         tool_schemas: list[dict],
         message_history: list[Any] | None = None,
         tool_executor: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
-        max_iterations: int = 10,
+        max_iterations: int = 20,
         temperature: float = 0,
         model_name: str | None = None,
         streaming: bool = True,
@@ -174,7 +174,7 @@ class GeminiLLM(LLM):
         tool_schemas: list[dict],
         message_history: list[Any] | None = None,
         tool_executor: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
-        max_iterations: int = 10,
+        max_iterations: int = 20,
         temperature: float = 0,
         streaming: bool = True,
     ) -> AsyncGenerator[StreamEvent, None]:
