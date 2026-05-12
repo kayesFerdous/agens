@@ -17,11 +17,6 @@ PROVIDER_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
     ("── Gemma ───────────────────────────────────────", [
         ("gemma/gemma-4-31b-it",       "Gemma 4 31B IT"),
         ("gemma/gemma-4-26b-a4b-it",   "Gemma 4 26B A4B IT"),
-        ("gemma/gemma-3-27b-it",       "Gemma 3 27B IT"),
-        ("gemma/gemma-3-12b-it",       "Gemma 3 12B IT"),
-        ("gemma/gemma-3-4b-it",        "Gemma 3 4B IT"),
-        ("gemma/gemma-3-1b-it",        "Gemma 3 1B IT"),
-        ("gemma/gemma-3n-e4b-it",      "Gemma 3N E4B IT"),
     ]),
 ]
 
