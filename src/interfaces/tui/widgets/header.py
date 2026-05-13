@@ -17,7 +17,7 @@ class AppHeader(Widget):
 
     def compose(self) -> ComposeResult:
         # Left zone
-        yield Static("◆ Agens", classes="header-title")
+        yield Static("◆ agens", classes="header-title")
         # Spacer
         yield Static("", classes="header-spacer")
         # Center zone

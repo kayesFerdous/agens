@@ -2,6 +2,7 @@
   import ToolBlock from './ToolBlock.svelte';
   import ThinkingIndicator from './ThinkingIndicator.svelte';
   import MarkdownRenderer from './MarkdownRenderer.svelte';
+  import Logo from './Logo.svelte';
 
   export let message;
   export let isLive = false;
@@ -23,7 +24,6 @@
 
 {#if message.role === 'user'}
   <section class="user-msg">
-    <div class="avatar user-avatar" aria-hidden="true">K</div>
     <div class="bubble">
       {message.content}
     </div>
@@ -41,7 +41,9 @@
   </section>
 {:else}
   <section class="ai-msg">
-    <div class="avatar ai-avatar" aria-hidden="true">A</div>
+    <div class="avatar ai-avatar" aria-hidden="true">
+      <Logo width="20px" height="20px" />
+    </div>
     <div class="ai-body">
     {#if message.isThinking}
       <ThinkingIndicator />
@@ -129,12 +131,6 @@
     font-weight: 500;
     font-size: 13px;
     flex-shrink: 0;
-  }
-
-  .user-avatar {
-    background: var(--ag-surface);
-    color: var(--ag-ink-2);
-    border: 0.5px solid var(--ag-border);
   }
 
   .ai-avatar {

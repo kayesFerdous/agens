@@ -85,7 +85,7 @@
   </div>
   
   <p class="disclaimer">
-    Agens may provide inaccurate information. Verify critical outputs.
+    agens may provide inaccurate information. Verify critical outputs.
   </p>
 </div>
 

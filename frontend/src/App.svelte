@@ -260,7 +260,7 @@
             <line x1="3" y1="18" x2="21" y2="18"></line>
           </svg>
         </button>
-        <span class="app-title">Agens</span>
+        <span class="app-title">agens</span>
       </div>
       
       <div class="right">
@@ -340,7 +340,7 @@
             <polyline points="22 4 12 14.01 9 11.01"></polyline>
           </svg>
         </div>
-        <h2 id="shutdown-title" style="margin-top: 1rem;">Agens has stopped</h2>
+        <h2 id="shutdown-title" style="margin-top: 1rem;">agens has stopped</h2>
         <p>You can close this tab. To restart, run <code>vela web</code>.</p>
       {:else}
         <h2 id="shutdown-title">Shutdown assistant?</h2>
