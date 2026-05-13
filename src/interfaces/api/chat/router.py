@@ -139,7 +139,13 @@ async def chat(
         try:
             yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
 
-            async for event in agent.chat(body.message, session_id, model=body.model, channel=Channel.WEB):
+            async for event in agent.chat(
+                body.message,
+                session_id,
+                model=body.model,
+                channel=Channel.WEB,
+                tool_groups=body.tool_groups,
+            ):
                 payload: dict = {}
 
                 if event.type == "token":

@@ -4,6 +4,7 @@
     isStreaming,
     activeSessionId,
     restoredConfirmation,
+    toolGroups,
   } from "../lib/store.js";
   import { streamChat, authorizeSudo, stopChat } from "../lib/api.js";
   import { sessionService } from "../lib/sessionService.svelte.js";
@@ -154,7 +155,7 @@
 
     isStreaming.set(true);
 
-    currentStream = streamChat(sessionId, text, model, {
+    currentStream = streamChat(sessionId, text, model, $toolGroups, {
       async onSession(id) {
         streamSessionId = id;
       },

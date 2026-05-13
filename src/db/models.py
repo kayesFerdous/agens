@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import uuid4
 from enum import Enum as PyEnum
+from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Text, String, func, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

@@ -8,7 +8,7 @@ from config.workspace import resolve_safe
 class FileEditTool(Tool):
     @property
     def name(self) -> str:
-        return "edit_file"
+        return "file_edit"
 
     @property
     def description(self) -> str:

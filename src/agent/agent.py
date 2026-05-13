@@ -11,6 +11,7 @@ from config.logging import get_logger
 from typing import Any, AsyncIterator
 from db.repositories.api_key import APIKeyRepository
 from llm.base import LLM
+from core.tool_groups import get_enabled_tool_names, get_enabled_tool_schemas
 from core.registry import ToolRegistry
 from core.types import (
     CONFIRMATION_TTL_SECONDS,
@@ -83,6 +84,7 @@ class Agent:
         session_id: str,
         channel: Channel,
         model: str | None = None,
+        tool_groups: dict[str, bool] | None = None,
     ) -> AsyncIterator[StreamEvent]:
         """Unified streaming entry point for web, telegram, and TUI adapters.
 
@@ -112,7 +114,14 @@ class Agent:
                     pass  # Nothing useful we can do here; NullPool discards it
 
         try:
-            async for event in self.run_stream(message, session_id, db, channel=channel, model=model):
+            async for event in self.run_stream(
+                message,
+                session_id,
+                db,
+                channel=channel,
+                model=model,
+                tool_groups=tool_groups,
+            ):
                 if event.type in ("done", "error"):
                     # Eagerly close BEFORE yielding the terminal event.
                     # The anyio task is still active at this point, so the await
@@ -133,15 +142,21 @@ class Agent:
                     pass  # No running loop at all (server shutting down)
 
 
-    async def run(self, user_request: str, session_id: str, db: AsyncSession) -> str:
+    async def run(
+        self,
+        user_request: str,
+        session_id: str,
+        db: AsyncSession,
+        tool_groups: dict[str, bool] | None = None,
+    ) -> str:
         """Non-streaming ReAct loop. Returns the final text answer.
 
         Uses per-model cooldowns: on RateLimitError, only the failing model is
         marked on cooldown and we switch to another key that can still serve it.
         """
         memory_manager = MemoryManager(db)
-        system = build_system_prompt(self._config_manager)
-        tool_schemas = self._registry.tool_schemas()
+        tool_schemas = get_enabled_tool_schemas(self._registry, tool_groups)
+        system = build_system_prompt(self._config_manager, tool_schemas=tool_schemas)
         message_history = await memory_manager.get_history_for_gemini(session_id)
 
         provider = "gemini"
@@ -191,6 +206,7 @@ class Agent:
         db: AsyncSession,
         channel: Channel,
         model: str | None = None,
+        tool_groups: dict[str, bool] | None = None,
     ) -> AsyncIterator[StreamEvent]:
         memory_manager = MemoryManager(db)
 
@@ -198,11 +214,29 @@ class Agent:
         settings_service = SettingsService(db)
         app_settings = await settings_service.get_settings()
         safety_mode: bool = app_settings.safety_mode
+        tool_schemas = get_enabled_tool_schemas(self._registry, tool_groups)
+        enabled_tool_names = get_enabled_tool_names(tool_groups)
 
         # ── Confirmation gate — evaluated BEFORE the LLM is ever invoked ────────
         # pop() atomically removes the pending entry so a second "YES" is a no-op.
         pending = self._pending_confirmations.pop(session_id, None)
         if pending is not None:
+            if pending.tool_name not in enabled_tool_names:
+                msg = (
+                    f"Action cancelled. The tool '{pending.tool_name}' is disabled "
+                    "for this chat session."
+                )
+                logger.info(
+                    "Pending confirmation cancelled by disabled tool: session=%s tool=%s",
+                    session_id,
+                    pending.tool_name,
+                )
+                yield StreamEvent(type="confirmation_result", message=msg)
+                yield StreamEvent(type="token", content=msg)
+                await memory_manager.store(session_id, user_request, msg, [])
+                yield StreamEvent(type="done", tool_calls=[], next_action=None)
+                return
+
             elapsed = time.time() - pending.created_at
             if elapsed > CONFIRMATION_TTL_SECONDS:
                 # Confirmation window has expired.
@@ -320,9 +354,8 @@ class Agent:
                 return
         # ── End confirmation gate ──────────────────────────────────────────────────
 
-        system = build_system_prompt(self._config_manager)
-        logger.info(f"\n\nsystem prompt: \n%s",system)
-        tool_schemas = self._registry.tool_schemas()
+        system = build_system_prompt(self._config_manager, tool_schemas=tool_schemas)
+        logger.info("\n\nsystem prompt: \n%s", system)
         message_history = await memory_manager.get_history_for_gemini(session_id)
 
         model_name = None
@@ -345,6 +378,12 @@ class Agent:
         captured_confirmation: list[PendingConfirmation] = []  # max length 1
 
         async def _gated_tool_executor(name: str, args: dict[str, Any]) -> dict[str, Any]:
+            if name not in enabled_tool_names:
+                return {
+                    "status": "disabled",
+                    "message": f"Tool '{name}' is disabled for this chat session.",
+                }
+
             result = await self._execute_tool(name, args)
 
             if result.get("status") == "needs_confirmation":

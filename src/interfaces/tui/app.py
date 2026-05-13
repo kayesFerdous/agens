@@ -15,7 +15,7 @@ from textual.widgets import Static
 
 from .commands import execute_command, parse_command
 from .history import InputHistory
-from .prefs import get_selected_model, set_selected_model
+from .prefs import get_selected_model, get_tool_groups, set_selected_model, set_tool_groups
 from .theme import ASSISTANT_CSS
 from .widgets.chat_view import ChatView
 from .widgets.command_palette import CommandPalette
@@ -57,6 +57,7 @@ class AssistantTUI(App):
         self._pending_tool_blocks: dict[str, ToolBlock] = {}
         self._token_count = 0
         self._selected_model: str | None = get_selected_model()  # restored from prefs
+        self._tool_groups: dict[str, bool] = get_tool_groups()
         self.model_name = self._detect_model_name()
         self._awaiting_confirmation = False
         self._waiting_for_api_key = self._no_api_keys_at_startup
@@ -527,6 +528,7 @@ class AssistantTUI(App):
                 self.session_id,
                 Channel.TUI,
                 model=self._selected_model,
+                tool_groups=self._tool_groups,
             )
         return self.agent.chat(text)
 
@@ -549,6 +551,32 @@ class AssistantTUI(App):
             )
 
         self.push_screen(ModelSelectScreen(current_model=self._selected_model), callback=_on_selected)
+
+    def show_tool_group_selector(self) -> None:
+        """Push the active tool group selection modal."""
+        from .widgets.tool_group_select import TOOL_GROUP_OPTIONS, ToolGroupSelectScreen
+
+        def _on_selected(selected: dict[str, bool] | None) -> None:
+            if selected is None:
+                return
+            self._tool_groups = selected
+            set_tool_groups(selected)
+            enabled = [
+                label
+                for group, label, _description in TOOL_GROUP_OPTIONS
+                if selected.get(group)
+            ]
+            summary = ", ".join(enabled) if enabled else "none"
+            asyncio.create_task(
+                self.query_one(ChatView).add_system(
+                    f"Tool groups set to [bold]{summary}[/bold]. All future messages will use this selection."
+                )
+            )
+
+        self.push_screen(
+            ToolGroupSelectScreen(current_tool_groups=self._tool_groups),
+            callback=_on_selected,
+        )
 
     def show_api_key_list(self) -> None:
         """Push the API key list modal."""

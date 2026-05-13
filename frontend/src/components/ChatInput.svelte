@@ -1,5 +1,6 @@
 <script>
   import ModelSelector from './ModelSelector.svelte';
+  import ToolGroupSelector from './ToolGroupSelector.svelte';
 
   // Allow external control of stop button visibility while disabled.
   let { disabled = false, showStop = false, selectedModel = $bindable('gemini/gemini-2.5-flash-lite'), onsubmit, onstop } = $props();
@@ -59,10 +60,13 @@
     ></textarea>
     
     <div class="bottom-bar">
-      <ModelSelector
-        bind:selectedModel
-        onchange={handleModelChange}
-      />
+      <div class="control-group">
+        <ModelSelector
+          bind:selectedModel
+          onchange={handleModelChange}
+        />
+        <ToolGroupSelector />
+      </div>
 
       <div class="actions">
         {#if showStop}
@@ -156,7 +160,16 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
     padding-top: 4px;
+  }
+
+  .control-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex-wrap: wrap;
   }
 
   .actions {
@@ -218,6 +231,16 @@
     letter-spacing: 0.01em;
     font-weight: 500;
     margin-top: 12px;
+  }
+
+  @media (max-width: 560px) {
+    .bottom-bar {
+      align-items: flex-end;
+    }
+
+    .control-group {
+      gap: 6px;
+    }
   }
 
 </style>

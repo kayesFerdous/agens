@@ -541,6 +541,64 @@ ModelSelectScreen {
     padding: 0;
 }
 
+/* ── Tool group selection modal ─────────────────────────────────────── */
+ToolGroupSelectScreen {
+    align: center middle;
+    background: rgba(0, 0, 0, 0.60);
+}
+
+#tool-groups-panel {
+    width: 78;
+    height: auto;
+    max-height: 18;
+    background: #1A1713;
+    border: solid #28251F;
+}
+
+#tool-groups-title-bar {
+    height: auto;
+    background: #1A1713;
+    border-bottom: solid #28251F;
+    padding: 0 2;
+}
+
+#tool-groups-title {
+    height: 1;
+    width: 100%;
+    color: #F5F0E8;
+    text-style: bold;
+    padding: 0;
+}
+
+#tool-groups-list {
+    height: auto;
+    max-height: 8;
+    width: 100%;
+    background: #1A1713;
+    border: none;
+    color: #F5F0E8;
+    padding: 0;
+}
+
+#tool-groups-list > .selection-list--option {
+    padding: 0 2;
+    color: #F5F0E8;
+}
+
+#tool-groups-list > .selection-list--option-highlighted {
+    background: #2A2558;
+    color: #F5F0E8;
+}
+
+#tool-groups-footer {
+    height: 1;
+    width: 100%;
+    color: #56524C;
+    background: #1A1713;
+    border-top: solid #28251F;
+    padding: 0;
+}
+
 /* ── 9. API Key list modal ───────────────────────────────────────────── */
 APIKeyListScreen {
     align: center middle;

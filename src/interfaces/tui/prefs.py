@@ -9,12 +9,14 @@ import json
 from pathlib import Path
 
 from config.runtime import get_runtime_root
+from core.tool_groups import DEFAULT_TOOL_GROUPS, normalize_tool_groups
 
 # Resolves to  src/data/tui_prefs.json
 _PREFS_FILE: Path = get_runtime_root() / "tui_prefs.json"
 
 _DEFAULTS: dict = {
     "selected_model": None,
+    "tool_groups": dict(DEFAULT_TOOL_GROUPS),
 }
 
 
@@ -41,4 +43,16 @@ def set_selected_model(model_id: str | None) -> None:
     """Persist *model_id* so it survives restarts."""
     prefs = _load()
     prefs["selected_model"] = model_id
+    _save(prefs)
+
+
+def get_tool_groups() -> dict[str, bool]:
+    """Return persisted tool-group preferences."""
+    return normalize_tool_groups(_load().get("tool_groups"))
+
+
+def set_tool_groups(tool_groups: dict[str, bool]) -> None:
+    """Persist tool-group preferences so they survive restarts."""
+    prefs = _load()
+    prefs["tool_groups"] = normalize_tool_groups(tool_groups)
     _save(prefs)

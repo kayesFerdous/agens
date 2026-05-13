@@ -52,6 +52,7 @@
       }, 3000);
     }
   }
+
 </script>
 
 <div class="general-settings">
@@ -95,7 +96,6 @@
           >
         </label>
       </SettingRow>
-      <!-- Future settings can be added here -->
     </div>
   {/if}
 </div>

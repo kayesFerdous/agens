@@ -13,6 +13,7 @@ COMMANDS = [
     ("/exit", "Exit the assistant"),
     ("/quit", "Exit the assistant"),
     ("/models", "Select a model interactively"),
+    ("/tools", "Select active tool groups"),
     ("/keys", "List registered API keys"),
     ("/addkey", "Add a new API key"),
     ("/tokens", "Show session token count"),

@@ -12,6 +12,7 @@ COMMANDS = {
     "/exit": "Exit the assistant",
     "/quit": "Exit the assistant",
     "/models": "Select a model interactively",
+    "/tools": "Select active tool groups",
     "/keys": "List registered API keys",
     "/addkey": "Add a new API key",
     "/tokens": "Show token count",
@@ -81,6 +82,9 @@ async def execute_command(text: str, app: "AssistantTUI") -> None:
 
     elif resolved_command == "/models":
         app.show_model_selector()
+
+    elif resolved_command == "/tools":
+        app.show_tool_group_selector()
 
     elif resolved_command == "/keys":
         app.show_api_key_list()

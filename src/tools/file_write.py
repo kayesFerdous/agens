@@ -8,7 +8,7 @@ from config.workspace import resolve_safe
 class FileWriteTool(Tool):
     @property
     def name(self) -> str:
-        return "write_file"
+        return "file_write"
 
     @property
     def description(self) -> str:

@@ -69,7 +69,7 @@ export async function getSetupStatus() {
  * @property {"await_confirmation"|"await_sudo_auth"|null} [next_action]
  */
 
-export function streamChat(sessionId, message, model, callbacks) {
+export function streamChat(sessionId, message, model, toolGroups, callbacks) {
   const controller = new AbortController();
 
   (async () => {
@@ -77,7 +77,7 @@ export function streamChat(sessionId, message, model, callbacks) {
       const res = await fetch('/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId, message, model }),
+        body: JSON.stringify({ session_id: sessionId, message, model, tool_groups: toolGroups }),
         signal: controller.signal
       });
 

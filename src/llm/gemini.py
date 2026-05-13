@@ -195,7 +195,7 @@ class GeminiLLM(LLM):
             )
             for s in tool_schemas
         ]
-        tools = [Tool(function_declarations=func_decls)]
+        tools = [Tool(function_declarations=func_decls)] if func_decls else None
 
         config = GenerateContentConfig(
             system_instruction=system or None,
