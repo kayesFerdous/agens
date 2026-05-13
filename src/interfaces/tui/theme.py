@@ -115,7 +115,7 @@ AssistantBlock {
     border-left: wide #7B6EAA;
     padding: 0 3 0 2;
     margin: 0;
-    margin-top: 2;
+    margin-top: 1;
 }
 
 AssistantBlock Markdown {

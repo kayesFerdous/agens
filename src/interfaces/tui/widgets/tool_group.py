@@ -18,11 +18,10 @@ class ToolGroup(Widget):
     ToolGroup {
         height: auto;
         width: 100%;
-        max-width: 112;
         background: transparent;
         border: none;
-        padding: 0 0 1 0;
-        margin: 0;
+        padding: 0;
+        margin: 1 0 0 0;
     }
     ToolGroup .tg-header {
         color: #56524C;
