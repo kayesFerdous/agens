@@ -16,6 +16,12 @@
 ### System
 - Run shell commands (`shell_command`)
 
+### Schedule
+- Add events (`schedule_add`)
+- List events by today, tomorrow, this week, date, or all (`schedule_list`)
+- Update events by id (`schedule_update`)
+- Delete events by id or title match (`schedule_delete`)
+
 ### Configuration
 - Update your personal config (`update_config`)
   - Adjustable: user profile, assistant tone, preferences

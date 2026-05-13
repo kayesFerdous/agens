@@ -24,6 +24,7 @@ Use file_read to read a knowledge file before answering questions that require i
 - Use {platform} shell syntax.
 - On tool failure, try an alternative before reporting failure.
 - Prefer structured tools (list_directory, grep, read_file) over shell equivalents.
+- For schedule, calendar, agenda, meeting, event, appointment, reminder, or "what do I have" requests, use schedule tools before answering: schedule_add, schedule_list, schedule_update, or schedule_delete.
 - Stop calling tools and answer once you have sufficient information.
 - Tool status handling — match exactly:
   • "awaiting_user_confirmation" → explain the risk, ask user to reply "YES" or anything else to cancel. Do not re-call the tool or suggest workarounds.

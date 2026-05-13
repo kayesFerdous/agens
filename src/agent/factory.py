@@ -21,6 +21,10 @@ from tools.file_write import FileWriteTool
 from tools.file_edit import FileEditTool
 from tools.shell_command import ShellCommandTool
 from tools.search_web import WebSearchTool
+from tools.schedule_add import ScheduleAddTool
+from tools.schedule_delete import ScheduleDeleteTool
+from tools.schedule_list import ScheduleListTool
+from tools.schedule_update import ScheduleUpdateTool
 from tools.update_config import UpdateConfigTool
 from tools.find import FindTool
 from tools.grep import GrepTool
@@ -41,6 +45,10 @@ def _build_registry(
     registry.register(ShellCommandTool(workspace_root=settings.WORKSPACE_ROOT))
     registry.register(GrepTool(workspace_root=settings.WORKSPACE_ROOT))
     registry.register(ListDirectoryTool(workspace_root=settings.WORKSPACE_ROOT))
+    registry.register(ScheduleAddTool())
+    registry.register(ScheduleListTool())
+    registry.register(ScheduleDeleteTool())
+    registry.register(ScheduleUpdateTool())
 
     # WebSearchTool resolves its own key per call — only fernet is needed at construction.
     registry.register(WebSearchTool(fernet, usage=usage))
