@@ -60,16 +60,6 @@
     return logosMap[provider.toLowerCase()] || '';
   }
 
-  function formatDate(isoStr) {
-    if (!isoStr) return 'Never';
-    const msAgo = Date.now() - new Date(isoStr).getTime();
-    if (msAgo < 60000) return 'Just now';
-    const minsAgo = Math.floor(msAgo / 60000);
-    if (minsAgo < 60) return `${minsAgo} min ago`;
-    const hoursAgo = Math.floor(minsAgo / 60);
-    if (hoursAgo < 24) return `${hoursAgo} hours ago`;
-    return `${Math.floor(hoursAgo / 24)} days ago`;
-  }
 </script>
 
 <div class="keys-list">
@@ -85,7 +75,6 @@
         </div>
         
         <code class="key-hint">{key.key_hint}</code>
-        <span class="last-used">Last used: {formatDate(key.last_used_at)}</span>
 
         <div class="status-indicator status-{key.status}">
           <span class="status-dot"></span>
@@ -231,12 +220,6 @@
     padding: 4px 8px;
     border-radius: 4px;
     border: 0.5px solid var(--ag-border);
-  }
-
-  .last-used {
-    font-size: 13px;
-    color: var(--ag-ink-2);
-    white-space: nowrap;
   }
 
   .status-indicator {

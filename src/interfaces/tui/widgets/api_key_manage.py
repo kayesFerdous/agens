@@ -40,13 +40,6 @@ _PROVIDER_ICON: dict[str, str] = {
 _W_PROV  = 12
 _W_HINT  = 14
 _W_STAT  = 16
-_W_USED  = 16
-
-
-def _time_plain(dt) -> str:
-    if dt is None:
-        return "never"
-    return dt.strftime("%b %d, %H:%M")
 
 
 def _build_header() -> Text:
@@ -56,7 +49,6 @@ def _build_header() -> Text:
     t.append("PROVIDER".ljust(_W_PROV), style="#56524C")
     t.append("HINT".ljust(_W_HINT),     style="#56524C")
     t.append("STATUS".ljust(_W_STAT),   style="#56524C")
-    t.append("LAST USED".ljust(_W_USED), style="#56524C")
     t.append("LABEL",                    style="#56524C")
     return t
 
@@ -75,7 +67,6 @@ def _build_row(key: APIKey) -> Text:
     t.append(f"{s_icon} ", style=s_color)
     t.append(s_label.ljust(_W_STAT - 2), style=s_color)
 
-    t.append(_time_plain(key.last_used_at).ljust(_W_USED), style="dim")
     t.append(key.label or "—", style="dim")
     return t
 
