@@ -188,7 +188,7 @@
   });
 
   $: {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && !setupLoading) {
       const url = new URL(window.location.href);
       const currentSid = url.searchParams.get('session');
       const currentPage = url.searchParams.get('page') || 'chat';
