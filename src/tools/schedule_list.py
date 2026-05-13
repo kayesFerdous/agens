@@ -11,10 +11,10 @@ from db.database import async_session
 from db.models import ScheduleEvent
 
 
-def _as_utc(value: datetime) -> datetime:
+def _utc_to_local(value: datetime) -> datetime:
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+    return value.astimezone(datetime.now().astimezone().tzinfo)
 
 
 def _range_bounds(range_name: str) -> tuple[datetime | None, datetime | None]:
@@ -81,8 +81,8 @@ class ScheduleListTool(Tool):
                 {
                     "id": event.id,
                     "title": event.title,
-                    "start": _as_utc(event.start_time).isoformat(),
-                    "end": _as_utc(event.end_time).isoformat() if event.end_time else None,
+                    "start": _utc_to_local(event.start_time).isoformat(),
+                    "end": _utc_to_local(event.end_time).isoformat() if event.end_time else None,
                 }
                 for event in rows
             ]

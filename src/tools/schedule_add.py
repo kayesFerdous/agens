@@ -17,6 +17,12 @@ def _parse_to_utc(value: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
+def _utc_to_local(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(datetime.now().astimezone().tzinfo)
+
+
 class ScheduleAddTool(Tool):
     @property
     def name(self) -> str:
@@ -63,7 +69,7 @@ class ScheduleAddTool(Tool):
                     "status": "created",
                     "event_id": event.id,
                     "title": event.title,
-                    "start_time": start_time.isoformat(),
+                    "start_time": _utc_to_local(start_time).isoformat(),
                 }
         except Exception as exc:
             return {"status": "error", "message": str(exc)[:200]}

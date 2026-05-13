@@ -18,6 +18,12 @@ def _parse_to_utc(value: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
+def _utc_to_local(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(datetime.now().astimezone().tzinfo)
+
+
 class ScheduleUpdateTool(Tool):
     @property
     def name(self) -> str:
@@ -63,10 +69,10 @@ class ScheduleUpdateTool(Tool):
                     changes["title"] = event.title
                 if "start_time" in kwargs:
                     event.start_time = _parse_to_utc(kwargs["start_time"])
-                    changes["start_time"] = event.start_time.isoformat()
+                    changes["start_time"] = _utc_to_local(event.start_time).isoformat()
                 if "end_time" in kwargs:
                     event.end_time = _parse_to_utc(kwargs["end_time"]) if kwargs["end_time"] else None
-                    changes["end_time"] = event.end_time.isoformat() if event.end_time else None
+                    changes["end_time"] = _utc_to_local(event.end_time).isoformat() if event.end_time else None
                 if "description" in kwargs:
                     event.description = kwargs["description"]
                     changes["description"] = event.description
