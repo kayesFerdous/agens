@@ -353,6 +353,7 @@
     border-radius: 999px;
     background: var(--ag-surface);
     border: 0.5px solid var(--ag-border);
+    box-sizing: border-box;
     transition:
       background 0.18s ease,
       border-color 0.18s ease;
@@ -360,12 +361,13 @@
 
   .switch-thumb {
     position: absolute;
-    top: 3px;
-    left: 3px;
+    top: 50%;
+    left: 2.5px;
     width: 16px;
     height: 16px;
     border-radius: 999px;
     background: var(--ag-ink-3);
+    transform: translateY(-50%);
     transition:
       transform 0.18s ease,
       background 0.18s ease;
@@ -377,7 +379,7 @@
   }
 
   .group-row.enabled .switch-thumb {
-    transform: translateX(16px);
+    transform: translate(16px, -50%);
     background: var(--ag-warm-white);
   }
 
