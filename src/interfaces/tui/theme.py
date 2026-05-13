@@ -110,8 +110,7 @@ UserBlock {
 AssistantBlock {
     height: auto;
     min-height: 1;
-    width: 100%;
-    max-width: 112;
+    width: 1fr;
     background: transparent;
     border-left: wide #7B6EAA;
     padding: 0 3 0 2;
