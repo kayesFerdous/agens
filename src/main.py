@@ -416,8 +416,12 @@ async def _run_interfaces(selected: list[str]) -> None:
         )
 
         if shutdown_waiter in done:
-            interfaces.cancel()
-            await asyncio.gather(interfaces, return_exceptions=True)
+            # Let interfaces (especially web/uvicorn) exit cleanly before forcing cancellation.
+            try:
+                await asyncio.wait_for(interfaces, timeout=5)
+            except TimeoutError:
+                interfaces.cancel()
+                await asyncio.gather(interfaces, return_exceptions=True)
         else:
             shutdown_waiter.cancel()
             await asyncio.gather(shutdown_waiter, return_exceptions=True)
