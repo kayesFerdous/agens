@@ -10,13 +10,16 @@
   let loading = false;
   let error = null;
 
-  const logos = import.meta.glob('../../assets/*.{svg,png}', { eager: true, query: '?url', import: 'default' });
+  import geminiLogo from '../../assets/gemini.svg';
+  import gemmaLogo from '../../assets/gemma.svg';
+
+  const logosMap = {
+    gemini: geminiLogo,
+    gemma: gemmaLogo,
+  };
 
   function getLogoUrl(p) {
-    const pLow = p.toLowerCase();
-    const svgKey = `../../assets/${pLow}.svg`;
-    const pngKey = `../../assets/${pLow}.png`;
-    return logos[svgKey] || logos[pngKey] || '';
+    return logosMap[p.toLowerCase()] || '';
   }
   
   $: currentLogoUrl = getLogoUrl(provider);

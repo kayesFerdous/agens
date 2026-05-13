@@ -5,6 +5,7 @@
   import { activeSessionId, theme, messages, activePage, restoredConfirmation, noApiKeys, settingsTab, isSidebarOpen } from './lib/store.js';
   import { getSession, shutdownAssistant, getSetupStatus } from './lib/api.js';
   import { sessionService } from './lib/sessionService.svelte.js';
+  import Logo from './components/Logo.svelte';
 
   let showShutdownConfirm = false;
   let shutdownPending = false;
@@ -259,6 +260,7 @@
             <line x1="3" y1="18" x2="21" y2="18"></line>
           </svg>
         </button>
+        <Logo width="24" height="24" />
         <span class="app-title">Agens</span>
       </div>
       
@@ -311,7 +313,12 @@
       <div class="glow-bl"></div>
       
       {#if setupLoading}
-        <div class="setup-loading">Checking setup...</div>
+        <div class="setup-loading">
+          <div class="setup-loading-content">
+            <Logo width="48" height="48" />
+            <span>Checking setup...</span>
+          </div>
+        </div>
       {:else if $activePage === 'settings'}
         <SettingsPage />
       {:else if $noApiKeys}
@@ -605,6 +612,13 @@
     justify-content: center;
     color: var(--ag-ink-2);
     font-size: 14px;
+  }
+
+  .setup-loading-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
   }
 
   /* Clear ugly glow artifacts entirely */

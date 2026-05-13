@@ -48,13 +48,16 @@
     });
   }
 
-  const logos = import.meta.glob('../../assets/*.{svg,png}', { eager: true, query: '?url', import: 'default' });
+  import geminiLogo from '../../assets/gemini.svg';
+  import gemmaLogo from '../../assets/gemma.svg';
+
+  const logosMap = {
+    gemini: geminiLogo,
+    gemma: gemmaLogo,
+  };
 
   function getLogoUrl(provider) {
-    const p = provider.toLowerCase();
-    const svgKey = `../../assets/${p}.svg`;
-    const pngKey = `../../assets/${p}.png`;
-    return logos[svgKey] || logos[pngKey] || '';
+    return logosMap[provider.toLowerCase()] || '';
   }
 
   function formatDate(isoStr) {

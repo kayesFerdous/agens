@@ -2,6 +2,7 @@
   import { activeSessionId, messages, activePage, isSidebarOpen } from '../lib/store.js';
   import { sessionService } from '../lib/sessionService.svelte.js';
   import InfiniteScroll from './InfiniteScroll.svelte';
+  import Logo from './Logo.svelte';
 
   function formatTime(dateStr) {
     if (!dateStr) return '';
@@ -62,12 +63,7 @@
 <aside class="sidebar" class:open={$isSidebarOpen}>
   <div class="brand">
     <div class="brand-icon">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-        <rect x="3" y="3" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.9"/>
-        <rect x="14" y="3" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.6"/>
-        <rect x="3" y="14" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.6"/>
-        <rect x="14" y="14" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.3"/>
-      </svg>
+      <Logo width="18" height="18" />
     </div>
     <div>
       <h1 class="brand-name">Agens</h1>
