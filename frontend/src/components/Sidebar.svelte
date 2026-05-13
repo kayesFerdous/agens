@@ -63,11 +63,11 @@
 <aside class="sidebar" class:open={$isSidebarOpen}>
   <div class="brand">
     <div class="brand-icon">
-      <Logo width="18" height="18" />
+      <Logo width="40" height="40" />
     </div>
     <div>
-      <h1 class="brand-name">Agens</h1>
-      <p class="brand-version">v1.0.4 stable</p>
+      <h1 class="brand-name">agens</h1>
+      <p class="brand-version">v0.1.0 stable</p>
     </div>
   </div>
 
@@ -173,8 +173,8 @@
   }
 
   .brand-icon {
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     border-radius: 6px;
     background: transparent;
     display: flex;

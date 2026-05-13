@@ -260,7 +260,6 @@
             <line x1="3" y1="18" x2="21" y2="18"></line>
           </svg>
         </button>
-        <Logo width="24" height="24" />
         <span class="app-title">Agens</span>
       </div>
       
