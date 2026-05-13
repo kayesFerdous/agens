@@ -130,30 +130,36 @@
   .trigger {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    border-radius: 8px;
-    border: none;
-    background: var(--ag-accent-light);
-    color: var(--ag-accent);
+    gap: 7px;
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 9px;
+    border: 0.5px solid rgba(123, 110, 170, 0.18);
+    background: color-mix(in srgb, var(--ag-accent-light) 72%, var(--ag-warm-white));
+    color: var(--ag-accent-deep);
     font-family: inherit;
     font-size: 11px;
     font-weight: 500;
-    letter-spacing: 0.01em;
     cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease,
+      color 0.15s ease,
+      transform 0.15s ease;
     white-space: nowrap;
     user-select: none;
+    box-sizing: border-box;
   }
 
-  .trigger:hover {
-    background: var(--ag-accent-mid);
-    color: var(--ag-warm-white);
-  }
-
+  .trigger:hover,
   .trigger.open {
     background: var(--ag-accent);
+    border-color: var(--ag-accent);
     color: var(--ag-warm-white);
+  }
+
+  .trigger:active {
+    transform: translateY(1px);
   }
 
   .provider-chip {

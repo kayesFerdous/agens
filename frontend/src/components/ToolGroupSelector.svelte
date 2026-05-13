@@ -145,8 +145,8 @@
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    min-height: 28px;
-    padding: 6px 10px;
+    height: 28px;
+    padding: 0 10px;
     border-radius: 9px;
     border: 0.5px solid rgba(123, 110, 170, 0.18);
     background: color-mix(in srgb, var(--ag-accent-light) 72%, var(--ag-warm-white));
@@ -161,6 +161,8 @@
       color 0.15s ease,
       transform 0.15s ease;
     white-space: nowrap;
+    user-select: none;
+    box-sizing: border-box;
   }
 
   .tool-trigger:hover,
