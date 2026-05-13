@@ -6,7 +6,6 @@
   let { disabled = false, showStop = false, selectedModel = $bindable('gemini/gemini-2.5-flash-lite'), onsubmit, onstop } = $props();
 
   let text = $state('');
-  let textareaRef = $state();
 
   function handleKeydown(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -14,17 +13,7 @@
       if (!disabled && text.trim()) {
         if (onsubmit) onsubmit({ text: text.trim(), model: selectedModel });
         text = '';
-        if (textareaRef) {
-          textareaRef.style.height = 'auto';
-        }
       }
-    }
-  }
-
-  function handleInput() {
-    if (textareaRef) {
-      textareaRef.style.height = 'auto';
-      textareaRef.style.height = Math.min(textareaRef.scrollHeight, 150) + 'px';
     }
   }
 
@@ -32,9 +21,6 @@
     if (!disabled && text.trim()) {
       if (onsubmit) onsubmit({ text: text.trim(), model: selectedModel });
       text = '';
-      if (textareaRef) {
-        textareaRef.style.height = 'auto';
-      }
     }
   }
 
@@ -49,15 +35,16 @@
 
 <div class="input-container">
   <div class="wrapper" class:disabled>
-    <textarea
-      bind:this={textareaRef}
-      bind:value={text}
-      oninput={handleInput}
-      onkeydown={handleKeydown}
-      placeholder="Ask anything about your architecture..."
-      rows="1"
-      {disabled}
-    ></textarea>
+    <div class="textarea-grid">
+      <textarea
+        bind:value={text}
+        onkeydown={handleKeydown}
+        placeholder="Ask anything about your architecture..."
+        rows="1"
+        {disabled}
+      ></textarea>
+      <div class="textarea-sizer" aria-hidden="true">{text + '\u200b'}</div>
+    </div>
     
     <div class="bottom-bar">
       <div class="control-group">
@@ -123,20 +110,42 @@
     opacity: 0.8;
   }
 
-  textarea {
+  .textarea-grid {
+    display: grid;
     flex: 1;
-    background: transparent;
-    border: none;
-    color: var(--ag-ink);
+    max-height: 250px;
+    overflow: hidden;
+  }
+
+  .textarea-grid > textarea,
+  .textarea-grid > .textarea-sizer {
+    grid-area: 1 / 1 / 2 / 2;
     font-size: 14px;
     line-height: 1.5;
     padding: 10px 4px 6px;
-    resize: none;
-    min-height: 48px;
-    max-height: 150px;
-    outline: none;
     font-family: inherit;
+    word-break: break-word;
+    min-height: 48px;
+  }
+
+  .textarea-sizer {
+    white-space: pre-wrap;
+    visibility: hidden;
+    color: transparent;
+    pointer-events: none;
+  }
+
+  textarea {
     width: 100%;
+    height: 100%;
+    background: transparent;
+    border: none;
+    color: var(--ag-ink);
+    resize: none;
+    outline: none;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(123, 110, 170, 0.3) transparent;
   }
 
   textarea::placeholder {
@@ -149,11 +158,14 @@
   }
 
   textarea::-webkit-scrollbar {
-    display: none;
+    width: 4px;
   }
-  textarea {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+  textarea::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  textarea::-webkit-scrollbar-thumb {
+    background: rgba(123, 110, 170, 0.3);
+    border-radius: 4px;
   }
 
   .bottom-bar {
