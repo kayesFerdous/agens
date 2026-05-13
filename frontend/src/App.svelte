@@ -233,7 +233,7 @@
     }
   }
 
-  // Reload messages when activeSessionId changes
+  // Reload messages when activeSessionId changes.
   $: {
     if (!$noApiKeys) {
       loadSession($activeSessionId);

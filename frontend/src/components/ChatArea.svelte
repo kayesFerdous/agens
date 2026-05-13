@@ -157,14 +157,6 @@
     currentStream = streamChat(sessionId, text, model, {
       async onSession(id) {
         streamSessionId = id;
-        if (id && id !== $activeSessionId) {
-          activeSessionId.set(id);
-          try {
-            await sessionService.refresh();
-          } catch (err) {
-            console.error("Failed to refresh sessions:", err);
-          }
-        }
       },
       onToken(content) {
         messages.update((m) => {
@@ -303,6 +295,8 @@
         }
       },
       async onDone(event) {
+        const sessionId = event?.session_id;
+        const shouldRefreshSessions = sessionId && sessionId !== $activeSessionId;
         finalizeStream();
 
         const nextAction = event?.next_action ?? null;
@@ -333,8 +327,7 @@
         confirmationRequest = null;
         sudoAuthRequest = null;
 
-        const sessionId = event?.session_id;
-        if (sessionId && sessionId !== $activeSessionId) {
+        if (shouldRefreshSessions) {
           activeSessionId.set(sessionId);
           try {
             await sessionService.refresh();
