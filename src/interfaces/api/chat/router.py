@@ -246,7 +246,7 @@ async def chat(
 @router.post("/{session_id}/stop")
 async def stop_chat(session_id: str, request: Request):
     """Cancel the active streaming task for a session, if one is running."""
-    if request.headers.get("x-vela-action") != "stop":
+    if request.headers.get("x-agens-action") != "stop":
         raise HTTPException(status_code=403, detail="Invalid lifecycle request.")
 
     task = _active_chat_tasks(request).get(session_id)

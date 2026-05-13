@@ -341,7 +341,7 @@
           </svg>
         </div>
         <h2 id="shutdown-title" style="margin-top: 1rem;">agens has stopped</h2>
-        <p>You can close this tab. To restart, run <code>vela web</code>.</p>
+        <p>You can close this tab. To restart, run <code>agens web</code>.</p>
       {:else}
         <h2 id="shutdown-title">Shutdown assistant?</h2>
         {#if shutdownError}

@@ -2,12 +2,12 @@
 main.py — unified launcher and CLI for the AI assistant.
 
 Examples:
-  vela web
-  vela telegram
-  vela tui
-  vela start web telegram
-  vela apikey list
-  vela safety toggle
+  agens web
+  agens telegram
+  agens tui
+  agens start web telegram
+  agens apikey list
+  agens safety toggle
 """
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ initialize_runtime()
 setup_logging("ERROR" if settings.PRODUCTION else "INFO")
 logger = get_logger(__name__)
 
-app = typer.Typer(help="Vela CLI", no_args_is_help=True)
+app = typer.Typer(help="Agens CLI", no_args_is_help=True)
 apikey_app = typer.Typer(help="Manage API keys.")
 safety_app = typer.Typer(help="Safety mode controls.")
 telegram_app = typer.Typer(help="Telegram integration.")
@@ -175,7 +175,7 @@ def _web_shutdown_url() -> str:
 
 def _request_web_shutdown() -> bool:
     url = _web_shutdown_url()
-    req = Request(url, method="POST", headers={"x-vela-action": "shutdown"})
+    req = Request(url, method="POST", headers={"x-agens-action": "shutdown"})
     try:
         with urlopen(req, timeout=3):
             return True
@@ -630,7 +630,7 @@ def apikey_list() -> None:
         raise typer.Exit(code=1)
 
     if not keys:
-        console.print("No API keys found. Add one with: vela apikey add")
+        console.print("No API keys found. Add one with: agens apikey add")
         return
 
     table = Table(title="API Keys", header_style="bold")
@@ -850,7 +850,7 @@ def interfaces_status() -> None:
     console.print(table)
 
     if not running_pids:
-        console.print("No interfaces running. Start one with: vela web")
+        console.print("No interfaces running. Start one with: agens web")
 
 
 # ---------------------------------------------------------------------------

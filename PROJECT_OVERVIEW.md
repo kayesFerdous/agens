@@ -1,12 +1,12 @@
 # 1. Project Overview
 
-Vela is a unified, multi-channel AI assistant platform designed to execute complex tasks asynchronously while communicating and maintaining state across a versatile array of interfaces. At its core, it is a backend agent framework with integrated capabilities to understand user intent, store memory context locally, and autonomously invoke various system-level or web-level tools (filesystem access, web search, shell execution) using a ReAct (Reason + Act) loop.
+Agens is a unified, multi-channel AI assistant platform designed to execute complex tasks asynchronously while communicating and maintaining state across a versatile array of interfaces. At its core, it is a backend agent framework with integrated capabilities to understand user intent, store memory context locally, and autonomously invoke various system-level or web-level tools (filesystem access, web search, shell execution) using a ReAct (Reason + Act) loop.
 
 **Main Purpose and Core Idea**
 The core philosophy of the application is **interface ubiquity with centralized brain logic**. Rather than building an agent locked into a terminal or a web app, the platform wraps one core agent orchestration layer around four distinct graphical/interaction channels (CLI, Terminal UI, Web UI, and Telegram). State, memory, database, and configurations are globally shared. 
 
 **Main Workflow**
-1. The user initiates the application via a highly robust CLI (`vela start web telegram`, `vela tui`).
+1. The user initiates the application via a highly robust CLI (`agens start web telegram`, `agens tui`).
 2. The runtime spins up an asynchronous event loop running Uvicorn (Web), Textual (TUI), and/or Python-Telegram-Bot (Telegram integration).
 3. The user inputs prompts into an interface. 
 4. The interface converts the input into a standard format and proxies it to the `Agent`.
@@ -87,7 +87,7 @@ The architectural pattern is deeply inspired by Hexagonal Architecture (Ports an
 # 4. Folder Structure Analysis
 
 ### Root & Build Constraints
-*   **pyproject.toml / Makefile / uv.lock:** Project relies on standard `setuptools`, Python 3.13, and is managed conceptually by modern dependency systems (likely `uv`). The CLI entry point maps `vela` directly to `main:cli`.
+*   **pyproject.toml / Makefile / uv.lock:** Project relies on standard `setuptools`, Python 3.13, and is managed conceptually by modern dependency systems (likely `uv`). The CLI entry point maps `agens` directly to `main:cli`.
 *   **alembic:** Standard Alembic environments and templated migrations for tracking local DB schema drifts. Migrations exist for settings, adding API key tables, and model cooldowns.
 
 ### frontend
@@ -120,8 +120,8 @@ The architectural pattern is deeply inspired by Hexagonal Architecture (Ports an
 # 5. Runtime Flow
 
 ### Initialization Sequence
-1.  **Invoked:** User executes `vela start web telegram`.
-2.  **Environment loading:** `initialize_runtime()` runs. Defines local `.vela` folder roots or workspace anchors.
+1.  **Invoked:** User executes `agens start web telegram`.
+2.  **Environment loading:** `initialize_runtime()` runs. Defines local `.agens` folder roots or workspace anchors.
 3.  **Config & Logging:** Parses .env or configuration JSON files, sets up `rich` logging handlers.
 4.  **Database Boot:** Alembic executes startup assertions (if configured). SQLAlchemy `create_async_engine` initialized.
 5.  **Agent Prep:** Dependencies instantiated. `ToolRegistry` scans the `tools/` folder. `APIKeyManager` instantiated with the `Fernet` encryption pool. `Agent` is bound.
@@ -138,7 +138,7 @@ The architectural pattern is deeply inspired by Hexagonal Architecture (Ports an
 8.  *Assumption Label:* We assume tool-call UI components pause their chat streams slightly to inject a "tool executing" bubble based on the frontend structure containing `ThinkingIndicator` and `ToolBlock` elements.
 
 ### Shutdown Flow
-When `SIGINT` (Ctrl+C) is caught, or when `vela` receives a `/shutdown` POST request from the web, the global application states toggle exit conditions. Uvicorn terminates server loops gracefully, PTB halts the updater loops. Event loops finalize active database sessions.
+When `SIGINT` (Ctrl+C) is caught, or when `agens` receives a `/shutdown` POST request from the web, the global application states toggle exit conditions. Uvicorn terminates server loops gracefully, PTB halts the updater loops. Event loops finalize active database sessions.
 
 ---
 
@@ -161,7 +161,7 @@ The AI System is inherently modular, utilizing an adapter-over-provider pattern.
 
 ### 7.1 CLI (cli.py & main.py)
 *   **Pattern:** Uses `typer` to easily manage subcommands.
-*   **Responsibility:** Provides lifecycle commands, API key administration logic (`vela apikey ...`), and system-wide overrides without spinning up graphic interfaces. Uses `rich.console` for beautiful colored terminal outputs. Handles health-checks simulating `ps` lookup using `ctypes` mappings on Windows or standard `os.kill(0)` routing on Posix.
+*   **Responsibility:** Provides lifecycle commands, API key administration logic (`agens apikey ...`), and system-wide overrides without spinning up graphic interfaces. Uses `rich.console` for beautiful colored terminal outputs. Handles health-checks simulating `ps` lookup using `ctypes` mappings on Windows or standard `os.kill(0)` routing on Posix.
 
 ### 7.2 Web Interface (frontend & web)
 *   **Frontend Interaction:** Modern Svelte 5 structure compiled alongside FastAPI's backend routes. `sessionService.svelte.js` handles client-side state reactivity via signals.
@@ -208,11 +208,11 @@ The application enforces autonomy securely by providing internal modules mapped 
 # 10. Final System Summary
 
 **High-Level System Identity:**
-Vela functions as an autonomous, multi-tenant proxy agent allowing power-users absolute localized control to instruct and evaluate complex logic utilizing large contexts natively tied to personal machinery. 
+Agens functions as an autonomous, multi-tenant proxy agent allowing power-users absolute localized control to instruct and evaluate complex logic utilizing large contexts natively tied to personal machinery. 
 
 **Core Strengths:**
 1.  **Architecture:** The Hexagonal design successfully separates the "Brain Pipeline" from the "View Pipeline". The integration points are purely string queries and async stream hooks, meaning a Discord plugin or Slack integration can be cleanly added by mapping three interface hooks and writing zero logic.
 2.  **Concurrency Mastery:** Explicit protection against memory leakage from database pools by manually handling the ASGI cancellation scopes guarantees minimal footprints during sustained complex generations. 
-3.  **Local Security Posture:** Abstracting settings and keys into Fernet-encrypted SQlite tables guarantees simple binary portability `.vela/db.sqlite` without risking environment variable injections. Built-in `Sudo` loops securely lock down rogue LLM hallucinations in terminal instances.
+3.  **Local Security Posture:** Abstracting settings and keys into Fernet-encrypted SQlite tables guarantees simple binary portability `.agens/db.sqlite` without risking environment variable injections. Built-in `Sudo` loops securely lock down rogue LLM hallucinations in terminal instances.
 
-Vela is a sophisticated, highly modular system perfectly oriented around taking advantage of contemporary agentic AI logic mapped seamlessly against user workflows ranging across desktop, terminal, and mobile spaces simultaneously accessible through the web and portable to external to that proxy mapping directly down to standard mobile channels via Telegram bot interfaces.
+Agens is a sophisticated, highly modular system perfectly oriented around taking advantage of contemporary agentic AI logic mapped seamlessly against user workflows ranging across desktop, terminal, and mobile spaces simultaneously accessible through the web and portable to external to that proxy mapping directly down to standard mobile channels via Telegram bot interfaces.

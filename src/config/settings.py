@@ -8,7 +8,7 @@ from .runtime import get_runtime_root
 
 
 def default_database_path() -> Path:
-    return get_runtime_root() / "vela.db"
+    return get_runtime_root() / "agens.db"
 
 
 def default_database_url() -> str:

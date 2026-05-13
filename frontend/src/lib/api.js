@@ -35,7 +35,7 @@ export async function stopChat(sessionId) {
   if (!sessionId) return { stopped: false };
   const res = await fetch(`/chat/${sessionId}/stop`, {
     method: 'POST',
-    headers: { 'X-Vela-Action': 'stop' }
+    headers: { 'X-Agens-Action': 'stop' }
   });
   if (!res.ok) return { stopped: false };
   return res.json();
@@ -44,7 +44,7 @@ export async function stopChat(sessionId) {
 export async function shutdownAssistant(options = {}) {
   const res = await fetch('/shutdown', {
     method: 'POST',
-    headers: { 'X-Vela-Action': 'shutdown' },
+    headers: { 'X-Agens-Action': 'shutdown' },
     ...options
   });
   const data = await res.json().catch(() => ({}));

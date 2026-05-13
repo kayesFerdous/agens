@@ -3,14 +3,14 @@ from __future__ import annotations
 from db.models import KeyStatus
 from db.repositories.api_key import APIKeyRepository
 
-SETUP_COMMAND = "vela apikey add <label> <provider> <key>"
+SETUP_COMMAND = "agens apikey add <label> <provider> <key>"
 
 NO_API_KEYS_SETUP_MESSAGE = (
     "No API keys found.\n\n"
-    "Vela needs at least one API key before chat can start. Add one from your terminal:\n\n"
+    "Agens needs at least one API key before chat can start. Add one from your terminal:\n\n"
     f"  {SETUP_COMMAND}\n\n"
     "Example:\n"
-    "  vela apikey add personal gemini YOUR_API_KEY"
+    "  agens apikey add personal gemini YOUR_API_KEY"
 )
 
 NO_API_KEYS_TELEGRAM_MESSAGE = (
@@ -24,12 +24,12 @@ NO_API_KEYS_CLI_MESSAGE = (
     "Add one before starting chat:\n\n"
     f"  {SETUP_COMMAND}\n\n"
     "Example:\n"
-    "  vela apikey add personal gemini YOUR_API_KEY"
+    "  agens apikey add personal gemini YOUR_API_KEY"
 )
 
 ALL_KEYS_UNAVAILABLE_MESSAGE = (
     "All API keys are currently exhausted or unavailable. "
-    "You can switch models or add a new key with `vela apikey add <label> <provider> <key>`."
+    "You can switch models or add a new key with `agens apikey add <label> <provider> <key>`."
 )
 
 

@@ -1,5 +1,5 @@
 [project]
-name = "vela"
+name = "agens"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.scripts]
-vela = "main:cli"
+agens = "main:cli"
 
 [build-system]
 requires = ["setuptools>=61"]

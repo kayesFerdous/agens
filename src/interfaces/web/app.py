@@ -69,7 +69,7 @@ def _create_app(agent: Agent) -> FastAPI:
     @app.post("/shutdown", include_in_schema=False)
     async def shutdown(request: Request):
         """Request a graceful shutdown of the running assistant process."""
-        if request.headers.get("x-vela-action") != "shutdown":
+        if request.headers.get("x-agens-action") != "shutdown":
             raise HTTPException(status_code=403, detail="Invalid lifecycle request.")
 
         for task in list(getattr(request.app.state, "active_chat_tasks", {}).values()):
@@ -93,7 +93,7 @@ def _create_app(agent: Agent) -> FastAPI:
         return {
             "no_api_keys": no_api_keys,
             "message": NO_API_KEYS_SETUP_MESSAGE,
-            "command": "vela apikey add <label> <provider> <key>",
+            "command": "agens apikey add <label> <provider> <key>",
         }
 
     @app.get("/{path:path}", include_in_schema=False)
