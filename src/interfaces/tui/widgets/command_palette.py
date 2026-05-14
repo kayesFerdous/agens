@@ -32,8 +32,8 @@ class CommandPalette(Widget):
     CommandPalette {
         height: auto;
         width: 100%;
-        background: #1A1713;
-        border-top: solid #28251F;
+        background: #0F0D0A;
+        border-top: none;
         padding: 0 3;
         display: none;
     }
