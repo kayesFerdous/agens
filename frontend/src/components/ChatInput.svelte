@@ -6,6 +6,17 @@
   let { disabled = false, showStop = false, selectedModel = $bindable('gemini/gemini-2.5-flash-lite'), onsubmit, onstop } = $props();
 
   let text = $state('');
+  let textareaElement = $state();
+
+  function handleWindowKeydown(e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const activeTagName = document.activeElement?.tagName?.toLowerCase();
+    if (activeTagName === 'input' || activeTagName === 'textarea') return;
+
+    if (e.key.length === 1 && !disabled && textareaElement) {
+      textareaElement.focus();
+    }
+  }
 
   function handleKeydown(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -33,10 +44,13 @@
   }
 </script>
 
+<svelte:window onkeydown={handleWindowKeydown} />
+
 <div class="input-container">
   <div class="wrapper" class:disabled>
     <div class="textarea-grid">
       <textarea
+        bind:this={textareaElement}
         bind:value={text}
         onkeydown={handleKeydown}
         placeholder="Ask anything about your architecture..."
