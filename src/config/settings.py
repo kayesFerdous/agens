@@ -1,9 +1,10 @@
 # config/settings.py
 from __future__ import annotations
 from pathlib import Path
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from .bootstrap import managed_settings_files
 from .runtime import get_runtime_root
 
 
@@ -16,7 +17,7 @@ def default_database_url() -> str:
 
 
 class Settings(BaseSettings):
-    PRODUCTION: bool = True
+    PRODUCTION: bool = False
     DEFAULT_MODEL: str = "gemini-2.5-flash-lite"
     DATABASE_URL: str = Field(default_factory=default_database_url)
     # Dev mode: separate frontend server (e.g., localhost:5173).
@@ -48,6 +49,28 @@ class Settings(BaseSettings):
     WEBHOOK_HOST: str = ""
     WEBHOOK_PORT: int = 8443
 
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="", extra="ignore")
+    @field_validator("SESSION_SECRET_KEY")
+    @classmethod
+    def validate_session_secret_key(cls, value: str) -> str:
+        if len(value) < 32:
+            raise ValueError("SESSION_SECRET_KEY must be at least 32 characters long")
+        return value
+
+    @field_validator("FERNET_SECRET")
+    @classmethod
+    def validate_fernet_secret(cls, value: str) -> str:
+        from cryptography.fernet import Fernet
+
+        try:
+            Fernet(value.encode("ascii"))
+        except Exception as exc:  # noqa: BLE001 - pydantic should expose a validation error.
+            raise ValueError("FERNET_SECRET must be a valid Fernet key") from exc
+        return value
+
+    model_config = SettingsConfigDict(
+        env_file=managed_settings_files(),
+        env_prefix="",
+        extra="ignore",
+    )
 
 settings = Settings()  # type: ignore

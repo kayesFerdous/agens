@@ -51,6 +51,11 @@ def get_config_file() -> Path:
     return get_runtime_root() / "config.json"
 
 
+def get_managed_env_file() -> Path:
+    """Return the private env file managed by Agens for generated settings."""
+    return get_runtime_root() / "agens.env"
+
+
 def get_knowledge_dir() -> Path:
     return get_runtime_root() / "knowledge"
 
