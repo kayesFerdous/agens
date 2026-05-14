@@ -8,13 +8,13 @@ from textual.widget import Widget
 from textual.widgets import Static
 
 COMMANDS = [
-    ("/help", "Show all available commands"),
-    ("/clear", "Clear the chat history"),
-    ("/exit", "Exit the assistant"),
-    ("/quit", "Exit the assistant"),
+    ("/help", "  Show all available commands"),
+    ("/clear", " Clear the chat history"),
+    ("/exit", "  Exit the assistant"),
+    ("/quit", "  Exit the assistant"),
     ("/models", "Select a model interactively"),
-    ("/tools", "Select active tool groups"),
-    ("/keys", "List registered API keys"),
+    ("/tools", " Select active tool groups"),
+    ("/keys", "  List registered API keys"),
     ("/addkey", "Add a new API key"),
     ("/tokens", "Show session token count"),
 ]
