@@ -25,12 +25,14 @@ from .widgets.inline_confirmation import ConfirmationRequest, InlineConfirmation
 from .widgets.input_row import InputRow
 from .widgets.no_api_keys import NoAPIKeysOnboarding
 from .widgets.tool_block import ToolBlock
+from .widgets.welcome_screen import WelcomeScreen
 from .widgets.tool_group import ToolGroup
 from interfaces.api_key_state import has_active_api_keys, user_key_unavailable_message
 
 
 class AssistantTUI(App):
     CSS = ASSISTANT_CSS
+    LAYERS = ["default", "above"]
 
     BINDINGS = [
         Binding("ctrl+c", "quit", "Quit", priority=True),
@@ -68,6 +70,7 @@ class AssistantTUI(App):
         self._active_confirmation: InlineConfirmation | None = None
         self._suppress_confirmation_tokens = False
         self._stop_requested = False
+        self._welcome_active = True  # cleared after first interaction
 
     def compose(self) -> ComposeResult:
         from textual.containers import Vertical
@@ -85,10 +88,11 @@ class AssistantTUI(App):
         self.query_one(AppHeader).update_session(self.session_id)
         self._update_model_bar()
         if self._waiting_for_api_key:
+            self._welcome_active = False
             await self._mount_no_api_keys_onboarding()
         else:
             self.query_one(InputRow).focus_input()
-            await self._mount_welcome()
+            await self._show_welcome_overlay()
 
     async def _mount_no_api_keys_onboarding(self) -> None:
         input_row = self.query_one(InputRow)
@@ -115,6 +119,11 @@ class AssistantTUI(App):
         self.query_one(InputRow).focus_input()
 
     def on_key(self, event: events.Key) -> None:
+        # Dismiss the welcome overlay on the very first keypress.
+        if self._welcome_active and event.key not in {"ctrl+c", "ctrl+q"}:
+            self._dismiss_welcome()
+            # Don't consume the event — let it fall through normally.
+
         if self._active_no_api_key_prompt is not None and not self._api_key_modal_open:
             if self._active_no_api_key_prompt.handle_prompt_key(event):
                 return
@@ -133,12 +142,33 @@ class AssistantTUI(App):
         for child in chat.children:
             self.log(f"  child: {child} size={child.size} region={child.region}")
 
-    async def _mount_welcome(self) -> None:
+    async def _show_welcome_overlay(self) -> None:
+        """Mount the full-screen welcome overlay (cold start only)."""
+        overlay = WelcomeScreen(id="welcome-overlay")
+        await self.mount(overlay)
+
+    def _dismiss_welcome(self) -> None:
+        """Remove the welcome overlay and post the system ready message."""
+        if not self._welcome_active:
+            return
+        self._welcome_active = False
+        try:
+            overlay = self.query_one("#welcome-overlay", WelcomeScreen)
+            asyncio.create_task(self._remove_welcome_and_notify(overlay))
+        except Exception:
+            pass
+
+    async def _remove_welcome_and_notify(self, overlay: WelcomeScreen) -> None:
+        await overlay.remove()
         await self.query_one(ChatView).add_system(
-            "◆  Assistant ready. Type [bold]?[/bold] for help."
+            "~  Assistant ready. Type [bold]?[/bold] for help."
         )
 
     def handle_submit(self, text: str) -> None:
+        # Also dismiss welcome on first submit (in case it wasn't cleared by on_key).
+        if self._welcome_active:
+            self._dismiss_welcome()
+
         if self._is_streaming or self._awaiting_confirmation:
             return
 

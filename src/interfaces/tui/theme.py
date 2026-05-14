@@ -779,6 +779,40 @@ APIKeyAddScreen {
     border-top: solid #28251F;
     padding: 0;
 }
+
+/* ── Welcome screen overlay ─────────────────────────────────────────── */
+WelcomeScreen {
+    layer: above;
+    width: 100%;
+    height: 100%;
+    background: #0F0D0A;
+    align: center middle;
+    layout: vertical;
+}
+
+#welcome-logo {
+    width: auto;
+    height: auto;
+    color: #7B6EAA;
+    text-style: bold;
+    content-align: center middle;
+}
+
+#welcome-tagline {
+    width: auto;
+    height: 1;
+    color: #8C877E;
+    content-align: center middle;
+    margin-top: 1;
+}
+
+#welcome-hint {
+    width: auto;
+    height: 1;
+    color: #56524C;
+    content-align: center middle;
+    margin-top: 2;
+}
 """
 
 DEFAULT_CSS = ASSISTANT_CSS

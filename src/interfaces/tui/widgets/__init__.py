@@ -10,6 +10,7 @@ from .messages import AssistantBlock, CommandResultBlock, SystemLine, UserBlock
 from .spinner import LiveSpinner
 from .tool_block import ToolBlock
 from .tool_group import ToolGroup
+from .welcome_screen import WelcomeScreen
 
 __all__ = [
     "AppHeader",
@@ -26,4 +27,5 @@ __all__ = [
     "ToolBlock",
     "ToolGroup",
     "UserBlock",
+    "WelcomeScreen",
 ]
