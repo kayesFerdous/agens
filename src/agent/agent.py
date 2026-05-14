@@ -142,62 +142,9 @@ class Agent:
                     pass  # No running loop at all (server shutting down)
 
 
-    async def run(
-        self,
-        user_request: str,
-        session_id: str,
-        db: AsyncSession,
-        tool_groups: dict[str, bool] | None = None,
-    ) -> str:
-        """Non-streaming ReAct loop. Returns the final text answer.
-
-        Uses per-model cooldowns: on RateLimitError, only the failing model is
-        marked on cooldown and we switch to another key that can still serve it.
-        """
-        memory_manager = MemoryManager(db)
-        tool_schemas = get_enabled_tool_schemas(self._registry, tool_groups)
-        system = build_system_prompt(self._config_manager, tool_schemas=tool_schemas)
-        message_history = await memory_manager.get_history_for_gemini(session_id)
-
-        provider = "gemini"
-        api_key_manager = APIKeyManager(repo=APIKeyRepository(db), fernet=self._fernet)
-        max_retries = 3
-
-        retry_exhausted_error: str | None = None
-        for attempt in range(max_retries):
-            try:
-                # Pre-flight: ensure the current key is usable for this model, and swap if not
-                model = self._llm.model_name
-                await self._llm.ensure_model_key(db, model, api_key_manager)
-
-                answer = await self._llm.react(
-                    user_request,
-                    system=system,
-                    tool_schemas=tool_schemas,
-                    tool_executor=self._execute_tool,
-                    message_history=message_history,
-                )
-                await api_key_manager.on_success(self._llm.current_key_id)
-                await memory_manager.store(session_id, user_request, answer, [])
-                return answer
-
-            except RateLimitError as e:
-                logger.warning(
-                    "Rate limit on attempt %d: key=%s model=%s daily=%s",
-                    attempt, e.key_id, model, e.is_daily,
-                )
-                try:
-                    await self._llm.handle_model_error(db, model, e, api_key_manager)
-                except LLMUnavailable:
-                    raise RuntimeError(
-                        f"All API keys are on cooldown for model '{model}'."  
-                    )
-
-            except LLMUnavailable as e:
-                logger.warning("LLM unavailable on attempt %d: %s", attempt, e)
-                raise RuntimeError(str(e))
-
-        raise RuntimeError("Max retries reached without a successful response.")
+    # NOTE: The synchronous/non-streaming `run` method was intentionally removed.
+    # Use `chat` → `run_stream` for streaming interactions. If you need a
+    # non-streaming wrapper, call `run_stream` and concatenate tokens.
 
     async def run_stream(
         self,
