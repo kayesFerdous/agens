@@ -19,7 +19,9 @@ class Settings(BaseSettings):
     PRODUCTION: bool = True
     DEFAULT_MODEL: str = "gemini-2.5-flash-lite"
     DATABASE_URL: str = Field(default_factory=default_database_url)
-    FRONTEND_LINK: str
+    # Dev mode: separate frontend server (e.g., localhost:5173).
+    # Leave empty for production (frontend served from /static & root).
+    FRONTEND_LINK: str = ""
     SESSION_SECRET_KEY: str
     # Defaults to the running user's home dir; override via WORKSPACE_ROOT in .env
     WORKSPACE_ROOT: str = str(Path.home())

@@ -46,7 +46,7 @@ def _create_app(agent: Agent) -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[settings.FRONTEND_LINK],
+        allow_origins=([settings.FRONTEND_LINK] if settings.FRONTEND_LINK else []),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
