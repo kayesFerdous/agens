@@ -51,9 +51,8 @@ class AssistantTUI(App):
         self._no_api_keys_at_startup = bool(getattr(agent, "no_api_keys_at_startup", False))
         self._requested_session_id = session_id
         self._resume_failed = False
-        self._resumed_session = False
         self._history_loaded = False
-        self.session_id = session_id or str(uuid.uuid4())
+        self.session_id: str | None = session_id
         self._history = InputHistory(max_size=50)
         self._stream_task: asyncio.Task[None] | None = None
         self._current_generator: AsyncIterator[Any] | None = None
@@ -74,7 +73,7 @@ class AssistantTUI(App):
         self._active_confirmation: InlineConfirmation | None = None
         self._suppress_confirmation_tokens = False
         self._stop_requested = False
-        self._welcome_active = True  # cleared after first interaction
+        self._welcome_active = True
 
     def compose(self) -> ComposeResult:
         from textual.containers import Vertical
@@ -87,13 +86,10 @@ class AssistantTUI(App):
             yield Static("", id="model-bar")
 
     async def on_mount(self) -> None:
-        await self._ensure_repo_session()
-        # Wire the session ID into the header now that it's set
-        self.query_one(AppHeader).update_session(self.session_id)
-        await self._load_session_history()
+        await self._resume_requested_session()
         if self._resume_failed:
             await self.query_one(ChatView).add_system(
-                "Session id not found. Started a new TUI session."
+                "Session id not found. A new session will start with your first message."
             )
         self._update_model_bar()
         if self._waiting_for_api_key:
@@ -129,11 +125,6 @@ class AssistantTUI(App):
         self.query_one(InputRow).focus_input()
 
     def on_key(self, event: events.Key) -> None:
-        # Dismiss the welcome overlay on the very first keypress.
-        if self._welcome_active and event.key not in {"ctrl+c", "ctrl+q"}:
-            self._dismiss_welcome()
-            # Don't consume the event — let it fall through normally.
-
         if self._active_no_api_key_prompt is not None and not self._api_key_modal_open:
             if self._active_no_api_key_prompt.handle_prompt_key(event):
                 return
@@ -154,37 +145,29 @@ class AssistantTUI(App):
 
     async def _show_welcome_overlay(self) -> None:
         """Mount the full-screen welcome overlay (cold start only)."""
+        self.query_one(ChatView).add_class("welcome-active")
         overlay = WelcomeScreen(id="welcome-overlay")
         await self.mount(overlay)
 
-    def _dismiss_welcome(self) -> None:
-        """Remove the welcome overlay and post the system ready message."""
+    async def _dismiss_welcome(self) -> None:
+        """Remove the welcome overlay when the first input is submitted."""
         if not self._welcome_active:
             return
         self._welcome_active = False
+        self.query_one(ChatView).remove_class("welcome-active")
         try:
             overlay = self.query_one("#welcome-overlay", WelcomeScreen)
-            asyncio.create_task(self._remove_welcome_and_notify(overlay))
+            await overlay.remove()
         except Exception:
             pass
 
-    async def _remove_welcome_and_notify(self, overlay: WelcomeScreen) -> None:
-        await overlay.remove()
-        await self.query_one(ChatView).add_system(
-            "~  Assistant ready. Type [bold]?[/bold] for help."
-        )
-
     def handle_submit(self, text: str) -> None:
-        # Also dismiss welcome on first submit (in case it wasn't cleared by on_key).
-        if self._welcome_active:
-            self._dismiss_welcome()
-
         if self._is_streaming or self._awaiting_confirmation:
             return
 
         if parse_command(text):
             self._history.add(text)
-            asyncio.create_task(execute_command(text, self))
+            asyncio.create_task(self._run_command(text))
             return
 
         if self._waiting_for_api_key:
@@ -199,7 +182,13 @@ class AssistantTUI(App):
 
         asyncio.create_task(self._run_turn(text))
 
+    async def _run_command(self, text: str) -> None:
+        await self._dismiss_welcome()
+        await execute_command(text, self)
+
     async def _run_turn(self, text: str, *, render_user: bool = True) -> None:
+        await self._dismiss_welcome()
+        await self._ensure_chat_session()
         self._current_tool_group = None
         self._pending_tool_blocks = {}
         self._current_block = None
@@ -699,7 +688,33 @@ class AssistantTUI(App):
         except Exception:
             pass
 
-    async def _ensure_repo_session(self) -> None:
+    async def _resume_requested_session(self) -> None:
+        if "session_id" not in inspect.signature(self.agent.chat).parameters:
+            return
+        if not self._requested_session_id:
+            return
+        try:
+            from db import repository as session_repo
+            from db.database import async_session
+
+            async with async_session() as db:
+                existing = await session_repo.get_session(db, self._requested_session_id)
+                if existing is not None:
+                    self.session_id = existing.id
+                    self.query_one(AppHeader).update_session(self.session_id)
+                    await self._load_session_history(existing)
+                    return
+                self.session_id = None
+                self._resume_failed = True
+        except Exception:
+            self.session_id = None
+            await self.query_one(ChatView).add_system(
+                "Could not load the requested session."
+            )
+
+    async def _ensure_chat_session(self) -> None:
+        if self.session_id is not None:
+            return
         if "session_id" not in inspect.signature(self.agent.chat).parameters:
             return
         try:
@@ -707,35 +722,18 @@ class AssistantTUI(App):
             from db.database import async_session
 
             async with async_session() as db:
-                if self._requested_session_id:
-                    existing = await session_repo.get_session(db, self._requested_session_id)
-                    if existing is not None:
-                        self.session_id = existing.id
-                        self._resumed_session = True
-                        return
-                    self._resume_failed = True
-
                 self.session_id = (await session_repo.insert_session(db, title="TUI Session")).id
+                self.query_one(AppHeader).update_session(self.session_id)
         except Exception:
+            # Preserve chat functionality when persistence is unavailable without
+            # creating a database row before the first user message.
+            self.session_id = str(uuid.uuid4())
+            self.query_one(AppHeader).update_session(self.session_id)
             await self.query_one(ChatView).add_system(
                 "Could not create a database session. Using an ephemeral TUI session."
             )
 
-    async def _load_session_history(self) -> None:
-        if not self._resumed_session:
-            return
-        try:
-            from db import repository as session_repo
-            from db.database import async_session
-
-            async with async_session() as db:
-                session = await session_repo.get_session(db, self.session_id)
-        except Exception:
-            await self.query_one(ChatView).add_system(
-                "Could not load session history."
-            )
-            return
-
+    async def _load_session_history(self, session: Any) -> None:
         if session is None:
             return
 

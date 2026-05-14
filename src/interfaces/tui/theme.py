@@ -17,6 +17,7 @@ Screen {
     background: #0F0D0A;
     color: #F5F0E8;
     layout: vertical;
+    overflow: hidden hidden;
 }
 
 /* ── 1. TOP BAR — single fixed content row ─────────────────────────── */
@@ -85,6 +86,11 @@ ChatView {
     overflow-x: hidden;
     scrollbar-size: 1 1;
     scrollbar-color: #28251F #0F0D0A;
+}
+
+ChatView.welcome-active {
+    overflow-y: hidden;
+    scrollbar-size: 0 0;
 }
 
 ScrollView {
@@ -184,16 +190,20 @@ InputRow {
 
 InputRow .input-top-rule {
     height: 1;
+    width: 100%;
     color: #28251F;
     background: transparent;
     padding: 0;
+    overflow: hidden hidden;
 }
 
 InputRow .input-bottom-rule {
     height: 1;
+    width: 100%;
     color: #28251F;
     background: transparent;
     padding: 0;
+    overflow: hidden hidden;
 }
 
 InputRow .input-line {
@@ -783,35 +793,22 @@ APIKeyAddScreen {
 /* ── Welcome screen overlay ─────────────────────────────────────────── */
 WelcomeScreen {
     layer: above;
+    position: absolute;
+    offset: 0 0;
     width: 100%;
     height: 100%;
     background: #0F0D0A;
     align: center middle;
-    layout: vertical;
+    overflow: hidden hidden;
 }
 
-#welcome-logo {
-    width: auto;
-    height: auto;
+#welcome-content {
+    width: 100%;
+    height: 100%;
     color: #7B6EAA;
     text-style: bold;
-    content-align: center middle;
-}
-
-#welcome-tagline {
-    width: auto;
-    height: 1;
-    color: #8C877E;
-    content-align: center middle;
-    margin-top: 1;
-}
-
-#welcome-hint {
-    width: auto;
-    height: 1;
-    color: #56524C;
-    content-align: center middle;
-    margin-top: 2;
+    content-align: left top;
+    overflow: hidden hidden;
 }
 """
 
