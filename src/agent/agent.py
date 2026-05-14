@@ -373,9 +373,33 @@ class Agent:
         # ── Gated tool executor ──────────────────────────────────────────────────
         # Wraps self._execute_tool to intercept needs_confirmation responses.
         # If a tool requests confirmation, we store the PendingConfirmation and
-        # return a synthetic message to the LLM so it explains the situation to
-        # the user and stops calling tools.
+        # stop the stream immediately after the current tool event. The UI renders
+        # the confirmation prompt directly; no extra LLM turn is needed.
         captured_confirmation: list[PendingConfirmation] = []  # max length 1
+
+        async def _emit_pending_confirmation(
+            pending_conf: PendingConfirmation,
+            tool_calls: list[dict],
+        ) -> AsyncIterator[StreamEvent]:
+            logger.info(
+                "Stored pending confirmation: session=%s tool=%s",
+                session_id, pending_conf.tool_name,
+            )
+            yield StreamEvent(
+                type="confirmation_required",
+                tool=pending_conf.tool_name,
+                arguments=pending_conf.arguments,
+                confirmation_reason=pending_conf.reason,
+                confirmation_preview=pending_conf.command_preview,
+                confirmation_requires_sudo_auth=pending_conf.requires_sudo_auth,
+            )
+            await memory_manager.store(
+                session_id,
+                user_request,
+                "".join(answer_parts),
+                tool_calls,
+            )
+            yield StreamEvent(type="done", tool_calls=[], next_action="await_confirmation")
 
         async def _gated_tool_executor(name: str, args: dict[str, Any]) -> dict[str, Any]:
             if name not in enabled_tool_names:
@@ -427,13 +451,8 @@ class Agent:
                     )
                     return {
                         "status": "awaiting_user_confirmation",
-                        "message": (
-                            "This command requires confirmation before execution.\n"
-                            f"Reason: {result['reason']}\n"
-                            f"Command: `{result['preview']}`\n\n"
-                            "In TUI, reply `y` to proceed or `N` (default) to cancel. "
-                            "Do NOT attempt to call this tool again."
-                        ),
+                        "reason": result["reason"],
+                        "preview": result["preview"],
                     }
 
                 elif safety_mode:
@@ -479,17 +498,10 @@ class Agent:
                     "Dangerous command intercepted: tool=%s session=%s command=%r requires_sudo_auth=%s",
                     name, session_id, result["preview"], is_sudo_command,
                 )
-                # Return a synthetic result to the LLM so it knows to
-                # warn the user and not attempt further tool calls.
                 return {
                     "status": "awaiting_user_confirmation",
-                    "message": (
-                        f"\u26a0\ufe0f This command requires explicit user confirmation before execution.\n"
-                        f"Reason: {result['reason']}\n"
-                        f"Command: `{result['preview']}`\n\n"
-                        "Explain the risk to the user and ask them to reply exactly 'YES' to proceed, "
-                        "or anything else to cancel. Do NOT attempt to call this tool again."
-                    ),
+                    "reason": result["reason"],
+                    "preview": result["preview"],
                 }
 
             return result
@@ -531,6 +543,29 @@ class Agent:
                         continue
                     yield event
 
+                    if captured_confirmation:
+                        pending_conf = captured_confirmation[0]
+                        tool_calls_json: list[dict] = []
+                        if event.type == "tool_end" and event.tool == pending_conf.tool_name:
+                            tool_calls_json.append(
+                                {
+                                    "tool": pending_conf.tool_name,
+                                    "arguments": pending_conf.arguments,
+                                    "result": {
+                                        "status": "awaiting_user_confirmation",
+                                        "reason": pending_conf.reason,
+                                        "preview": pending_conf.command_preview,
+                                    },
+                                    "error": event.error,
+                                }
+                            )
+                        async for confirmation_event in _emit_pending_confirmation(
+                            pending_conf,
+                            tool_calls_json,
+                        ):
+                            yield confirmation_event
+                        return
+
                 if stream_error:
                     is_empty_stop = (
                         stream_error.startswith("No content. Finish reason:")
@@ -552,22 +587,6 @@ class Agent:
                     yield StreamEvent(type="error", error=stream_error)
                     return
 
-                if captured_confirmation:
-                    pending_conf = captured_confirmation[0]
-                    logger.info(
-                        "Stored pending confirmation: session=%s tool=%s",
-                        session_id, pending_conf.tool_name,
-                    )
-                    yield StreamEvent(
-                        type="confirmation_required",
-                        tool=pending_conf.tool_name,
-                        arguments=pending_conf.arguments,
-                        confirmation_reason=pending_conf.reason,
-                        confirmation_preview=pending_conf.command_preview,
-                    )
-                    if last_done_event:
-                        last_done_event.next_action = "await_confirmation"
-                
                 # Persist the conversation BEFORE yielding done so that
                 # chat() can close the DB session right after this yield
                 # (and before the frontend disconnects + cancels the task).

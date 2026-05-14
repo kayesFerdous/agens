@@ -18,7 +18,7 @@
   let chatWindow;
   // Track pending dangerous command confirmations locally.
   let pendingConfirmation = $state(null);
-  // Cache confirmation data until the stream finishes.
+  // Keep the latest confirmation payload for immediate display and done-state reconciliation.
   let confirmationRequest = $state(null);
   // Prevent duplicate confirmation submissions.
   let confirmationBusy = $state(false);
@@ -226,12 +226,13 @@
         });
       },
       onConfirmationRequired(event) {
-        // Cache confirmation payload for the done event.
         confirmationRequest = {
           reason: event.reason,
           preview: event.preview,
           requires_sudo_auth: event.requires_sudo_auth ?? false,
         };
+        pendingConfirmation = confirmationRequest;
+        confirmationBusy = false;
       },
       onSudoAuthRequired(event) {
         // Cache sudo auth payload for the done event.

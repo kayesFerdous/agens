@@ -176,6 +176,7 @@ async def chat(
                         "arguments": event.arguments,
                         "reason": event.confirmation_reason,
                         "preview": event.confirmation_preview,
+                        "requires_sudo_auth": event.confirmation_requires_sudo_auth,
                     }
 
                 elif event.type == "confirmation_result":
