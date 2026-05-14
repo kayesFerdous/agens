@@ -23,9 +23,9 @@ class NoAPIKeysOnboarding(Widget):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="no-keys-box"):
-            yield Static("No API keys configured yet", classes="no-keys-title")
+            yield Static("API key required", classes="no-keys-title")
             yield Static(
-                "Add an API key now? Chat messages stay disabled until an active key exists.",
+                "Add an active key to start chatting. Commands remain available.",
                 classes="no-keys-copy",
             )
             yield Static("", classes="no-keys-option yes")
@@ -81,6 +81,6 @@ class NoAPIKeysOnboarding(Widget):
     def _option_label(self, value: str, key: str, label: str) -> str:
         selected = self._selected == value
         prefix = ">" if selected else " "
-        # Use violet for selection, not copper
-        style = "#0F0D0A on #7B6EAA" if selected else "#8C877E"
-        return f"{prefix} [bold {style}] {key} [/bold {style}]  {label}"
+        key_style = "bold #A99DD1" if selected else "#56524C"
+        label_style = "bold #F5F0E8" if selected else "#8C877E"
+        return f"[#7B6EAA]{prefix}[/] [{key_style}]{key}[/]  [{label_style}]{label}[/]"

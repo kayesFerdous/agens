@@ -391,19 +391,19 @@ InlineConfirmation.resolved .confirm-title {
 NoAPIKeysOnboarding {
     height: auto;
     width: 100%;
-    max-width: 112;
+    max-width: 84;
     background: transparent;
-    padding: 0 0 0 3;
-    margin: 1 0 0 0;
+    padding: 0 0 0 2;
+    margin: 2 0 0 0;
 }
 
 NoAPIKeysOnboarding .no-keys-box {
-    width: 74;
-    max-width: 96%;
+    width: 68;
+    max-width: 100%;
     height: auto;
-    background: #1A1713;
-    border-left: wide #7B6EAA;
-    padding: 0 1;
+    background: #0F0D0A;
+    border-left: solid #7B6EAA;
+    padding: 0 0 0 2;
 }
 
 NoAPIKeysOnboarding .no-keys-title {
@@ -416,6 +416,7 @@ NoAPIKeysOnboarding .no-keys-copy {
     height: auto;
     min-height: 1;
     color: #8C877E;
+    margin: 1 0 1 0;
 }
 
 NoAPIKeysOnboarding .no-keys-option {
@@ -423,7 +424,7 @@ NoAPIKeysOnboarding .no-keys-option {
     width: 100%;
     color: #F5F0E8;
     background: transparent;
-    margin: 1 0 0 0;
+    margin: 0;
     padding: 0;
 }
 

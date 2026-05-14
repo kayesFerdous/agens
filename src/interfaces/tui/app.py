@@ -93,15 +93,14 @@ class AssistantTUI(App):
                 "Session id not found. A new session will start with your first message."
             )
         self._update_model_bar()
-        if self._waiting_for_api_key:
-            self._welcome_active = False
-            await self._mount_no_api_keys_onboarding()
-        else:
-            self.query_one(InputRow).focus_input()
-            if not self._history_loaded:
-                await self._show_welcome_overlay()
+        self.query_one(InputRow).focus_input()
+        if not self._history_loaded:
+            await self._show_welcome_overlay()
 
     async def _mount_no_api_keys_onboarding(self) -> None:
+        if self._active_no_api_key_prompt is not None:
+            self._active_no_api_key_prompt.focus()
+            return
         input_row = self.query_one(InputRow)
         input_row.set_locked(True)
         self._active_no_api_key_prompt = await self.query_one(ChatView).add_no_api_keys_onboarding()
@@ -172,16 +171,26 @@ class AssistantTUI(App):
             return
 
         if self._waiting_for_api_key:
-            asyncio.create_task(
-                self.query_one(ChatView).add_system(
-                    "Chat messages are disabled until you add an active API key. Type [bold]/addkey[/bold] to add one."
-                )
-            )
+            asyncio.create_task(self._run_api_key_gated_turn(text))
             return
 
         self._history.add(text)
 
         asyncio.create_task(self._run_turn(text))
+
+    async def _run_api_key_gated_turn(self, text: str) -> None:
+        await self._dismiss_welcome()
+        has_active_key = await self._has_active_api_key()
+        if has_active_key is None:
+            return
+        if not has_active_key:
+            await self._mount_no_api_keys_onboarding()
+            return
+
+        self._waiting_for_api_key = False
+        self._no_api_keys_at_startup = False
+        self._history.add(text)
+        await self._run_turn(text)
 
     async def _run_command(self, text: str) -> None:
         await self._dismiss_welcome()
@@ -640,16 +649,8 @@ class AssistantTUI(App):
     async def _refresh_api_key_gate(self) -> None:
         if not self._waiting_for_api_key:
             return
-        try:
-            from db.database import async_session
-            from db.repositories.api_key import APIKeyRepository
-
-            async with async_session() as db:
-                has_active_key = await has_active_api_keys(APIKeyRepository(db))
-        except Exception as exc:
-            await self.query_one(ChatView).add_system(
-                f"[red]Could not check API keys:[/red] {exc}"
-            )
+        has_active_key = await self._has_active_api_key()
+        if has_active_key is None:
             return
 
         if not has_active_key:
@@ -670,6 +671,19 @@ class AssistantTUI(App):
             "API key ready. Chat input is now enabled."
         )
         input_row.focus_input()
+
+    async def _has_active_api_key(self) -> bool | None:
+        try:
+            from db.database import async_session
+            from db.repositories.api_key import APIKeyRepository
+
+            async with async_session() as db:
+                return await has_active_api_keys(APIKeyRepository(db))
+        except Exception as exc:
+            await self.query_one(ChatView).add_system(
+                f"[red]Could not check API keys:[/red] {exc}"
+            )
+            return None
 
     def _update_model_bar(self) -> None:
         """Refresh the footer status strip."""
