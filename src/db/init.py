@@ -11,10 +11,21 @@ from db.database import Base, engine, ensure_database_directory
 logger = get_logger(__name__)
 
 
+def _alembic_config() -> Config:
+    """Build Alembic configuration from packaged migration resources."""
+    migrations_dir = Path(__file__).resolve().parent / "migrations"
+    cfg = Config()
+    cfg.set_main_option("script_location", str(migrations_dir))
+    cfg.set_main_option("prepend_sys_path", ".")
+    cfg.set_main_option("path_separator", "os")
+    cfg.set_main_option("sqlalchemy.url", "driver://user:pass@localhost/dbname")
+    return cfg
+
+
 async def init_db():
     """Run Alembic migrations to create/update tables."""
     ensure_database_directory()
-    alembic_cfg = Config(Path(__file__).resolve().parent.parent.parent / "alembic.ini")
+    alembic_cfg = _alembic_config()
     
     # Check if alembic_version table exists
     async with engine.connect() as conn:
