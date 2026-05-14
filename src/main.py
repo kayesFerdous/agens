@@ -344,7 +344,7 @@ def _validate_interfaces(interfaces: list[str]) -> list[str]:
     return selected
 
 
-def _build_starter(name: str, agent):  # type: ignore[return]
+def _build_starter(name: str, agent, *, tui_session_id: str | None = None):  # type: ignore[return]
     """Return the start_<name>(agent) coroutine for the requested interface."""
     match name:
         case "web":
@@ -355,10 +355,10 @@ def _build_starter(name: str, agent):  # type: ignore[return]
             return start_telegram(agent)
         case "tui":
             from interfaces.tui.runner import start_tui
-            return start_tui(agent)
+            return start_tui(agent, session_id=tui_session_id)
 
 
-async def _run_interfaces(selected: list[str]) -> None:
+async def _run_interfaces(selected: list[str], *, tui_session_id: str | None = None) -> None:
     if "tui" in selected and len(selected) > 1:
         others = [s for s in selected if s != "tui"]
         error_console.print(
@@ -402,7 +402,11 @@ async def _run_interfaces(selected: list[str]) -> None:
 
     starters: list[asyncio.Task[None]] = []
     for name in selected:
-        starter = _build_starter(name, agent)
+        starter = _build_starter(
+            name,
+            agent,
+            tui_session_id=tui_session_id if name == "tui" else None,
+        )
         if starter is None:
             raise ValueError(f"Unsupported interface: {name}")
         starters.append(asyncio.create_task(starter, name=f"{name}-interface"))
@@ -430,7 +434,7 @@ async def _run_interfaces(selected: list[str]) -> None:
         _remove_interface_state(selected, pid=os.getpid())
 
 
-def _run_interface_command(interfaces: list[str]) -> None:
+def _run_interface_command(interfaces: list[str], *, tui_session_id: str | None = None) -> None:
     if not interfaces:
         error_console.print("[red]Error:[/red] No interfaces specified.")
         raise typer.Exit(code=1)
@@ -478,7 +482,7 @@ def _run_interface_command(interfaces: list[str]) -> None:
 
     if foreground:
         try:
-            _run(_run_interfaces(foreground))
+            _run(_run_interfaces(foreground, tui_session_id=tui_session_id))
         except KeyboardInterrupt:
             console.print("\nShutting down. Goodbye.")
 
@@ -503,9 +507,15 @@ def run_interfaces_process(
 @app.command("start")
 def start_interfaces(
     interfaces: list[str] = typer.Argument(..., help="Interfaces to launch."),
+    tui_session_id: str | None = typer.Option(
+        None,
+        "--session",
+        "-s",
+        help="Resume a TUI session by ID.",
+    ),
 ) -> None:
     """Start one or more interfaces."""
-    _run_interface_command(interfaces)
+    _run_interface_command(interfaces, tui_session_id=tui_session_id)
 
 
 @app.command("web")
@@ -529,9 +539,16 @@ def start_telegram_interface() -> None:
 
 
 @app.command("tui")
-def start_tui_interface() -> None:
+def start_tui_interface(
+    session_id: str | None = typer.Option(
+        None,
+        "--session",
+        "-s",
+        help="Resume a TUI session by ID.",
+    )
+) -> None:
     """Start the terminal UI interface."""
-    _run_interface_command(["tui"])
+    _run_interface_command(["tui"], tui_session_id=session_id)
 
 
 @app.command("chat")

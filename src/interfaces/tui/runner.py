@@ -10,10 +10,12 @@ from __future__ import annotations
 from .app import AssistantTUI
 
 
-async def run_tui(agent) -> None:
-    app = AssistantTUI(agent=agent)
+async def run_tui(agent, session_id: str | None = None) -> None:
+    app = AssistantTUI(agent=agent, session_id=session_id)
     await app.run_async()
+    if app.session_id:
+        print(f"Resume this session with: agens tui -s {app.session_id}")
 
 
-async def start_tui(agent) -> None:
-    await run_tui(agent)
+async def start_tui(agent, session_id: str | None = None) -> None:
+    await run_tui(agent, session_id=session_id)

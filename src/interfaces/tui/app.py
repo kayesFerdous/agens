@@ -45,11 +45,15 @@ class AssistantTUI(App):
         Binding("down", "history_next", "Next input", show=False),
     ]
 
-    def __init__(self, agent: Any, **kwargs) -> None:
+    def __init__(self, agent: Any, session_id: str | None = None, **kwargs) -> None:
         super().__init__(**kwargs)
         self.agent = agent
         self._no_api_keys_at_startup = bool(getattr(agent, "no_api_keys_at_startup", False))
-        self.session_id = str(uuid.uuid4())
+        self._requested_session_id = session_id
+        self._resume_failed = False
+        self._resumed_session = False
+        self._history_loaded = False
+        self.session_id = session_id or str(uuid.uuid4())
         self._history = InputHistory(max_size=50)
         self._stream_task: asyncio.Task[None] | None = None
         self._current_generator: AsyncIterator[Any] | None = None
@@ -86,13 +90,19 @@ class AssistantTUI(App):
         await self._ensure_repo_session()
         # Wire the session ID into the header now that it's set
         self.query_one(AppHeader).update_session(self.session_id)
+        await self._load_session_history()
+        if self._resume_failed:
+            await self.query_one(ChatView).add_system(
+                "Session id not found. Started a new TUI session."
+            )
         self._update_model_bar()
         if self._waiting_for_api_key:
             self._welcome_active = False
             await self._mount_no_api_keys_onboarding()
         else:
             self.query_one(InputRow).focus_input()
-            await self._show_welcome_overlay()
+            if not self._history_loaded:
+                await self._show_welcome_overlay()
 
     async def _mount_no_api_keys_onboarding(self) -> None:
         input_row = self.query_one(InputRow)
@@ -697,11 +707,55 @@ class AssistantTUI(App):
             from db.database import async_session
 
             async with async_session() as db:
+                if self._requested_session_id:
+                    existing = await session_repo.get_session(db, self._requested_session_id)
+                    if existing is not None:
+                        self.session_id = existing.id
+                        self._resumed_session = True
+                        return
+                    self._resume_failed = True
+
                 self.session_id = (await session_repo.insert_session(db, title="TUI Session")).id
         except Exception:
             await self.query_one(ChatView).add_system(
                 "Could not create a database session. Using an ephemeral TUI session."
             )
+
+    async def _load_session_history(self) -> None:
+        if not self._resumed_session:
+            return
+        try:
+            from db import repository as session_repo
+            from db.database import async_session
+
+            async with async_session() as db:
+                session = await session_repo.get_session(db, self.session_id)
+        except Exception:
+            await self.query_one(ChatView).add_system(
+                "Could not load session history."
+            )
+            return
+
+        if session is None:
+            return
+
+        chat = self.query_one(ChatView)
+        self._history_loaded = True
+        self._welcome_active = False
+
+        if not session.messages:
+            await chat.add_system(f"Resumed session {self.session_id}.")
+            return
+
+        messages = sorted(session.messages, key=lambda msg: msg.created_at)
+        for message in messages:
+            if message.role == "user":
+                await chat.add_user(message.content)
+            elif message.role == "assistant":
+                block = await chat.add_assistant()
+                block.append_chunk(message.content)
+
+        await chat.add_system(f"Resumed session {self.session_id}.")
 
     def _detect_model_name(self) -> str:
         llm = getattr(self.agent, "_llm", None)
