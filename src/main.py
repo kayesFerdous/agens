@@ -444,17 +444,37 @@ def _run_interface_command(interfaces: list[str]) -> None:
     background = [name for name in selected if name not in _INTERACTIVE_INTERFACES]
 
     if background:
-        try:
-            process = _spawn_interface_process(background)
-            _write_interface_state(background, pid=process.pid)
-        except OSError as exc:
-            error_console.print(f"[red]Error:[/red] Failed to launch interface process: {exc}")
-            raise typer.Exit(code=1)
+        if "telegram" in background:
+            from config.config_manager import ConfigManager
+            from rich.panel import Panel
+            config = ConfigManager().load_config()
+            if not config.telegram_token:
+                error_console.print(Panel(
+                    "[bold red]Telegram Token Not Set[/bold red]\n\n"
+                    "You need to set up your Telegram bot token to use the Telegram interface.\n\n"
+                    "If you are not sure how to configure it manually, you can start the TUI or Web session\n"
+                    "and simply tell the agent your token:\n\n"
+                    "[green]\"Here is my Telegram API key: <your_token>. Please set it up for me.\"[/green]\n\n"
+                    "The agent will automatically configure the settings for you.",
+                    title="Configuration Error",
+                    border_style="red"
+                ))
+                background.remove("telegram")
+                if "telegram" in selected:
+                    selected.remove("telegram")
+        
+        if background:
+            try:
+                process = _spawn_interface_process(background)
+                _write_interface_state(background, pid=process.pid)
+            except OSError as exc:
+                error_console.print(f"[red]Error:[/red] Failed to launch interface process: {exc}")
+                raise typer.Exit(code=1)
 
-        console.print(
-            f"Started {', '.join(background)} interface(s) in the background "
-            f"(PID {process.pid})."
-        )
+            console.print(
+                f"Started {', '.join(background)} interface(s) in the background "
+                f"(PID {process.pid})."
+            )
 
     if foreground:
         try:

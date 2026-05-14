@@ -12,6 +12,7 @@ from telegram.ext import ContextTypes, Application
 
 from agent.agent import Agent, Channel
 from core.model_catalog import ALL_MODELS, get_model_label, resolve_model
+from core.tool_groups import DEFAULT_TOOL_GROUPS
 from db.database import async_session
 from db import repository as session_repo
 from db.models import APIKey, KeyStatus
@@ -21,11 +22,12 @@ from interfaces.api_key_state import (
     has_any_api_keys,
     user_key_unavailable_message,
 )
-from .prefs import get_selected_model, set_selected_model
+from .prefs import get_selected_model, set_selected_model, get_tool_groups, set_tool_groups
 
 logger = logging.getLogger(__name__)
 
 MODEL_CALLBACK_PREFIX    = "model:"
+TOOLS_CALLBACK_PREFIX    = "tools:"
 KEY_TOGGLE_CALLBACK_PREFIX = "keytoggle:"
 KEY_BULK_CALLBACK_PREFIX   = "keybulk:"
 TELEGRAM_PLACEHOLDER_TEXT = "Thinking..."
@@ -105,6 +107,7 @@ async def help_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         f"• *{_md('/start')}* — {_md('Start a new session with the bot')}",
         f"• *{_md('/help')}* — {_md('Show this help message')}",
         f"• *{_md('/model')}* — {_md('Choose a model')}",
+        f"• *{_md('/tools')}* — {_md('Select enabled tools')}",
         f"• *{_md('/keys')}* — {_md('View API keys and toggle status')}",
         "",
         f"*{_md('How to use')}*",
@@ -224,6 +227,78 @@ async def handle_model_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) 
         parse_mode=ParseMode.MARKDOWN_V2,
     )
     await query.answer(f"Model set to {get_model_label(resolved)}")
+
+
+# ── /tools ─────────────────────────────────────────────────────────────────────
+
+def _build_tools_keyboard(current_groups: dict[str, bool]) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    for group_id in DEFAULT_TOOL_GROUPS:
+        is_enabled = current_groups.get(group_id, DEFAULT_TOOL_GROUPS[group_id])
+        prefix = "✅ " if is_enabled else "❌ "
+        rows.append([
+            InlineKeyboardButton(
+                text=f"{prefix}{group_id}",
+                callback_data=f"{TOOLS_CALLBACK_PREFIX}{group_id}",
+            )
+        ])
+    rows.append([InlineKeyboardButton(text="Close", callback_data=f"{TOOLS_CALLBACK_PREFIX}close")])
+    return InlineKeyboardMarkup(rows)
+
+
+def _render_tools_prompt() -> str:
+    return (
+        f"*{_md('Tool Groups')}*\n\n"
+        f"{_md('Tap a tool group below to toggle it on or off.')}"
+    )
+
+
+async def tools_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if not update.effective_user:
+        return
+    current_groups = get_tool_groups(update.effective_user.id)
+    await update.message.reply_text(  # type: ignore[union-attr]
+        _render_tools_prompt(),
+        reply_markup=_build_tools_keyboard(current_groups),
+        parse_mode=ParseMode.MARKDOWN_V2,
+    )
+
+
+async def handle_tools_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if not query or not query.data or not query.data.startswith(TOOLS_CALLBACK_PREFIX):
+        return
+
+    await query.answer()
+    selection = query.data[len(TOOLS_CALLBACK_PREFIX):]
+
+    if selection == "close":
+        await query.edit_message_text(
+            "*Tool picker closed*",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        return
+
+    user = update.effective_user
+    if not user:
+        await query.answer("Unable to identify the Telegram user.", show_alert=True)
+        return
+
+    if selection not in DEFAULT_TOOL_GROUPS:
+        await query.answer("Unknown tool group.", show_alert=True)
+        return
+
+    current_groups = get_tool_groups(user.id)
+    current_groups[selection] = not current_groups.get(selection, DEFAULT_TOOL_GROUPS[selection])
+    set_tool_groups(user.id, current_groups)
+
+    await query.edit_message_text(
+        _render_tools_prompt(),
+        reply_markup=_build_tools_keyboard(current_groups),
+        parse_mode=ParseMode.MARKDOWN_V2,
+    )
+    status = "enabled" if current_groups[selection] else "disabled"
+    await query.answer(f"Tool group {selection} {status}")
 
 
 # ── /keys — helpers ────────────────────────────────────────────────────────────
@@ -711,6 +786,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     agent: Agent = ctx.bot_data["agent"]
     chat_id: int = update.effective_chat.id  # type: ignore[union-attr]
     selected_model = get_selected_model(user_id)
+    tool_groups = get_tool_groups(user_id)
 
     async with async_session() as db:
         if not await has_any_api_keys(APIKeyRepository(db)):
@@ -741,6 +817,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             session_id,
             channel=Channel.TELEGRAM,
             model=selected_model,
+            tool_groups=tool_groups,
         ):
             if event.type == "tool_start":
                 await ctx.bot.send_chat_action(chat_id=chat_id, action="typing")

@@ -40,6 +40,19 @@ async def start_telegram(agent: Agent) -> None:
     config = config_mgr.load_config()
 
     if not config.telegram_token:
+        from rich.console import Console
+        from rich.panel import Panel
+        console = Console(stderr=True)
+        console.print(Panel(
+            "[bold red]Telegram Token Not Set[/bold red]\n\n"
+            "You need to set up your Telegram bot token to use the Telegram interface.\n\n"
+            "If you are not sure how to configure it manually, you can start the TUI or Web session\n"
+            "and simply tell the agent your token:\n\n"
+            "[green]\"Here is my Telegram API key: <your_token>. Please set it up for me.\"[/green]\n\n"
+            "The agent will automatically configure the settings for you.",
+            title="Configuration Error",
+            border_style="red"
+        ))
         logger.error("No Telegram token configured in config.json. Bot will not start.")
         return
 
@@ -72,8 +85,10 @@ async def start_telegram(agent: Agent) -> None:
     app.add_handler(CommandHandler("help", handlers.help_command))
     app.add_handler(CommandHandler("model", handlers.model_command))
     app.add_handler(CommandHandler("models", handlers.model_command))
+    app.add_handler(CommandHandler("tools", handlers.tools_command))
     app.add_handler(CommandHandler("keys", handlers.get_keys_command))
     app.add_handler(CallbackQueryHandler(handlers.handle_model_callback, pattern=r"^model:"))
+    app.add_handler(CallbackQueryHandler(handlers.handle_tools_callback, pattern=r"^tools:"))
     app.add_handler(CallbackQueryHandler(handlers.handle_key_toggle_callback, pattern=r"^keytoggle:"))
     app.add_handler(CallbackQueryHandler(
         handlers.handle_key_bulk_callback, pattern=f"^{handlers.KEY_BULK_CALLBACK_PREFIX}"
