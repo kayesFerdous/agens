@@ -6,6 +6,7 @@ import json
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import suppress
+from pathlib import Path
 from typing import Any
 
 from textual import events
@@ -671,22 +672,32 @@ class AssistantTUI(App):
         input_row.focus_input()
 
     def _update_model_bar(self) -> None:
-        """Refresh the status strip below the input with model name + shortcut hints."""
+        """Refresh the footer status strip."""
         from .widgets.model_select import get_model_label
         try:
             bar = self.query_one("#model-bar", Static)
             label = get_model_label(self._selected_model or self.model_name)
+            cwd = self._format_footer_cwd()
             bar.update(
                 f"  [#7B6EAA]{label}[/#7B6EAA]"
                 f"  [#56524C]·[/#56524C]"
-                f"  [#A99DD1]/models[/#A99DD1]"
+                f"  [#8C877E]{cwd}[/#8C877E]"
                 f"  [#56524C]·[/#56524C]"
-                f"  [#A99DD1]/keys[/#A99DD1]"
-                f"  [#56524C]·[/#56524C]"
-                f"  [#A99DD1]ctrl+l clear[/#A99DD1]"
+                f"  [#A99DD1]/help[/#A99DD1]"
             )
         except Exception:
             pass
+
+    def _format_footer_cwd(self) -> str:
+        try:
+            path = Path.cwd()
+            home = Path.home()
+            try:
+                return f"~/{path.relative_to(home)}" if path != home else "~"
+            except ValueError:
+                return str(path)
+        except Exception:
+            return ""
 
     async def _resume_requested_session(self) -> None:
         if "session_id" not in inspect.signature(self.agent.chat).parameters:
