@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import sys
 from pathlib import Path
 from logging.config import fileConfig
@@ -17,8 +18,12 @@ from config.settings import settings
 
 config = context.config
 
-if config.config_file_name is not None:
+if config.config_file_name is not None and not settings.PRODUCTION:
     fileConfig(config.config_file_name)
+else:
+    # Keep Alembic quiet in production; app logging controls output.
+    logging.getLogger("alembic").setLevel(logging.ERROR)
+    logging.getLogger("sqlalchemy").setLevel(logging.ERROR)
 
 target_metadata = Base.metadata
 

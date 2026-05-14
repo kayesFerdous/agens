@@ -5,7 +5,10 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
 
+from config.logging import get_logger
 from db.database import Base, engine, ensure_database_directory
+
+logger = get_logger(__name__)
 
 
 async def init_db():
@@ -30,9 +33,9 @@ async def init_db():
         
         if has_sessions:
             # Tables exist but Alembic doesn't know - stamp with current version
-            print("Existing tables found. Registering with Alembic...")
+            logger.info("Existing tables found. Registering with Alembic...")
             await asyncio.to_thread(command.stamp, alembic_cfg, "head")
-            print("Database registered with Alembic.")
+            logger.info("Database registered with Alembic.")
             return
     
     # Run migrations normally
