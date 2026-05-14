@@ -4,7 +4,7 @@ from collections.abc import Callable, AsyncGenerator, AsyncIterator, Awaitable
 from typing import Any
 from google import genai
 from google.genai import errors
-from google.genai.types import Content, FunctionDeclaration, GenerateContentConfig, Part, Tool
+from google.genai.types import Content, FunctionCallingConfig, FunctionCallingConfigMode, FunctionDeclaration, GenerateContentConfig, Part, Tool, ToolConfig
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from llm.base import LLM
@@ -201,6 +201,11 @@ class GeminiLLM(LLM):
             system_instruction=system or None,
             tools=tools,
             temperature=temperature,
+            tool_config=ToolConfig(
+                function_calling_config=FunctionCallingConfig(
+                    mode=FunctionCallingConfigMode.AUTO,   # model decides — but respects system prompt better
+                )
+            ),
         )
 
         contents: list[Content] = message_history + [
