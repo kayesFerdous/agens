@@ -3,19 +3,20 @@ from __future__ import annotations
 import asyncio
 from enum import Enum
 import inspect
+import platform
+import re
 import time
 
 from cryptography.fernet import Fernet
 from sqlalchemy.ext.asyncio.session import AsyncSession
 from config.logging import get_logger
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Awaitable, Callable
 from db.repositories.api_key import APIKeyRepository
 from llm.base import LLM
 from core.tool_groups import get_enabled_tool_names, get_enabled_tool_schemas
 from core.registry import ToolRegistry
 from core.types import (
     CONFIRMATION_TTL_SECONDS,
-    SUDO_AUTHORIZATION_TTL_SECONDS,
     PendingConfirmation,
     StreamEvent,
 )
@@ -29,6 +30,22 @@ from tools.search_web import SearchUnavailableError
 from db.database import async_session
 
 logger = get_logger(__name__)
+
+# Regex patterns that identify sudo/su commands.
+_SUDO_PATTERNS: list[re.Pattern] = [
+    re.compile(r"\bsudo\b"),
+    re.compile(r"\bsu\s+-"),
+]
+
+
+def _is_sudo_command(command: str) -> bool:
+    """Check if a command string requires sudo/su privileges."""
+    return any(pat.search(command) for pat in _SUDO_PATTERNS)
+
+
+# Type alias for the TUI password-provider callback.
+# Returns the password string, or None if the user cancelled.
+SudoPasswordProvider = Callable[[], Awaitable[str | None]]
 
 
 class Channel(str, Enum):
@@ -52,27 +69,6 @@ class Agent:
         # Keyed by session_id. One pending confirmation per session at a time.
         # In-memory only — cleared on server restart (by design).
         self._pending_confirmations: dict[str, PendingConfirmation] = {}
-        # Keyed by session_id, value is time.time() when authorized.
-        # Single-use: consumed immediately after one sudo command executes.
-        self._sudo_authorized_sessions: dict[str, float] = {}
-
-    # ------------------------------------------------------------------
-    # Sudo authorization helpers (never touch LLM context or message history)
-    # ------------------------------------------------------------------
-
-    def _is_sudo_authorized(self, session_id: str) -> bool:
-        """True if session has a valid, non-expired sudo authorization."""
-        authorized_at = self._sudo_authorized_sessions.get(session_id)
-        if authorized_at is None:
-            return False
-        if time.time() - authorized_at > SUDO_AUTHORIZATION_TTL_SECONDS:
-            self._sudo_authorized_sessions.pop(session_id, None)  # prune stale entry
-            return False
-        return True
-
-    def _consume_sudo_authorization(self, session_id: str) -> None:
-        """Single-use: remove authorization immediately after one sudo command executes."""
-        self._sudo_authorized_sessions.pop(session_id, None)
 
     # ------------------------------------------------------------------
     # Public unified entry point — all interface adapters call this.
@@ -85,6 +81,7 @@ class Agent:
         channel: Channel,
         model: str | None = None,
         tool_groups: dict[str, bool] | None = None,
+        sudo_password_provider: SudoPasswordProvider | None = None,
     ) -> AsyncIterator[StreamEvent]:
         """Unified streaming entry point for web, telegram, and TUI adapters."""
         db = async_session()
@@ -107,6 +104,7 @@ class Agent:
                 channel=channel,
                 model=model,
                 tool_groups=tool_groups,
+                sudo_password_provider=sudo_password_provider,
             ):
                 if event.type in ("done", "error"):
                     await _close_db()
@@ -128,6 +126,7 @@ class Agent:
         channel: Channel,
         model: str | None = None,
         tool_groups: dict[str, bool] | None = None,
+        sudo_password_provider: SudoPasswordProvider | None = None,
     ) -> AsyncIterator[StreamEvent]:
         memory_manager = MemoryManager(db)
 
@@ -178,26 +177,39 @@ class Agent:
                 channel == Channel.TUI and normalized_confirmation == "Y"
             )
             if is_confirmed:
-                # User explicitly approved — but sudo commands need a second factor.
-                if pending.requires_sudo_auth:
-                    if not self._is_sudo_authorized(session_id):
-                        # Authorization not present or expired — ask frontend to prompt.
-                        logger.info(
-                            "sudo_auth_required: session=%s command=%r",
-                            session_id, pending.command_preview,
+                # Check if this is a sudo command that needs a password (TUI only).
+                use_sudo = bool(pending.arguments.get("use_sudo", False))
+                if use_sudo:
+                    if sudo_password_provider is None:
+                        # Web/Telegram should never reach here — but guard anyway.
+                        msg = (
+                            "Sudo commands cannot be executed via this interface for security reasons. "
+                            "Please use the TUI (`agens tui`) to run this command."
                         )
-                        # Re-store the pending confirmation so the user can retry after authorizing.
-                        self._pending_confirmations[session_id] = pending
-                        yield StreamEvent(
-                            type="sudo_auth_required",
-                            confirmation_preview=pending.command_preview,
-                        )
-                        yield StreamEvent(type="done", tool_calls=[], next_action="await_sudo_auth")
+                        yield StreamEvent(type="confirmation_result", message=msg)
+                        yield StreamEvent(type="token", content=msg)
+                        await memory_manager.store(session_id, user_request, msg, [])
+                        yield StreamEvent(type="done", tool_calls=[], next_action=None)
                         return
 
-                    # Authorization valid — consume it (single-use) before executing.
-                    self._consume_sudo_authorization(session_id)
-                    confirmed_args = {**pending.arguments, "confirmed": True, "use_sudo": True}
+                    # Prompt the user for their sudo password (TUI callback).
+                    password = await sudo_password_provider()
+                    if password is None:
+                        # User cancelled the password prompt.
+                        msg = "Sudo authorization cancelled. The command was not executed."
+                        logger.info("Sudo password prompt cancelled: session=%s", session_id)
+                        yield StreamEvent(type="confirmation_result", message=msg)
+                        yield StreamEvent(type="token", content=msg)
+                        await memory_manager.store(session_id, user_request, msg, [])
+                        yield StreamEvent(type="done", tool_calls=[], next_action=None)
+                        return
+
+                    confirmed_args = {
+                        **pending.arguments,
+                        "confirmed": True,
+                        "use_sudo": True,
+                        "sudo_password": password,
+                    }
                 else:
                     confirmed_args = {**pending.arguments, "confirmed": True}
 
@@ -307,7 +319,6 @@ class Agent:
                 arguments=pending_conf.arguments,
                 confirmation_reason=pending_conf.reason,
                 confirmation_preview=pending_conf.command_preview,
-                confirmation_requires_sudo_auth=pending_conf.requires_sudo_auth,
             )
             await memory_manager.store(
                 session_id,
@@ -327,7 +338,41 @@ class Agent:
             result = await self._execute_tool(name, args)
 
             if result.get("status") == "needs_confirmation":
+                cmd_str = args.get("command", "")
+                is_sudo = _is_sudo_command(cmd_str)
+
+                # ── Web & Telegram: block sudo commands entirely ─────────────
+                if is_sudo and channel in (Channel.WEB, Channel.TELEGRAM):
+                    channel_name = "web" if channel == Channel.WEB else "Telegram"
+                    logger.info(
+                        "Sudo command blocked on %s: tool=%s session=%s",
+                        channel_name, name, session_id,
+                    )
+                    return {
+                        "status": "blocked_channel",
+                        "message": (
+                            "Sudo commands cannot be executed via the "
+                            f"{channel_name} interface for security reasons. "
+                            "Please use the TUI (`agens tui`) to run this command."
+                        ),
+                    }
+
+                # ── Windows: block sudo everywhere ──────────────────────────
+                if is_sudo and platform.system() == "Windows":
+                    logger.info(
+                        "Sudo command blocked on Windows: tool=%s session=%s",
+                        name, session_id,
+                    )
+                    return {
+                        "status": "blocked_platform",
+                        "message": (
+                            "Privileged execution (sudo) is not supported on Windows. "
+                            "Please run this command in a Linux/macOS environment or WSL."
+                        ),
+                    }
+
                 if channel == Channel.TELEGRAM:
+                    # Telegram blocks ALL confirmation-required commands.
                     logger.info(
                         "Confirmation-required command blocked on telegram: tool=%s session=%s",
                         name, session_id,
@@ -340,16 +385,10 @@ class Agent:
                             "terminal interface to run this command."
                         ),
                     }
-                elif channel == Channel.TUI:
-                    # In TUI, bypass safety-mode blocking and use a lightweight y/N flow.
-                    from tools.shell_command import _NEEDS_CONFIRMATION as _sudo_patterns
 
-                    cmd_str = args.get("command", "")
-                    is_sudo_command = any(
-                        pat.search(cmd_str) for pat, _ in _sudo_patterns
-                        if pat.pattern in (r"\bsudo\b", r"\bsu\s+-")
-                    )
-                    pending_args = {**args, "use_sudo": True} if is_sudo_command else args
+                elif channel == Channel.TUI:
+                    # In TUI, use a lightweight y/N flow.
+                    pending_args = {**args, "use_sudo": True} if is_sudo else args
                     confirmation = PendingConfirmation(
                         tool_name=name,
                         arguments=pending_args,
@@ -357,7 +396,6 @@ class Agent:
                         command_preview=result["preview"],
                         created_at=time.time(),
                         session_id=session_id,
-                        requires_sudo_auth=False,
                     )
                     self._pending_confirmations[session_id] = confirmation
                     captured_confirmation.append(confirmation)
@@ -374,7 +412,7 @@ class Agent:
                 elif safety_mode:
                     # Safety mode ON — permanently block; no path to execution.
                     logger.info(
-                        "sudo blocked by safety mode: tool=%s session=%s",
+                        "Command blocked by safety mode: tool=%s session=%s",
                         name, session_id,
                     )
                     return {
@@ -382,20 +420,11 @@ class Agent:
                         "message": (
                             "Safety mode is ON. This command is blocked and cannot be executed "
                             "through the assistant. Disable safety mode in Settings to enable "
-                            "the authorization flow."
+                            "the confirmation flow."
                         ),
                     }
 
-                # Safety mode OFF — flag whether this command needs sudo authorization.
-                # Re-use _NEEDS_CONFIRMATION from the tool module so detection stays
-                # consistent — one source of truth for which patterns need sudo.
-                from tools.shell_command import _NEEDS_CONFIRMATION as _sudo_patterns
-                cmd_str = args.get("command", "")
-                is_sudo_command = any(
-                    pat.search(cmd_str) for pat, _ in _sudo_patterns
-                    if pat.pattern in (r"\bsudo\b", r"\bsu\s+-")
-                )
-
+                # Safety mode OFF on Web — normal confirmation flow (non-sudo only).
                 confirmation = PendingConfirmation(
                     tool_name=name,
                     arguments=args,
@@ -403,13 +432,12 @@ class Agent:
                     command_preview=result["preview"],
                     created_at=time.time(),
                     session_id=session_id,
-                    requires_sudo_auth=is_sudo_command,  # sudo commands need extra secret
                 )
                 self._pending_confirmations[session_id] = confirmation
                 captured_confirmation.append(confirmation)
                 logger.info(
-                    "Dangerous command intercepted: tool=%s session=%s command=%r requires_sudo_auth=%s",
-                    name, session_id, result["preview"], is_sudo_command,
+                    "Dangerous command intercepted: tool=%s session=%s command=%r",
+                    name, session_id, result["preview"],
                 )
                 return {
                     "status": "awaiting_user_confirmation",

@@ -1,22 +1,17 @@
 # interfaces/api/chat/router.py — thin adapter: validate → agent.chat() → SSE stream
 from __future__ import annotations
 
-import hmac
 import asyncio
 import json
-import time
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
 
 from agent.agent import Channel
 from db.database import async_session
 from db import repository as session_repo
 from interfaces.api.chat.schemas import ChatRequest
 from config.logging import get_logger
-from config.settings import settings
-from core.types import SUDO_AUTHORIZATION_TTL_SECONDS
 from db.repositories.api_key import APIKeyRepository
 from interfaces.api_key_state import (
     NO_API_KEYS_SETUP_MESSAGE,
@@ -34,55 +29,6 @@ def _active_chat_tasks(request: Request) -> dict[str, asyncio.Task]:
         tasks = {}
         request.app.state.active_chat_tasks = tasks
     return tasks
-
-
-class SudoAuthRequest(BaseModel):
-    """Request body for POST /authorize-sudo."""
-    session_id: str
-    secret: str  # the app-level secret — NOT the OS password
-
-
-@router.post("/authorize-sudo")
-async def authorize_sudo(body: SudoAuthRequest, request: Request):
-    """Verify the app-level secret and grant single-use sudo authorization for a session.
-
-    Security properties:
-    - Uses hmac.compare_digest (timing-safe — not ==)
-    - Never logs the provided secret
-    - Never stores the secret anywhere
-    - Does NOT write to DB or message history (intentional — no audit trail in LLM context)
-    """
-    agent = request.app.state.agent
-    if agent is None:
-        raise HTTPException(status_code=503, detail="Agent not initialized.")
-
-    if not settings.AGENT_SUDO_SECRET:
-        raise HTTPException(
-            status_code=501,
-            detail="Sudo authorization is not configured on this server.",
-        )
-
-    # Timing-safe comparison — never use == for secrets
-    is_valid = hmac.compare_digest(
-        body.secret.encode("utf-8"),
-        settings.AGENT_SUDO_SECRET.encode("utf-8"),
-    )
-
-    if not is_valid:
-        # Log session_id only — never log the provided secret
-        logger.warning(
-            "Sudo authorization failed — invalid secret",
-            extra={"session_id": body.session_id},
-        )
-        raise HTTPException(status_code=403, detail="Invalid secret.")
-
-    agent._sudo_authorized_sessions[body.session_id] = time.time()
-    logger.info(
-        "Sudo authorization granted",
-        extra={"session_id": body.session_id, "expires_in": SUDO_AUTHORIZATION_TTL_SECONDS},
-    )
-
-    return {"authorized": True, "expires_in": SUDO_AUTHORIZATION_TTL_SECONDS}
 
 
 @router.post("")
@@ -176,7 +122,6 @@ async def chat(
                         "arguments": event.arguments,
                         "reason": event.confirmation_reason,
                         "preview": event.confirmation_preview,
-                        "requires_sudo_auth": event.confirmation_requires_sudo_auth,
                     }
 
                 elif event.type == "confirmation_result":
@@ -186,14 +131,6 @@ async def chat(
                         "result": event.result,
                         "error": event.error,
                         "message": event.message,
-                    }
-
-                elif event.type == "sudo_auth_required":
-                    # Tell the frontend to prompt for the app secret via POST /authorize-sudo.
-                    # session_id is deliberately omitted — frontend already holds it.
-                    payload = {
-                        "type": "sudo_auth_required",
-                        "preview": event.confirmation_preview,
                     }
 
                 elif event.type == "error":

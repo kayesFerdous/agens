@@ -174,7 +174,14 @@ class ShellCommandTool(Tool):
 
         # ── sudo execution path (confirmed=True and use_sudo=True) ────────────────
         if use_sudo and confirmed:
-            return await self._execute_with_sudo(command)
+            sudo_password: str | None = kwargs.get("sudo_password")
+            if not sudo_password:
+                return {
+                    "status": "error",
+                    "error": "Sudo password was not provided. Cannot execute privileged command.",
+                    "command": command,
+                }
+            return await self._execute_with_sudo(command, sudo_password)
 
         # ── execute ───────────────────────────────────────────────────────────
         try:
@@ -218,7 +225,7 @@ class ShellCommandTool(Tool):
 
     # ── Sudo execution — password via stdin pipe ONLY ───────────────────────
 
-    async def _execute_with_sudo(self, command: str) -> dict:
+    async def _execute_with_sudo(self, command: str, password: str) -> dict:
         """Execute command with sudo via stdin pipe.
 
         Security guarantees:
@@ -228,11 +235,6 @@ class ShellCommandTool(Tool):
         - Password bytes are zeroed immediately after communicate()
         - Password is never logged under any log level
         """
-        from config.settings import settings  # local import avoids circular dep at module load
-
-        # Dereference SecretStr — this value is used exactly once below, then overwritten
-        password = settings.SYSTEM_SUDO_PASSWORD.get_secret_value()
-
         # sudo -S reads password from stdin; -p "" suppresses the password prompt.
         command_parts = shlex.split(command)
         if command_parts and command_parts[0] == "sudo":

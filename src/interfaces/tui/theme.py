@@ -811,6 +811,69 @@ WelcomeScreen {
     content-align: left top;
     overflow: hidden hidden;
 }
+/* ── Sudo password prompt ───────────────────────────────────────────── */
+SudoPasswordPrompt {
+    height: auto;
+    width: 100%;
+    max-width: 112;
+    background: transparent;
+    padding: 0 0 0 3;
+    margin: 1 0;
+}
+
+SudoPasswordPrompt .sudo-prompt-box {
+    width: 72;
+    max-width: 96%;
+    height: auto;
+    background: #1A1713;
+    border-left: wide #C97C4A;
+    border-top: none;
+    border-right: none;
+    border-bottom: none;
+    padding: 0 1;
+}
+
+SudoPasswordPrompt .sudo-prompt-title {
+    height: 1;
+    width: 100%;
+    color: #C97C4A;
+    text-style: bold;
+    padding: 0;
+}
+
+SudoPasswordPrompt .sudo-prompt-hint {
+    height: auto;
+    min-height: 1;
+    width: 100%;
+    color: #8C877E;
+    padding: 0;
+}
+
+SudoPasswordPrompt .sudo-prompt-input {
+    height: 1;
+    width: 100%;
+    background: #0F0D0A;
+    border: solid #28251F;
+    color: #F5F0E8;
+    padding: 0 1;
+    margin: 1 0 0 0;
+}
+
+SudoPasswordPrompt .sudo-prompt-input:focus {
+    border: solid #C97C4A;
+}
+
+SudoPasswordPrompt .sudo-prompt-keys {
+    height: 1;
+    width: 100%;
+    color: #56524C;
+    padding: 0;
+    margin: 0;
+}
+
+SudoPasswordPrompt.resolved {
+    display: none;
+}
 """
 
 DEFAULT_CSS = ASSISTANT_CSS

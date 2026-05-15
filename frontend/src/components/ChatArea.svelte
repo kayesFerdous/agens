@@ -6,7 +6,7 @@
     restoredConfirmation,
     toolGroups,
   } from "../lib/store.js";
-  import { streamChat, authorizeSudo, stopChat } from "../lib/api.js";
+  import { streamChat, stopChat } from "../lib/api.js";
   import { sessionService } from "../lib/sessionService.svelte.js";
 
   import WelcomeScreen from "./WelcomeScreen.svelte";
@@ -22,15 +22,7 @@
   let confirmationRequest = $state(null);
   // Prevent duplicate confirmation submissions.
   let confirmationBusy = $state(false);
-  // Track sudo secret modal flow state for privileged commands.
-  let sudoAuthPending = $state(null);
-  let sudoAuthRequest = $state(null);
-  let sudoSecretInput = $state("");
-  let sudoAuthLoading = $state(false);
-  let sudoAuthError = $state(null);
-  let sudoAuthSuccess = $state(false);
-  // Keep a ref for autofocus when the modal opens.
-  let sudoInputRef = $state();
+
 
   // Keep the view pinned to the latest content in runes mode.
   $effect(() => {
@@ -48,12 +40,7 @@
     }
   });
 
-  // Focus the secret input whenever sudo authorization is requested.
-  $effect(() => {
-    if (sudoAuthPending && sudoInputRef) {
-      sudoInputRef.focus();
-    }
-  });
+
 
   function finalizeStream() {
     currentStream = null;
@@ -119,12 +106,8 @@
     if (!text || $isStreaming || currentStream) return;
 
     confirmationRequest = null;
-    sudoAuthRequest = null;
     pendingConfirmation = null;
-    sudoAuthPending = null;
     confirmationBusy = false;
-    sudoAuthError = null;
-    sudoAuthSuccess = false;
 
     const sessionId = $activeSessionId;
 
@@ -229,22 +212,14 @@
         confirmationRequest = {
           reason: event.reason,
           preview: event.preview,
-          requires_sudo_auth: event.requires_sudo_auth ?? false,
         };
         pendingConfirmation = confirmationRequest;
         confirmationBusy = false;
       },
-      onSudoAuthRequired(event) {
-        // Cache sudo auth payload for the done event.
-        sudoAuthRequest = { preview: event.preview };
-      },
+
       onConfirmationResult(event) {
-        // Clear any pending confirmation or sudo auth state when a result arrives.
+        // Clear any pending confirmation state when a result arrives.
         pendingConfirmation = null;
-        sudoAuthPending = null;
-        sudoAuthLoading = false;
-        sudoAuthError = null;
-        sudoAuthSuccess = false;
         confirmationBusy = false;
         if (event.message) {
           messages.update((m) => [
@@ -305,29 +280,12 @@
         if (nextAction === "await_confirmation") {
           pendingConfirmation = confirmationRequest || null;
           confirmationBusy = false;
-          sudoAuthPending = null;
-          sudoAuthRequest = null;
-          sudoAuthError = null;
-          sudoAuthSuccess = false;
-        } else if (nextAction === "await_sudo_auth") {
-          pendingConfirmation = null;
-          confirmationBusy = false;
-          sudoAuthPending = sudoAuthRequest || null;
-          sudoSecretInput = "";
-          sudoAuthLoading = false;
-          sudoAuthError = null;
-          sudoAuthSuccess = false;
         } else {
           pendingConfirmation = null;
-          sudoAuthPending = null;
           confirmationBusy = false;
-          sudoAuthLoading = false;
-          sudoAuthError = null;
-          sudoAuthSuccess = false;
         }
 
         confirmationRequest = null;
-        sudoAuthRequest = null;
 
         if (shouldRefreshSessions) {
           activeSessionId.set(sessionId);
@@ -341,13 +299,8 @@
       onError(err) {
         finalizeStream();
         confirmationRequest = null;
-        sudoAuthRequest = null;
         pendingConfirmation = null;
-        sudoAuthPending = null;
         confirmationBusy = false;
-        sudoAuthLoading = false;
-        sudoAuthError = null;
-        sudoAuthSuccess = false;
         messages.update((m) => {
           const am = m.find((x) => x.id === assistantId);
           if (am) {
@@ -371,74 +324,13 @@
   function handleConfirmation(choice) {
     if (confirmationBusy) return;
 
-    // Bug 2 fix: Frontend-first sudo secret collection.
-    // If user clicked YES and it needs sudo, show the secret modal immediately.
-    // Do NOT send the confirmation message to the backend yet.
-    if (
-      choice === "YES" &&
-      pendingConfirmation &&
-      pendingConfirmation.requires_sudo_auth
-    ) {
-      sudoAuthPending = pendingConfirmation;
-      sudoSecretInput = "";
-      sudoAuthLoading = false;
-      sudoAuthError = null;
-      sudoAuthSuccess = false;
-      return;
-    }
-
-    // Otherwise, normal confirmation flow (or Cancel).
+    // Normal confirmation flow.
     confirmationBusy = true;
     pendingConfirmation = null;
     handleSubmit(choice);
   }
 
-  async function handleSudoAuth() {
-    // Authorize sudo with the secret before sending the second YES.
-    if (sudoAuthLoading || !sudoSecretInput.trim()) return;
-    sudoAuthLoading = true;
-    sudoAuthError = null;
-    try {
-      const sessionId = $activeSessionId;
-      const res = await authorizeSudo(sessionId, sudoSecretInput.trim());
-      if (res.ok) {
-        sudoAuthSuccess = true;
-        sudoSecretInput = "";
-        sudoAuthPending = null;
-        await handleSubmit("YES");
-      } else {
-        sudoAuthError = res.data?.detail ?? "Authorization failed. Try again.";
-      }
-    } catch {
-      sudoAuthError = "Network error. Please try again.";
-    } finally {
-      sudoAuthLoading = false;
-      sudoAuthSuccess = false;
-    }
-  }
 
-  function cancelSudoAuth() {
-    // Close the modal and optionally cancel the pending action.
-    sudoAuthPending = null;
-    sudoSecretInput = "";
-    sudoAuthError = null;
-    sudoAuthLoading = false;
-    sudoAuthSuccess = false;
-    handleSubmit("No");
-  }
-
-  function handleSudoKeydown(e) {
-    // Allow Enter to submit the secret without using the chat input.
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleSudoAuth();
-    }
-  }
-
-  function handleSudoBackdrop() {
-    // Only allow closing the modal when not authorizing.
-    if (!sudoAuthLoading) cancelSudoAuth();
-  }
 </script>
 
 <div class="chat-container">
@@ -466,13 +358,7 @@
             </div>
             <code class="confirm-code">{pendingConfirmation.preview}</code>
             <p class="confirm-reason">{pendingConfirmation.reason}</p>
-            {#if pendingConfirmation.requires_sudo_auth}
-              <!-- Warn that a secret will be required after confirming. -->
-              <p class="confirm-sudo-note">
-                This command requires elevated privileges. After confirming,
-                enter your agent secret.
-              </p>
-            {/if}
+
             <div class="confirm-actions">
               <button
                 class="confirm-yes"
@@ -499,77 +385,19 @@
   <div class="input-zone">
     <div class="input-wrapper">
       <ChatInput
-        disabled={$isStreaming || !!pendingConfirmation || !!sudoAuthPending}
+        disabled={$isStreaming || !!pendingConfirmation}
         showStop={$isStreaming}
         onsubmit={handleSubmit}
         onstop={handleStop}
       />
     </div>
-    {#if pendingConfirmation || sudoAuthPending}
+    {#if pendingConfirmation}
       <!-- Hint is only visible when authorization is in progress. -->
-      <p class="confirm-hint">Complete the authorization above to continue</p>
+      <p class="confirm-hint">Complete the confirmation above to continue</p>
     {/if}
   </div>
 
-  {#if sudoAuthPending}
-    <!-- Modal overlay for sudo secret authorization. -->
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="sudo-modal-overlay" role="presentation" onclick={handleSudoBackdrop}>
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <div class="sudo-modal" role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => e.stopPropagation()}>
-        <div class="sudo-modal-header">
-          <div class="sudo-modal-icon" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <rect x="4" y="11" width="16" height="10" rx="2"></rect>
-              <path d="M8 11V7a4 4 0 0 1 8 0v4"></path>
-            </svg>
-          </div>
-          <div>
-            <h2 class="sudo-modal-title">Authorize sudo command</h2>
-            <p class="sudo-modal-subtitle">
-              Enter your agent secret to authorize this command. This is not
-              your system password.
-            </p>
-          </div>
-        </div>
-        <code class="sudo-code">{sudoAuthPending.preview}</code>
-        <input
-          class="sudo-input"
-          type="password"
-          bind:this={sudoInputRef}
-          bind:value={sudoSecretInput}
-          onkeydown={handleSudoKeydown}
-          placeholder="Agent secret"
-          disabled={sudoAuthLoading}
-        />
-        {#if sudoAuthError}
-          <p class="sudo-error">{sudoAuthError}</p>
-        {/if}
-        <div class="sudo-actions">
-          <button
-            class="sudo-btn-primary"
-            onclick={handleSudoAuth}
-            disabled={sudoAuthLoading || !sudoSecretInput.trim()}
-          >
-            {#if sudoAuthLoading}
-              Authorizing...
-            {:else if sudoAuthSuccess}
-              Authorized
-            {:else}
-              Authorize
-            {/if}
-          </button>
-          <button
-            class="sudo-btn-ghost"
-            onclick={cancelSudoAuth}
-            disabled={sudoAuthLoading}
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
-  {/if}
+
 </div>
 
 <style>
@@ -704,12 +532,7 @@
     line-height: 1.5;
   }
 
-  .confirm-sudo-note {
-    margin: 0;
-    color: var(--ag-warm);
-    font-size: 12px;
-    line-height: 1.4;
-  }
+
 
   .confirm-actions {
     display: flex;
@@ -751,127 +574,5 @@
     letter-spacing: 0.01em;
   }
 
-  /* Sudo authorization modal styles. */
-  .sudo-modal-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 2000;
-    background: rgba(28, 24, 20, 0.42);
-    backdrop-filter: blur(8px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-  }
 
-  .sudo-modal {
-    width: 100%;
-    max-width: 520px;
-    background: var(--ag-warm-white);
-    border: 0.5px solid var(--ag-border);
-    border-radius: 24px;
-    padding: 24px;
-    box-shadow: none;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-
-  .sudo-modal-header {
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
-  }
-
-  .sudo-modal-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    background: var(--ag-warm-light);
-    color: var(--ag-warm);
-    border: 0.5px solid rgba(201,124,74,0.25);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-  }
-
-  .sudo-modal-title {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 500;
-    color: var(--ag-ink);
-  }
-
-  .sudo-modal-subtitle {
-    margin: 4px 0 0;
-    font-size: 13px;
-    color: var(--ag-ink-2);
-    line-height: 1.5;
-  }
-
-  .sudo-code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-      "Liberation Mono", "Courier New", monospace;
-    background: var(--ag-warm-white);
-    color: var(--ag-ink-2);
-    border: 0.5px solid var(--ag-border);
-    padding: 10px 12px;
-    border-radius: 8px;
-    display: block;
-    white-space: pre-wrap;
-  }
-
-  .sudo-input {
-    width: 100%;
-    padding: 12px 14px;
-    border-radius: 12px;
-    border: 0.5px solid var(--ag-border);
-    background: var(--ag-warm-white);
-    color: var(--ag-ink);
-    font-size: 14px;
-    font-family: inherit;
-  }
-
-  .sudo-input:disabled {
-    opacity: 0.7;
-  }
-
-  .sudo-error {
-    margin: 0;
-    font-size: 12px;
-    color: var(--ag-warm);
-  }
-
-  .sudo-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-  }
-
-  .sudo-btn-primary {
-    padding: 10px 16px;
-    border-radius: 12px;
-    border: 0.5px solid rgba(201,124,74,0.25);
-    background: var(--ag-warm-light);
-    color: var(--ag-warm);
-    font-weight: 500;
-    cursor: pointer;
-  }
-
-  .sudo-btn-ghost {
-    padding: 10px 16px;
-    border-radius: 12px;
-    border: 0.5px solid var(--ag-border);
-    background: transparent;
-    color: var(--ag-ink);
-    font-weight: 500;
-    cursor: pointer;
-  }
-
-  .sudo-btn-primary:disabled,
-  .sudo-btn-ghost:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
 </style>

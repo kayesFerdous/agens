@@ -25,6 +25,7 @@ from .widgets.horizontal_rule import HorizontalRule
 from .widgets.inline_confirmation import ConfirmationRequest, InlineConfirmation
 from .widgets.input_row import InputRow
 from .widgets.no_api_keys import NoAPIKeysOnboarding
+from .widgets.sudo_prompt import SudoPasswordPrompt
 from .widgets.tool_block import ToolBlock
 from .widgets.welcome_screen import WelcomeScreen
 from .widgets.tool_group import ToolGroup
@@ -305,8 +306,6 @@ class AssistantTUI(App):
             await self._add_assistant_error(user_key_unavailable_message(str(error)))
         elif kind == "confirmation_required":
             await self._show_confirmation_event(event, kind)
-        elif kind == "sudo_auth_required":
-            await self._show_confirmation_event(event, kind)
         elif kind == "confirmation_result":
             await self._render_confirmation_result(event)
         elif kind == "done":
@@ -393,8 +392,6 @@ class AssistantTUI(App):
             self._event_value(event, "confirmation_reason", None)
             or "This can modify system-level files or configuration."
         )
-        if kind == "sudo_auth_required":
-            warning = "Sudo authorization is required before this command can continue."
 
         async with self._confirmation_lock:
             if self._pending_confirmation_response is not None:
@@ -402,7 +399,7 @@ class AssistantTUI(App):
 
             input_row = self.query_one(InputRow)
             request = ConfirmationRequest(
-                title="Sudo Privileges Required",
+                title="Confirm Command",
                 warning=warning,
                 command=preview,
             )
@@ -568,6 +565,7 @@ class AssistantTUI(App):
                 Channel.TUI,
                 model=self._selected_model,
                 tool_groups=self._tool_groups,
+                sudo_password_provider=self._prompt_sudo_password,
             )
         return self.agent.chat(text)
 
@@ -783,6 +781,25 @@ class AssistantTUI(App):
     def _detect_model_name(self) -> str:
         llm = getattr(self.agent, "_llm", None)
         return str(getattr(llm, "model_name", None) or getattr(self.agent, "model_name", "assistant"))
+
+    async def _prompt_sudo_password(self) -> str | None:
+        """Mount the SudoPasswordPrompt widget and wait for user input.
+
+        Returns the password string, or None if the user cancelled.
+        The password is never stored, logged, or sent to the LLM.
+        """
+        chat = self.query_one(ChatView)
+        was_near_bottom = chat.is_near_bottom()
+        prompt = SudoPasswordPrompt()
+        await chat.mount(prompt)
+        chat.maybe_scroll_end(was_near_bottom=was_near_bottom)
+
+        try:
+            password = await prompt.wait()
+        finally:
+            await prompt.remove()
+
+        return password
 
     @property
     def _is_streaming(self) -> bool:

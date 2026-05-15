@@ -1,7 +1,7 @@
 # config/settings.py
 from __future__ import annotations
 from pathlib import Path
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .bootstrap import managed_settings_files
@@ -32,14 +32,10 @@ class Settings(BaseSettings):
     QUOTA_EXHAUSTED_COOLDOWN: float = 86400.0  # seconds (24 hours - Google quota resets daily)
     FERNET_SECRET: str
 
-    # ── Sudo authorization settings ───────────────────────────────────────────
-    # true  = sudo commands are permanently blocked (safe default)
-    # false = sudo allowed after confirmation + app secret verification
+    # ── Safety mode (blocks destructive commands by default) ────────────────────
+    # true  = sudo commands require user confirmation (safe default)
+    # false = sudo commands are still blocked on web/telegram; TUI prompts for password
     SAFETY_MODE_ENABLED: bool = True
-    # App-level secret users supply via /api/chat/authorize-sudo — NOT the OS password
-    AGENT_SUDO_SECRET: str = ""
-    # OS sudo password for the agent user — piped to stdin, never logged or in args
-    SYSTEM_SUDO_PASSWORD: SecretStr = SecretStr("")  # type: ignore[assignment]
 
     # Web interface
     WEB_HOST: str = "0.0.0.0"

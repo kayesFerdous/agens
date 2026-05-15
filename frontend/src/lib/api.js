@@ -66,7 +66,7 @@ export async function getSetupStatus() {
  * @property {string} session_id
  * @property {any} usage
  * @property {any[]} tool_history
- * @property {"await_confirmation"|"await_sudo_auth"|null} [next_action]
+ * @property {"await_confirmation"|null} [next_action]
  */
 
 export function streamChat(sessionId, message, model, toolGroups, callbacks) {
@@ -132,10 +132,7 @@ export function streamChat(sessionId, message, model, toolGroups, callbacks) {
               // Forward confirmation results to the UI handler.
               if (callbacks.onConfirmationResult) callbacks.onConfirmationResult(event);
               break;
-            case 'sudo_auth_required':
-              // Forward sudo auth requirements to the UI handler.
-              if (callbacks.onSudoAuthRequired) callbacks.onSudoAuthRequired(event);
-              break;
+
             case 'tool_start':
               callbacks.onToolStart(event.tool, event.arguments);
               break;
@@ -243,16 +240,7 @@ export async function deleteApiKey(keyId) {
   }
 }
 
-export async function authorizeSudo(sessionId, secret) {
-  // Authorize sudo commands with the backend before sending the second YES.
-  const res = await fetch('/chat/authorize-sudo', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId, secret })
-  });
-  const data = await res.json().catch(() => ({}));
-  return { ok: res.ok, data };
-}
+
 
 // --- Settings Endpoints ---
 

@@ -115,7 +115,6 @@
               ?? pendingTc.arguments?.command
               ?? '(unknown command)',
             reason: pendingTc.result.reason ?? 'Dangerous command — requires confirmation.',
-            requires_sudo_auth: !!(pendingTc.arguments?.command?.match(/\bsudo\b/)),
           });
         } else {
           restoredConfirmation.set(null);

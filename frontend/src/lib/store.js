@@ -31,7 +31,7 @@ export const toolGroups = writable(loadToolGroups());
  * this once on mount / reactive update and initialises its local
  * pendingConfirmation state, then clears the store.
  *
- * Shape: { preview: string, reason: string, requires_sudo_auth: boolean } | null
+ * Shape: { preview: string, reason: string } | null
  */
 export const restoredConfirmation = writable(null);
 const initialPage = typeof window !== 'undefined'
