@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import ctypes
 import errno
+import functools
 import json
 import os
 import signal
@@ -32,13 +33,13 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from app_bootstrap import bootstrap_database, bootstrap_runtime
 from config.config_manager import ConfigManager
 from config.settings import settings
-from config.runtime import get_runtime_root, initialize_runtime
+from config.runtime import get_runtime_root
 from config.logging import get_logger, setup_logging
 from cryptography.fernet import Fernet
 from db.database import async_session
-from db.init import init_db
 from db.models import KeyStatus
 from db.repositories.api_key import APIKeyRepository
 from services.api_key_manager import APIKeyManager
@@ -49,8 +50,6 @@ from interfaces.api_key_state import (
     has_any_api_keys,
 )
 
-
-initialize_runtime()
 
 setup_logging("ERROR" if settings.PRODUCTION else "INFO")
 logger = get_logger(__name__)
@@ -88,9 +87,13 @@ def _run(coro):
         raise
 
 
-def _ensure_db_ready() -> None:
-    initialize_runtime()
-    _run(init_db())
+def _with_database(command):
+    @functools.wraps(command)
+    def wrapper(*args, **kwargs):
+        _run(bootstrap_database())
+        return command(*args, **kwargs)
+
+    return wrapper
 
 
 def _mask_secret(value: str, visible: int = 4) -> str:
@@ -370,7 +373,7 @@ async def _run_interfaces(selected: list[str], *, tui_session_id: str | None = N
     from db.database import async_session
     from interfaces.dormant_agent import build_dormant_agent
 
-    await init_db()
+    await bootstrap_database()
 
     async with async_session() as db:
         no_api_keys = not await has_any_api_keys(APIKeyRepository(db))
@@ -552,13 +555,12 @@ def start_tui_interface(
 
 
 @app.command("chat")
+@_with_database
 def chat_command(
     message: str = typer.Argument(..., help="Message to send to the assistant."),
     model: str | None = typer.Option(None, "--model", "-m", help="Model to use."),
 ) -> None:
     """Send one message from the CLI."""
-    _ensure_db_ready()
-
     async def _chat_once() -> tuple[int, str]:
         from agent.agent import Channel
         from agent.factory import build_agent
@@ -608,14 +610,13 @@ def chat_command(
 
 
 @apikey_app.command("add")
+@_with_database
 def apikey_add(
     label: str = typer.Argument(..., help="Human-friendly label for the key."),
     provider: str = typer.Argument(..., help="Provider name (e.g. gemini)."),
     api_key: str = typer.Argument(..., help="The raw API key value."),
 ) -> None:
     """Add a new API key."""
-    _ensure_db_ready()
-
     label = label.strip()
     provider = provider.strip()
     api_key = api_key.strip()
@@ -655,10 +656,9 @@ def apikey_add(
 
 
 @apikey_app.command("list")
+@_with_database
 def apikey_list() -> None:
     """List stored API keys."""
-    _ensure_db_ready()
-
     async def _list():
         async with async_session() as db:
             repo = APIKeyRepository(db)
@@ -700,12 +700,12 @@ def apikey_list() -> None:
 
 
 @apikey_app.command("remove")
+@_with_database
 def apikey_remove(
     label: str = typer.Argument(..., help="Label of the key to remove."),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation."),
 ) -> None:
     """Remove an API key by label."""
-    _ensure_db_ready()
     label = label.strip()
 
     if not label:
@@ -737,11 +737,11 @@ def apikey_remove(
 
 
 @apikey_app.command("toggle")
+@_with_database
 def apikey_toggle(
     label: str = typer.Argument(..., help="Label of the key to toggle."),
 ) -> None:
     """Toggle an API key between active and inactive."""
-    _ensure_db_ready()
     label = label.strip()
 
     if not label:
@@ -789,10 +789,9 @@ def apikey_toggle(
 
 
 @safety_app.command("toggle")
+@_with_database
 def safety_toggle() -> None:
     """Toggle safety mode on or off."""
-    _ensure_db_ready()
-
     async def _toggle() -> bool:
         async with async_session() as db:
             service = SettingsService(db)
@@ -813,10 +812,9 @@ def safety_toggle() -> None:
 
 
 @safety_app.command("status")
+@_with_database
 def safety_status() -> None:
     """Show the current safety mode state."""
-    _ensure_db_ready()
-
     async def _status() -> bool:
         async with async_session() as db:
             service = SettingsService(db)
@@ -843,7 +841,7 @@ def safety_status() -> None:
 @app.command("interfaces")
 def interfaces_status() -> None:
     """List running interfaces."""
-    initialize_runtime()
+    bootstrap_runtime()
 
     state = _load_interface_state()
     running_pids: dict[str, int] = {}
@@ -904,7 +902,7 @@ def shutdown(
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation."),
 ) -> None:
     """Gracefully shut down the assistant."""
-    initialize_runtime()
+    bootstrap_runtime()
 
     if not yes and not typer.confirm("Shut down the assistant and all interfaces?", default=False):
         console.print("Cancelled.")
@@ -968,7 +966,7 @@ def telegram_set_token(
     token: str = typer.Argument(..., help="Telegram bot token."),
 ) -> None:
     """Set the Telegram bot token."""
-    initialize_runtime()
+    bootstrap_runtime()
 
     token = token.strip()
     if not token:
