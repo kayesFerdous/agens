@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from rich.text import Text
 from textual.widget import Widget
 
 
@@ -11,6 +12,10 @@ class ChatView(Widget):
     via CSS overflow because the low-level Textual scroll base renders a
     diagnostic panel unless a subclass implements its own rendering.
     """
+
+    def render(self) -> Text:
+        # Keep the chat canvas visually empty when it has no mounted messages.
+        return Text("")
 
     async def add_user(self, text: str) -> None:
         from .messages import UserBlock
