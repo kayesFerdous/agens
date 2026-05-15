@@ -87,7 +87,7 @@ The architectural pattern is deeply inspired by Hexagonal Architecture (Ports an
 # 4. Folder Structure Analysis
 
 ### Root & Build Constraints
-*   **pyproject.toml / Makefile / uv.lock:** Project relies on standard `setuptools`, Python 3.13, and is managed conceptually by modern dependency systems (likely `uv`). The CLI entry point maps `agens` directly to `main:cli`.
+*   **pyproject.toml / Makefile / uv.lock:** Project relies on standard `setuptools`, Python 3.13, and is managed conceptually by modern dependency systems (likely `uv`). The CLI entry point maps `agens` to `agens.main:cli`.
 *   **alembic:** Standard Alembic environments and templated migrations for tracking local DB schema drifts. Migrations exist for settings, adding API key tables, and model cooldowns.
 
 ### frontend
@@ -96,7 +96,7 @@ The architectural pattern is deeply inspired by Hexagonal Architecture (Ports an
 *   **Roles:** `App.svelte` holds layout, nested structures for `components/` (Chat Input, Model Selector). It builds out to dist which is natively mounted as a static path by the Web adapter.
 
 ### src (Core Application)
-*   `cli.py` & main.py: The Typer CLI configuration mapping commands like `tui`, `web`, `telegram`, `apikey` and `safety` overrides.
+*   `agens/main.py`: The Typer CLI configuration mapping commands like `tui`, `web`, `telegram`, `apikey` and `safety` overrides. Top-level `main.py` and `cli.py` are source-compatibility shims.
 *   `agent/`: The brain. agent.py contains the stream/run implementations, maintaining strict runtime invariants (Sudo auth caches, React Loop orchestration).
 *   `config/`: Exposes `settings.py` built on `pydantic-settings` tracking `WEB_HOST`, `DB_URL`, etc., and runtime configurations (logging parameters, workspace bindings).
 *   `core/`: Core internal APIs. Interfaces for building a `Tool` class, custom schemas, and base definitions (Enums).

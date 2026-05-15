@@ -1,5 +1,5 @@
 # Run instructions:
-#   uv run python -m main --interface tui
+#   uv run python -m agens tui
 #   agens tui
 #   Requirements: textual>=0.60.0
 #

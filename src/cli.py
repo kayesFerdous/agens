@@ -1,12 +1,10 @@
-"""Compatibility shim for the unified CLI."""
+"""Backward-compatible source CLI shim."""
+
 from __future__ import annotations
 
-from main import app, cli
-
-
-def main() -> None:
-    cli()
+from agens.cli import app, cli, main
 
 
 if __name__ == "__main__":
     main()
+

@@ -24,7 +24,7 @@ dependencies = [
 ]
 
 [project.scripts]
-agens = "main:cli"
+agens = "agens.main:cli"
 
 [build-system]
 requires = ["setuptools>=61"]
@@ -33,7 +33,6 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 package-dir = {"" = "src"}
 include-package-data = true
-py-modules = ["main", "cli"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
