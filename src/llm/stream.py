@@ -11,6 +11,121 @@ from openai import AsyncOpenAI
 logger = logging.getLogger(__name__)
 
 
+class ThinkingStripper:
+    """
+    Stateful stripper that removes <think>...</think> and
+    <thinking>...</thinking> blocks from a streaming token sequence.
+    """
+
+    _OPEN_TAGS = ("<think>", "<thinking>", "<thought>")
+    _CLOSE_TAGS = ("</think>", "</thinking>", "</thought>")
+    _MAX_BUFFER = 24
+
+    def __init__(self) -> None:
+        self._in_think: bool = False
+        self._buffer: str = ""
+
+    def feed(self, chunk: str) -> str:
+        """Process one raw chunk and return clean text to emit."""
+        self._buffer += chunk
+        output: list[str] = []
+
+        while self._buffer:
+            if self._in_think:
+                closed, remainder = self._find_close_tag(self._buffer)
+                if closed:
+                    self._buffer = remainder
+                    self._in_think = False
+                else:
+                    safe_to_discard = self._safe_discard_length(
+                        self._buffer, self._CLOSE_TAGS
+                    )
+                    self._buffer = self._buffer[safe_to_discard:]
+                    break
+            else:
+                opened, before, remainder = self._find_open_tag(self._buffer)
+                if opened:
+                    output.append(before)
+                    self._buffer = remainder
+                    self._in_think = True
+                else:
+                    safe_len = self._safe_emit_length(self._buffer, self._OPEN_TAGS)
+                    output.append(self._buffer[:safe_len])
+                    self._buffer = self._buffer[safe_len:]
+                    break
+
+        return "".join(output)
+
+    def flush(self) -> str:
+        """Emit remaining non-thinking buffered content after the stream ends."""
+        if self._in_think:
+            self._buffer = ""
+            return ""
+        result = self._buffer
+        self._buffer = ""
+        return result
+
+    def _find_open_tag(self, text: str) -> tuple[bool, str, str]:
+        """Return (found, text_before_tag, text_after_tag)."""
+        lowered = text.lower()
+        earliest_pos = len(text)
+        earliest_tag_len = 0
+        for tag in self._OPEN_TAGS:
+            idx = lowered.find(tag)
+            if idx != -1 and idx < earliest_pos:
+                earliest_pos = idx
+                earliest_tag_len = len(tag)
+        if earliest_tag_len:
+            return True, text[:earliest_pos], text[earliest_pos + earliest_tag_len:]
+        return False, "", ""
+
+    def _find_close_tag(self, text: str) -> tuple[bool, str]:
+        """Return (found, text_after_tag)."""
+        lowered = text.lower()
+        earliest_pos = len(text)
+        earliest_tag_len = 0
+        for tag in self._CLOSE_TAGS:
+            idx = lowered.find(tag)
+            if idx != -1 and idx < earliest_pos:
+                earliest_pos = idx
+                earliest_tag_len = len(tag)
+        if earliest_tag_len:
+            return True, text[earliest_pos + earliest_tag_len:]
+        return False, ""
+
+    def _safe_emit_length(self, text: str, tags: tuple[str, ...]) -> int:
+        """
+        How many leading characters are safe to emit while preserving any
+        possible partial tag at the tail.
+        """
+        max_tag_len = max(len(t) for t in tags)
+        if len(text) <= max_tag_len:
+            return 0
+        tail_start = len(text) - max_tag_len
+        lowered = text.lower()
+        for tag in tags:
+            for start in range(tail_start, len(text)):
+                if tag.startswith(lowered[start:]):
+                    return start
+        return len(text) - max_tag_len
+
+    def _safe_discard_length(self, text: str, tags: tuple[str, ...]) -> int:
+        """
+        How many leading characters are safe to discard while preserving any
+        possible partial closing tag at the tail.
+        """
+        max_tag_len = max(len(t) for t in tags)
+        if len(text) <= max_tag_len:
+            return 0
+        tail_start = len(text) - max_tag_len
+        lowered = text.lower()
+        for tag in tags:
+            for start in range(tail_start, len(text)):
+                if tag.startswith(lowered[start:]):
+                    return start
+        return len(text) - max_tag_len
+
+
 def _build_tools_param(tool_schemas: list[dict]) -> list[dict]:
     return [
         {
@@ -85,6 +200,7 @@ async def assemble_stream(
     # Structure: {index: {"id": str, "name": str, "arguments_raw": str}}
     pending_tool_calls: dict[int, dict] = {}
     finish_reason: str | None = None
+    stripper = ThinkingStripper()
 
     async with await client.chat.completions.create(**kwargs) as stream:
         async for chunk in stream:
@@ -97,7 +213,12 @@ async def assemble_stream(
 
             # ── Text token ───────────────────────────────────────────────────
             if delta.content:
-                yield {"type": "token", "content": delta.content}
+                clean = stripper.feed(delta.content)
+                if clean:
+                    yield {"type": "token", "content": clean}
+
+            if hasattr(delta, "reasoning_content") and delta.reasoning_content:
+                pass
 
             # ── Tool call fragment ───────────────────────────────────────────
             if delta.tool_calls:
@@ -114,6 +235,10 @@ async def assemble_stream(
                             acc["name"] += tc_delta.function.name
                         if tc_delta.function.arguments:
                             acc["arguments_raw"] += tc_delta.function.arguments
+
+    remainder = stripper.flush()
+    if remainder.strip():
+        yield {"type": "token", "content": remainder}
 
     # Stream closed — emit assembled tool calls.
     for acc in pending_tool_calls.values():
