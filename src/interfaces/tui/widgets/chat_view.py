@@ -55,25 +55,6 @@ class ChatView(Widget):
         await self._add_widget(widget)
         return widget
 
-    async def add_command_result(
-        self,
-        *,
-        command: str,
-        output: str,
-        exit_code: object,
-        failed: bool = False,
-    ) -> "CommandResultBlock":
-        from .messages import CommandResultBlock
-
-        widget = CommandResultBlock(
-            command=command,
-            output=output,
-            exit_code=exit_code,
-            failed=failed,
-        )
-        await self._add_widget(widget)
-        return widget
-
     async def clear_all(self) -> None:
         for child in list(self.children):
             await child.remove()

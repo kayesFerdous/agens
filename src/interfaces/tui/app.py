@@ -73,7 +73,6 @@ class AssistantTUI(App):
         self._confirmation_lock = asyncio.Lock()
         self._pending_confirmation_response: str | None = None
         self._active_confirmation: InlineConfirmation | None = None
-        self._suppress_confirmation_tokens = False
         self._stop_requested = False
         self._welcome_active = True
 
@@ -281,8 +280,6 @@ class AssistantTUI(App):
 
         kind = self._event_value(event, "type", "")
         if kind == "token":
-            if self._suppress_confirmation_tokens:
-                return ""
             return str(self._event_value(event, "content", "") or "")
 
         if kind == "tool_start":
@@ -306,10 +303,7 @@ class AssistantTUI(App):
             await self._add_assistant_error(user_key_unavailable_message(str(error)))
         elif kind == "confirmation_required":
             await self._show_confirmation_event(event, kind)
-        elif kind == "confirmation_result":
-            await self._render_confirmation_result(event)
         elif kind == "done":
-            self._suppress_confirmation_tokens = False
             usage = self._event_value(event, "usage")
             usage_total = getattr(usage, "total_tokens", None)
             if usage_total is not None:
@@ -342,49 +336,6 @@ class AssistantTUI(App):
             except TypeError:
                 return str(result)
         return str(result)
-
-    async def _render_confirmation_result(self, event: Any) -> None:
-        if self._spinner is not None:
-            await self._spinner.stop()
-            self._spinner = None
-
-        result = self._event_value(event, "result", None)
-        error = self._event_value(event, "error", None)
-        message = self._event_value(event, "message", None)
-
-        self._suppress_confirmation_tokens = True
-        chat = self.query_one(ChatView)
-
-        if isinstance(result, dict):
-            command, output, exit_code, failed = self._format_command_result(result)
-            await chat.add_command_result(
-                command=command,
-                output=output,
-                exit_code=exit_code,
-                failed=failed,
-            )
-        elif error:
-            tool_name = str(self._event_value(event, "tool", None) or "command")
-            await chat.add_command_result(
-                command=tool_name,
-                output=str(error),
-                exit_code="error",
-                failed=True,
-            )
-        elif message:
-            await chat.add_system(str(message))
-
-    def _format_command_result(self, result: dict[str, Any]) -> tuple[str, str, object, bool]:
-        command = str(result.get("command") or "command")
-        status = str(result.get("status") or "")
-        exit_code = result.get("exit_code", "n/a")
-        stdout = str(result.get("stdout") or "").strip()
-        stderr = str(result.get("stderr") or "").strip()
-        error = str(result.get("error") or "").strip()
-
-        output = stdout or stderr or error or "No output."
-        failed = status == "error" or bool(error)
-        return command, output, exit_code, failed
 
     async def _show_confirmation_event(self, event: Any, kind: str) -> None:
         preview = self._event_value(event, "confirmation_preview", "") or ""

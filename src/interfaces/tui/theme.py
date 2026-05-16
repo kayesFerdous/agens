@@ -300,56 +300,6 @@ InlineConfirmation .confirm-warning {
     padding: 0;
 }
 
-/* ── Command result block ────────────────────────────────────────── */
-CommandResultBlock {
-    height: auto;
-    width: 100%;
-    max-width: 112;
-    background: transparent;
-    padding: 0;
-    margin: 0;
-    margin-top: 1;
-}
-
-CommandResultBlock .command-result-box {
-    height: auto;
-    width: 100%;
-    background: transparent;
-    padding: 0;
-    margin: 0;
-}
-
-CommandResultBlock .command-result-title {
-    height: 1;
-    color: #F5F0E8;
-    text-style: bold;
-    padding: 0;
-}
-
-CommandResultBlock .command-result-command {
-    height: 1;
-    color: #F5F0E8;
-    background: #1A1713;
-    padding: 0 1;
-    margin: 0;
-}
-
-CommandResultBlock .command-result-exit {
-    height: 1;
-    color: #8C877E;
-    padding: 0;
-    margin: 0;
-}
-
-CommandResultBlock .command-result-output {
-    height: auto;
-    width: 100%;
-    color: #F5F0E8;
-    background: #1A1713;
-    padding: 0 1;
-    margin: 0;
-}
-
 InlineConfirmation .confirm-actions {
     height: 1;
     width: 100%;
