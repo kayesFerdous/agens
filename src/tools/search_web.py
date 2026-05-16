@@ -1,21 +1,18 @@
 # tools/search_web.py — stateless web search with model-aware key resolution and one-shot retry
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 from cryptography.fernet import Fernet
-from google import genai
-from google.genai import types
-from google.api_core.exceptions import GoogleAPICallError
+from openai import APIStatusError, APITimeoutError, AsyncOpenAI
 
 from config.logging import get_logger
 from core.tool_interface import Tool
 from core.types import Usage
 from db.database import async_session
 from db.repositories.api_key import APIKeyRepository
-from llm.gemini_usage import extract_gemini_usage
-from llm.llm_exceptions import RateLimitError
+from llm.errors import RateLimitError, normalize_error
+from llm.providers import PROVIDER_DEFAULTS
 from services.api_key_manager import APIKeyManager, SEARCH_MODELS
 
 logger = get_logger(__name__)
@@ -25,32 +22,40 @@ class SearchUnavailableError(Exception):
     pass
 
 
-_SEARCH_CONFIG = types.GenerateContentConfig(
-    tools=[types.Tool(google_search=types.GoogleSearch())],
-    temperature=1.0,  # recommended by Google for grounded responses
-)
-
 _EXHAUSTED_MSG = (
     "Search is unavailable: no active API key supports any search-capable model "
     f"(tried: {', '.join(SEARCH_MODELS)})."
 )
 
 
-def _do_search(raw_key: str, model: str, query: str, usage: Usage) -> dict:
+async def _do_search(raw_key: str, model: str, query: str, usage: Usage) -> dict:
     """Execute a single grounded-search call and return the result dict."""
-    client = genai.Client(api_key=raw_key)
-    response = client.models.generate_content(
-        model=model,
-        contents=query,
-        config=_SEARCH_CONFIG,
+    client = AsyncOpenAI(
+        api_key=raw_key,
+        base_url=PROVIDER_DEFAULTS["gemini"]["base_url"],
+        timeout=60.0,
     )
-    extract_gemini_usage(response, usage, logger=logger)
+    response = await client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": query}],
+        tools=[{"type": "google_search"}],  # type: ignore[list-item]
+        temperature=1.0,
+    )
 
-    if not response.text:
+    if response.usage:
+        usage.record(
+            prompt_tokens=response.usage.prompt_tokens or 0,
+            completion_tokens=response.usage.completion_tokens or 0,
+            total_tokens=response.usage.total_tokens or 0,
+        )
+        usage.log(logger, model=model, context="search_web")
+
+    content = response.choices[0].message.content if response.choices else ""
+    if not content:
         return {"answer": "", "queries": []}
 
     return {
-        "answer": response.text[:1600],  # ~400 tokens; truncate to keep context lean
+        "answer": content[:1600],  # ~400 tokens; truncate to keep context lean
         "queries": [],
     }
 
@@ -116,11 +121,19 @@ class WebSearchTool(Tool):
         raw_key, model = resolved
 
         try:
-            result = await asyncio.to_thread(_do_search, raw_key, model, query, self.usage)
+            result = await _do_search(raw_key, model, query, self.usage)
             logger.info("Search succeeded (model=%s)", model)
             return result
 
-        except (RateLimitError, GoogleAPICallError) as first_err:
+        except APIStatusError as first_err:
+            normalized = normalize_error(first_err, provider="gemini")
+            if not isinstance(normalized, RateLimitError):
+                raise SearchUnavailableError(str(normalized)) from first_err
+            logger.warning(
+                "Search failed on first attempt (model=%s): %s — retrying",
+                model, normalized,
+            )
+        except (APITimeoutError, RateLimitError) as first_err:
             logger.warning(
                 "Search failed on first attempt (model=%s): %s — retrying",
                 model, first_err,
@@ -134,10 +147,14 @@ class WebSearchTool(Tool):
         retry_raw, retry_model = retry
 
         try:
-            result = await asyncio.to_thread(_do_search, retry_raw, retry_model, query, self.usage)
+            result = await _do_search(retry_raw, retry_model, query, self.usage)
             logger.info("Search retry succeeded (model=%s)", retry_model)
             return result
 
-        except (RateLimitError, GoogleAPICallError) as retry_err:
+        except APIStatusError as retry_err:
+            normalized = normalize_error(retry_err, provider="gemini")
+            logger.error("Search retry also failed (model=%s): %s", retry_model, normalized)
+            raise SearchUnavailableError(_EXHAUSTED_MSG) from retry_err
+        except (APITimeoutError, RateLimitError) as retry_err:
             logger.error("Search retry also failed (model=%s): %s", retry_model, retry_err)
             raise SearchUnavailableError(_EXHAUSTED_MSG) from retry_err

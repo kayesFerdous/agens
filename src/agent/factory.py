@@ -1,19 +1,16 @@
 # agent/factory.py — constructs a fully-initialized Agent ready to call .chat() on
 from __future__ import annotations
 
-from pathlib import Path
-
 from cryptography.fernet import Fernet
-from google import genai
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent.agent import Agent
 from core.types import Usage
 from db.repositories.api_key import APIKeyRepository
-from memory.manager import MemoryManager
 from core.registry import ToolRegistry
-from llm.gemini import GeminiLLM
-from services.api_key_manager import APIKeyManager
+from llm.client import LLMClient
+from llm.errors import LLMUnavailableError
+from llm.providers import PROVIDER_DEFAULTS, build_provider_config
 from config.settings import settings
 from config.config_manager import ConfigManager
 from tools.file_read import FileReadTool
@@ -71,19 +68,20 @@ async def build_agent(session: AsyncSession) -> Agent:
     config_manager = ConfigManager()
 
     repo = APIKeyRepository(session)
-    key_manager = APIKeyManager(repo, fernet=fernet)
-    key, raw_key = await key_manager.get_key_for_use("gemini")  # TODO: multi-provider
-
-    # One shared genai.Client for both the LLM and the web-search tool.
-    shared_client = genai.Client(api_key=raw_key)
+    provider_name = getattr(settings, "DEFAULT_PROVIDER", "gemini")
+    default_model = getattr(settings, "DEFAULT_MODEL", "") or PROVIDER_DEFAULTS[provider_name]["default_model"]
+    key = await repo.pick_available_key(provider=provider_name, model=default_model)
+    if key is None:
+        raise LLMUnavailableError(
+            f"No API keys found for provider '{provider_name}'. Add one with: agens apikey add"
+        )
+    raw_key = fernet.decrypt(key.encrypted_key.encode()).decode()
 
     registry = _build_registry(config_manager, usage, fernet)
 
-    llm = GeminiLLM(
-        usage=usage,
-        client=shared_client,
-        current_key_id=key.id,
-    )
+    config = build_provider_config(provider_name, api_key=raw_key, model=default_model)
+    llm = LLMClient(config)
+    llm.current_key_id = key.id  # type: ignore[attr-defined]
 
     return Agent(
         registry=registry,

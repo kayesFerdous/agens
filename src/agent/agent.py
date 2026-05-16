@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio.session import AsyncSession
 from config.logging import get_logger
 from typing import Any, AsyncIterator, Awaitable, Callable
 from db.repositories.api_key import APIKeyRepository
-from llm.base import LLM
+from llm.client import LLMClient
+from llm.errors import RateLimitError, LLMUnavailableError
 from core.tool_groups import get_enabled_tool_names, get_enabled_tool_schemas
 from core.registry import ToolRegistry
 from core.types import (
@@ -23,7 +24,6 @@ from core.types import (
 from config.config_manager import ConfigManager
 from planner.prompt_builder import build_system_prompt
 from memory.manager import MemoryManager
-from llm.llm_exceptions import RateLimitError, LLMUnavailable
 from services.api_key_manager import APIKeyManager
 from services.settings_service import SettingsService
 from tools.search_web import SearchUnavailableError
@@ -58,12 +58,14 @@ class Agent:
     def __init__(
         self,
         registry: ToolRegistry,
-        llm: LLM,
+        llm: LLMClient,
         config_manager: ConfigManager,
         fernet: Fernet,
     ) -> None:
         self._registry = registry
         self._llm = llm
+        self._current_key_id: str | None = getattr(llm, "current_key_id", None)
+        self.model_name = llm.config.default_model
         self._config_manager = config_manager
         self._fernet = fernet
         # Keyed by session_id. One pending confirmation per session at a time.
@@ -286,16 +288,21 @@ class Agent:
             self._config_manager,
             tool_schemas=tool_schemas,
             safety_mode=safety_mode,
-            channel=channel.value
+            channel=channel.value,
         )
         logger.info("\n\nsystem prompt: \n%s", system)
-        message_history = await memory_manager.get_history_for_gemini(session_id)
 
-        model_name = None
+        history = await memory_manager.get_history_as_openai_messages(session_id)
+        messages: list[dict] = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.extend(history)
+        messages.append({"role": "user", "content": user_request})
+
+        model_name: str | None = None
         if model:
             _, model_name = model.split("/", maxsplit=1)
 
-        # provider = "gemini"  # TODO: derive from model prefix when multi-provider support lands
         api_key_manager = APIKeyManager(repo=APIKeyRepository(db), fernet=self._fernet)
 
         answer_parts: list[str] = []
@@ -457,13 +464,13 @@ class Agent:
             answer_parts.clear()
             last_done_event = None
             stream_error: str | None = None
-
-            # The active model may be overridden per-request via the model_name arg.
-            active_model = model_name or self._llm.model_name
+            active_model = model_name or self._llm.config.default_model
 
             try:
-                # Pre-flight: ensure the current key is usable for this model, and swap if not
-                swapped = await self._llm.ensure_model_key(db, active_model, api_key_manager)
+                # Pre-flight key check — swap key if current one is cooling down.
+                swapped = await self._ensure_key_available(
+                    active_model, api_key_manager, db
+                )
                 if swapped:
                     yield StreamEvent(
                         type="status",
@@ -471,13 +478,10 @@ class Agent:
                     )
 
                 async for event in self._llm.react_stream(
-                    user_request,
-                    system=system,
+                    messages=messages,
+                    model=active_model,
                     tool_schemas=tool_schemas,
-                    tool_executor=_gated_tool_executor,  # ← gated wrapper, not self._execute_tool
-                    message_history=message_history,
-                    model_name=model_name,
-                    streaming=channel != Channel.TELEGRAM,
+                    tool_executor=_gated_tool_executor,
                 ):
                     if event.type == "error":
                         stream_error = event.error or "Unknown LLM stream error"
@@ -519,15 +523,11 @@ class Agent:
                     )
                     if is_empty_stop and attempt < max_retries - 1:
                         logger.warning(
-                            "Empty LLM response on attempt %d/%d for model=%s; retrying",
+                            "Empty LLM response on attempt %d/%d; retrying",
                             attempt + 1,
                             max_retries,
-                            active_model,
                         )
-                        yield StreamEvent(
-                            type="status",
-                            message="The model returned an empty response. Retrying.",
-                        )
+                        yield StreamEvent(type="status", message="Empty response. Retrying.")
                         continue
 
                     yield StreamEvent(type="error", error=stream_error)
@@ -548,30 +548,46 @@ class Agent:
                 break
 
             except RateLimitError as e:
+                if self._current_key_id:
+                    e.key_id = self._current_key_id
                 logger.warning(
-                    "Stream rate limit on attempt %d: key=%s model=%s daily=%s",
-                    attempt, e.key_id, active_model, e.is_daily,
+                    "Rate limit on attempt %d: model=%s retry_after=%ds daily=%s",
+                    attempt, active_model, e.retry_after, e.is_daily,
                 )
                 try:
-                    await self._llm.handle_model_error(db, active_model, e, api_key_manager)
+                    if not self._current_key_id:
+                        raise LLMUnavailableError(
+                            f"No current API key is tracked for provider '{self._llm.config.name}'."
+                        )
+                    new_raw_key = await api_key_manager.rotate_key(
+                        provider=self._llm.config.name,
+                        model=active_model,
+                        error=e,
+                        current_key_id=self._current_key_id,
+                        db=db,
+                    )
+                    if new_raw_key is None:
+                        raise LLMUnavailableError(
+                            f"All API keys are on cooldown for model '{active_model}'."
+                        )
+                    self._llm.swap_key(new_raw_key)
+                    self._current_key_id = api_key_manager.last_rotated_key_id
+                    self.model_name = self._llm.config.default_model
                     if attempt < max_retries - 1:
                         yield StreamEvent(
                             type="status",
-                            message="API key rotated for this model. Retrying the request.",
+                            message="API key rotated. Retrying the request.",
                         )
                     else:
                         retry_exhausted_error = (
-                            f"Request failed after {max_retries} attempts due to rate limits for model "
-                            f"'{active_model}'. Please try again later."
+                            f"Request failed after {max_retries} attempts due to rate limits "
+                            f"for model '{active_model}'. Please try again later."
                         )
-                except LLMUnavailable:
-                    yield StreamEvent(
-                        type="error",
-                        error=f"All API keys are on cooldown for model '{active_model}'.",
-                    )
+                except LLMUnavailableError as e2:
+                    yield StreamEvent(type="error", error=str(e2))
                     return
 
-            except LLMUnavailable as e:
+            except LLMUnavailableError as e:
                 logger.warning("LLM unavailable on attempt %d: %s", attempt, e)
                 yield StreamEvent(type="error", error=str(e))
                 return
@@ -581,17 +597,60 @@ class Agent:
                 return
 
             except Exception as e:
-                logger.error("Streaming ReAct loop failed: %s", e)
+                logger.error("Streaming ReAct loop failed: %s", e, exc_info=True)
                 yield StreamEvent(type="error", error=str(e))
                 return
-
-            finally:
-                # Nothing to persist here in the finally block.
-                pass
 
         if retry_exhausted_error:
             yield StreamEvent(type="error", error=retry_exhausted_error)
             return
+
+    async def _ensure_key_available(
+        self,
+        model: str,
+        api_key_manager: APIKeyManager,
+        db: AsyncSession,
+    ) -> bool:
+        """
+        Check if the current key is cooling down for this model.
+        If so, find and swap to an available key.
+        """
+        repo = APIKeyRepository(db)
+
+        if self._current_key_id is None:
+            available = await repo.pick_available_key(self._llm.config.name, model)
+            if available is None:
+                raise LLMUnavailableError(
+                    f"No available keys for provider={self._llm.config.name} model={model}"
+                )
+            raw_key = api_key_manager.fernet.decrypt(available.encrypted_key.encode()).decode()
+            self._llm.swap_key(raw_key)
+            self._current_key_id = available.id
+            self.model_name = self._llm.config.default_model
+            return True
+
+        is_available = await api_key_manager.is_model_available_for_key(
+            self._current_key_id,
+            model,
+        )
+        if is_available:
+            return False
+
+        logger.info("Current key cooling down for model=%s, finding backup...", model)
+        available = await repo.pick_available_key(self._llm.config.name, model)
+        if available is None:
+            raise LLMUnavailableError(
+                f"No available keys for provider={self._llm.config.name} model={model}"
+            )
+
+        raw_key = api_key_manager.fernet.decrypt(
+            available.encrypted_key.encode()
+        ).decode()
+        self._llm.swap_key(raw_key)
+        self._current_key_id = available.id
+        self.model_name = self._llm.config.default_model
+        logger.info("Pre-flight: swapped to backup key for model=%s", model)
+        return True
 
     async def _execute_tool(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         tool = self._registry.get(name)

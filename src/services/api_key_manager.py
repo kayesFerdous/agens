@@ -2,6 +2,7 @@ import hashlib
 from datetime import datetime, timezone
 from uuid import uuid4
 from cryptography.fernet import Fernet
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import APIKey, KeyStatus
 from db.repositories.api_key import APIKeyRepository, is_model_available
@@ -21,6 +22,7 @@ class APIKeyManager:
     def __init__(self, repo: APIKeyRepository, fernet: Fernet):
         self.repo = repo
         self.fernet = fernet
+        self.last_rotated_key_id: str | None = None
 
     # --- Write ---
 
@@ -62,6 +64,18 @@ class APIKeyManager:
         key = min(keys, key=self._last_used_sort_value)
         raw_key = self.fernet.decrypt(key.encrypted_key.encode()).decode()
         return key, raw_key
+
+    async def get_any_active_key(self, provider: str, model: str | None = None) -> str | None:
+        """Return a decrypted key for provider/model, or None if none are available."""
+        if model:
+            key = await self.repo.pick_available_key(provider=provider, model=model)
+        else:
+            keys = await self.repo.get_active_by_provider(provider)
+            key = min(keys, key=self._last_used_sort_value) if keys else None
+        if key is None:
+            return None
+        self.last_rotated_key_id = key.id
+        return self.fernet.decrypt(key.encrypted_key.encode()).decode()
 
     async def get_key_for_model(self, model: str) -> APIKey | None:
         """Returns the best active key that has no cooldown for *model*, or None."""
@@ -132,3 +146,37 @@ class APIKeyManager:
     async def on_success(self, key_id: str) -> None:
         await self.repo.clear_cooldown(key_id)   # revive if it was rate-limited
         await self.repo.record_usage(key_id)
+
+    async def rotate_key(
+        self,
+        *,
+        provider: str,
+        model: str,
+        error: "RateLimitError",
+        current_key_id: str,
+        db: AsyncSession,
+    ) -> str | None:
+        """
+        Mark the current key as cooling down for this model, then return
+        the next available key's decrypted raw value.
+        """
+        from llm.errors import RateLimitError
+
+        if not isinstance(error, RateLimitError):
+            raise TypeError("error must be a RateLimitError")
+
+        reason = "exhausted" if error.is_daily else "rate_limit"
+        await self.repo.set_model_cooldown(
+            key_id=current_key_id,
+            model=model,
+            reason=reason,
+            duration_seconds=error.retry_after,
+        )
+
+        available = await self.repo.pick_available_key(provider=provider, model=model)
+        if available is None:
+            self.last_rotated_key_id = None
+            return None
+
+        self.last_rotated_key_id = available.id
+        return self.fernet.decrypt(available.encrypted_key.encode()).decode()

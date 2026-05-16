@@ -197,12 +197,13 @@ class APIKeyRepository:
         key_id: str,
         model: str,
         reason: str,  # "rate_limit" | "exhausted"
+        duration_seconds: int | None = None,
     ) -> APIKey | None:
         key = await self.get_by_id(key_id)
         if not key:
             return None
 
-        delay = COOLDOWN_SECONDS.get(reason, 60)
+        delay = duration_seconds or COOLDOWN_SECONDS.get(reason, 60)
         cooldowns: dict = dict(key.model_cooldowns or {})
         cooldowns[model] = {
             "until": (datetime.now(timezone.utc) + timedelta(seconds=delay)).isoformat(),
