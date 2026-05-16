@@ -38,6 +38,30 @@ _BEHAVIOUR = """\
 - disabled → answer from context only.\
 """
 
+# ── Sudo policy (channel-aware + safety_mode-aware) ──────────────────────────
+
+def _sudo_policy(safety_mode: bool, channel: str) -> str:
+    if safety_mode:
+        return (
+            "## Sudo / Privileged commands\n"
+            "- Sudo is BLOCKED — safety mode is ON.\n"
+            "- Refuse all privileged commands without exception.\n"
+            "- If the user asks, say: 'Sudo is disabled while safety mode is on.'"
+        )
+    if channel == "tui":
+        return (
+            "## Sudo / Privileged commands\n"
+            "- Sudo is ALLOWED and available in this session.\n"
+            "- Prefer non-privileged alternatives first; use sudo only when strictly required.\n"
+            "- Never log, expose, or pass the password as an argument."
+        )
+    return (
+        "## Sudo / Privileged commands\n"
+        "- Sudo is NOT available in this channel (web / Telegram).\n"
+        "- Do not attempt any privileged commands, even if the user insists.\n"
+        "- Tell the user: 'Sudo commands can only be run from the TUI. Launch it with `agens tui`.'"
+    )
+
 # ── Per-group behavioral instructions ────────────────────────────────────────
 # Only injected when that group is active.
 # These are *constraints and policies only* — schemas already cover what tools do.
@@ -103,6 +127,8 @@ def _build_dynamic_context(preferences: dict) -> str:
 def build_system_prompt(
     config_manager: ConfigManager,
     tool_schemas: list[dict] | None = None,
+    safety_mode: bool = True,
+    channel: str = "web",  # "tui" | "web" | "telegram"
 ) -> str:
     """
     Build the system prompt fresh on every request.
@@ -110,9 +136,10 @@ def build_system_prompt(
     Structure (top → bottom):
       1. Identity          — who the assistant is (semi-static)
       2. Behaviour rules   — static, same for every session
-      3. Active group      — one section per enabled tool group
-      4. Dynamic context   — datetime + preferences (small, changes often)
-      5. Knowledge files   — injected only when files are present
+      3. Sudo policy       — dynamic: channel + safety_mode aware
+      4. Active group      — one section per enabled tool group
+      5. Dynamic context   — datetime + preferences (small, changes often)
+      6. Knowledge files   — injected only when files are present
     """
     config = config_manager.load_config()
     tool_names: set[str] = {str(t["name"]) for t in (tool_schemas or [])}
@@ -132,7 +159,10 @@ def build_system_prompt(
     # 2. Behaviour (static)
     sections.append(_BEHAVIOUR)
 
-    # 3. One instruction block per active group
+    # 3. Sudo policy — channel + safety_mode aware (single line, minimal tokens)
+    sections.append(_sudo_policy(safety_mode, channel))
+
+    # 4. One instruction block per active group
     for group in active_groups:
         sections.append(_GROUP_INSTRUCTIONS[group].format(workspace_root=WORKSPACE_ROOT))
 
@@ -140,11 +170,11 @@ def build_system_prompt(
     if "system" not in active_groups:
         sections.append(_NO_UPDATE_CONFIG)
 
-    # 4. Dynamic context — datetime + preferences
+    # 5. Dynamic context — datetime + preferences
     prefs = config.preferences.model_dump()
     sections.append(_build_dynamic_context(prefs))
 
-    # 5. Knowledge files — only when available
+    # 6. Knowledge files — only when available
     knowledge = build_knowledge_prompt_snippet()
     if knowledge:
         sections.append(f"## Knowledge files\n{knowledge}")

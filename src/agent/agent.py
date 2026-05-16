@@ -282,7 +282,12 @@ class Agent:
                 return
         # ── End confirmation gate ──────────────────────────────────────────────────
 
-        system = build_system_prompt(self._config_manager, tool_schemas=tool_schemas)
+        system = build_system_prompt(
+            self._config_manager,
+            tool_schemas=tool_schemas,
+            safety_mode=safety_mode,
+            channel=channel.value
+        )
         logger.info("\n\nsystem prompt: \n%s", system)
         message_history = await memory_manager.get_history_for_gemini(session_id)
 
