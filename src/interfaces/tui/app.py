@@ -94,6 +94,9 @@ class AssistantTUI(App):
             )
         self._update_model_bar()
         self.query_one(InputRow).focus_input()
+        if self._history_loaded:
+            chat = self.query_one(ChatView)
+            self.call_after_refresh(chat.scroll_end, animate=False)
         if not self._history_loaded:
             await self._show_welcome_overlay()
 
@@ -717,6 +720,7 @@ class AssistantTUI(App):
 
         if not session.messages:
             await chat.add_system(f"Resumed session {self.session_id}.")
+            self.call_after_refresh(chat.scroll_end, animate=False)
             return
 
         messages = sorted(session.messages, key=lambda msg: msg.created_at)
@@ -728,6 +732,7 @@ class AssistantTUI(App):
                 block.append_chunk(message.content)
 
         await chat.add_system(f"Resumed session {self.session_id}.")
+        self.call_after_refresh(chat.scroll_end, animate=False)
 
     def _detect_model_name(self) -> str:
         llm = getattr(self.agent, "_llm", None)
