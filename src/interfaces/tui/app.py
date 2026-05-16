@@ -749,6 +749,7 @@ class AssistantTUI(App):
             password = await prompt.wait()
         finally:
             await prompt.remove()
+            chat.maybe_scroll_end(was_near_bottom=was_near_bottom)
 
         return password
 
