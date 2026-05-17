@@ -36,11 +36,6 @@ PROVIDER_DEFAULTS: dict[str, dict] = {
         "default_model": "llama-3.3-70b",
         "parallel_tool_calls": True,
     },
-    "mistral": {
-        "base_url": "https://api.mistral.ai/v1",
-        "default_model": "mistral-small-latest",
-        "parallel_tool_calls": False,
-    },
     "siliconflow": {
         "base_url": "https://api.siliconflow.cn/v1",
         "default_model": "Qwen/Qwen2.5-72B-Instruct",
