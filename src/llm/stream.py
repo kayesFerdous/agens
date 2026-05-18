@@ -163,6 +163,46 @@ def _safe_parse_args(raw: str, tool_name: str) -> dict:
         return {"_parse_error": raw}
 
 
+def _extract_provider_tool_metadata(tool_call_delta: Any) -> dict[str, Any]:
+    """
+    Return provider-specific tool-call metadata that must be replayed.
+
+    Gemini's OpenAI-compatible API sends function-call thought signatures under
+    tool_calls[].extra_content.google.thought_signature. The OpenAI SDK keeps
+    unknown response fields in the Pydantic model dump/model_extra, so preserve
+    those fields instead of reconstructing a purely OpenAI-standard tool call.
+    """
+    metadata: dict[str, Any] = {}
+
+    try:
+        dumped = tool_call_delta.model_dump(exclude_none=True)
+    except AttributeError:
+        dumped = {}
+
+    if isinstance(dumped, dict):
+        extra_content = dumped.get("extra_content")
+        if isinstance(extra_content, dict):
+            metadata["extra_content"] = extra_content
+
+        for key in ("thought_signature", "thoughtSignature"):
+            value = dumped.get(key)
+            if value:
+                metadata[key] = value
+
+    model_extra = getattr(tool_call_delta, "model_extra", None)
+    if isinstance(model_extra, dict):
+        extra_content = model_extra.get("extra_content")
+        if isinstance(extra_content, dict):
+            metadata["extra_content"] = extra_content
+
+        for key in ("thought_signature", "thoughtSignature"):
+            value = model_extra.get(key)
+            if value:
+                metadata[key] = value
+
+    return metadata
+
+
 async def assemble_stream(
     *,
     client: AsyncOpenAI,
@@ -193,12 +233,12 @@ async def assemble_stream(
         if config.force_tool_choice:
             kwargs["tool_choice"] = "auto"
         # Disable parallel tool calls for providers that don't handle it well.
-        if not config.parallel_tool_calls:
+        if config.name == "gemini" or not config.parallel_tool_calls:
             kwargs["parallel_tool_calls"] = False
 
-    # Accumulator for in-progress tool calls, keyed by stream index.
-    # Structure: {index: {"id": str, "name": str, "arguments_raw": str}}
-    pending_tool_calls: dict[int, dict] = {}
+    # Accumulator for in-progress tool calls, keyed by stream index or provider id.
+    # Structure: {key: {"id": str, "name": str, "arguments_raw": str, ...metadata}}
+    pending_tool_calls: dict[Any, dict] = {}
     finish_reason: str | None = None
     stripper = ThinkingStripper()
 
@@ -223,16 +263,25 @@ async def assemble_stream(
             # ── Tool call fragment ───────────────────────────────────────────
             if delta.tool_calls:
                 for tc_delta in delta.tool_calls:
-                    idx = tc_delta.index
-                    if idx not in pending_tool_calls:
-                        pending_tool_calls[idx] = {"id": "", "name": "", "arguments_raw": ""}
+                    key = (
+                        tc_delta.id
+                        if config.name == "gemini" and tc_delta.id
+                        else tc_delta.index
+                    )
+                    if key not in pending_tool_calls:
+                        pending_tool_calls[key] = {"id": "", "name": "", "arguments_raw": ""}
 
-                    acc = pending_tool_calls[idx]
+                    acc = pending_tool_calls[key]
+                    acc.update(_extract_provider_tool_metadata(tc_delta))
                     if tc_delta.id:
                         acc["id"] = tc_delta.id
                     if tc_delta.function:
                         if tc_delta.function.name:
-                            acc["name"] += tc_delta.function.name
+                            name_part = tc_delta.function.name
+                            if not acc["name"]:
+                                acc["name"] = name_part
+                            elif not acc["name"].endswith(name_part):
+                                acc["name"] += name_part
                         if tc_delta.function.arguments:
                             acc["arguments_raw"] += tc_delta.function.arguments
 
@@ -243,6 +292,11 @@ async def assemble_stream(
     # Stream closed — emit assembled tool calls.
     for acc in pending_tool_calls.values():
         args = _safe_parse_args(acc["arguments_raw"], acc["name"])
+        provider_metadata = {
+            key: acc[key]
+            for key in ("extra_content", "thought_signature", "thoughtSignature")
+            if key in acc
+        }
         yield {
             "type": "tool_call",
             "call": {
@@ -250,6 +304,7 @@ async def assemble_stream(
                 "name": acc["name"],
                 "arguments": args,
                 "arguments_raw": acc["arguments_raw"],
+                **provider_metadata,
             },
         }
 

@@ -17,6 +17,21 @@ from core.types import StreamEvent, ToolCall
 logger = logging.getLogger(__name__)
 
 
+def _provider_tool_metadata(tool_call: dict) -> dict[str, Any]:
+    return {
+        key: tool_call[key]
+        for key in ("extra_content", "thought_signature", "thoughtSignature")
+        if key in tool_call
+    }
+
+
+def _replay_tool_arguments(tool_call: dict) -> str:
+    arguments = tool_call.get("arguments")
+    if isinstance(arguments, dict) and "_parse_error" in arguments:
+        return json.dumps(arguments)
+    return tool_call["arguments_raw"]
+
+
 def _sanitize_tool_call_ids(messages: list[dict]) -> tuple[list[dict], int]:
     """Rewrite every tool_call ID to a unique 'call_N' sequence."""
     result: list[dict] = []
@@ -153,25 +168,30 @@ class LLMClient:
             # Append the assistant's tool-call turn to working messages.
             remapped_calls: list[dict] = []
             for tc in assembled_tool_calls:
-                new_id = f"call_{tool_call_counter}"
-                tool_call_counter += 1
+                new_id = tc.get("id") or f"call_{tool_call_counter}"
+                if not tc.get("id"):
+                    tool_call_counter += 1
                 remapped_calls.append({**tc, "id": new_id})
 
-            working_messages.append({
+            assistant_tool_calls: list[dict] = []
+            for tc in remapped_calls:
+                assistant_tool_calls.append({
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": {
+                        "name": tc["name"],
+                        "arguments": _replay_tool_arguments(tc),
+                    },
+                    **_provider_tool_metadata(tc),
+                })
+
+            assistant_message = {
                 "role": "assistant",
-                "content": "".join(text_parts) or None,
-                "tool_calls": [
-                    {
-                        "id": tc["id"],
-                        "type": "function",
-                        "function": {
-                            "name": tc["name"],
-                            "arguments": tc["arguments_raw"],
-                        },
-                    }
-                    for tc in remapped_calls
-                ],
-            })
+                "tool_calls": assistant_tool_calls,
+            }
+            if text_parts:
+                assistant_message["content"] = "".join(text_parts)
+            working_messages.append(assistant_message)
 
             for tc in remapped_calls:
                 name = tc["name"]
@@ -197,6 +217,7 @@ class LLMClient:
                 # Append tool result to working messages (OpenAI format).
                 working_messages.append({
                     "role": "tool",
+                    "name": name,
                     "tool_call_id": tc["id"],
                     "content": json.dumps(result),
                 })
