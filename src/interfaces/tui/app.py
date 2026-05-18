@@ -6,6 +6,7 @@ import json
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import suppress
+from pathlib import Path
 from typing import Any
 
 from textual import events
@@ -77,14 +78,16 @@ class AssistantTUI(App):
         self._welcome_active = True
 
     def compose(self) -> ComposeResult:
-        from textual.containers import Vertical
+        from textual.containers import Horizontal, Vertical
         yield AppHeader(id="app-header")
         yield ChatView(id="chat")
         yield HorizontalRule()
         with Vertical(id="bottom-zone"):
             yield CommandPalette(id="command-palette")
             yield InputRow(id="input-row")
-            yield Static("", id="model-bar")
+            with Horizontal(id="footer-row"):
+                yield Static("", id="model-bar")
+                yield Static("", id="footer-meta")
 
     async def on_mount(self) -> None:
         await self._resume_requested_session()
@@ -655,10 +658,15 @@ class AssistantTUI(App):
         from .widgets.model_select import get_model_label
         try:
             bar = self.query_one("#model-bar", Static)
+            footer_meta = self.query_one("#footer-meta", Static)
             label = get_model_label(self._selected_model)
             bar.update(f"{label} ✦")
+            footer_meta.update(f"path: {self._current_path_label()}   /help")
         except Exception:
             pass
+
+    def _current_path_label(self) -> str:
+        return str(Path.cwd().resolve())
 
     async def _resume_requested_session(self) -> None:
         if "session_id" not in inspect.signature(self.agent.chat).parameters:

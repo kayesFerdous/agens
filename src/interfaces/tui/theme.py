@@ -406,22 +406,39 @@ Footer {
     display: none;
 }
 
-/* ── Model picker button (below input row) ───────────────────────────── */
+/* ── Footer row (below input row) ─────────────────────────────────────── */
+#footer-row {
+    height: 1;
+    min-height: 1;
+    width: 100%;
+    background: #0F0D0A;
+    padding: 0 2;
+}
+
 #model-bar {
     height: 1;
     min-height: 1;
     width: auto;
     max-width: 32;
-    background: #1A1713;
+    background: #0F0D0A;
     color: #A99DD1;
     padding: 0 1;
-    margin: 0 0 0 3;
+    margin: 0;
     border: none;
 }
 
 #model-bar:hover {
     background: #2A2558;
     color: #F5F0E8;
+}
+
+#footer-meta {
+    height: 1;
+    min-height: 1;
+    width: 1fr;
+    background: #0F0D0A;
+    color: #56524C;
+    padding: 0 1 0 2;
 }
 
 /* ── 7 & 8. Model selection modal ──────────────────────────────────── */
