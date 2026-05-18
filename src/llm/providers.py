@@ -1,6 +1,6 @@
 # llm/providers.py
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -24,7 +24,7 @@ PROVIDER_DEFAULTS: dict[str, dict] = {
     "gemini": {
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
         "default_model": "gemini-2.5-flash-lite",
-        "parallel_tool_calls": False,   # Gemini OpenAI compat is picky here
+        "parallel_tool_calls": True,
     },
     "openai": {
         "base_url": "https://api.openai.com/v1",

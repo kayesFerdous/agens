@@ -45,6 +45,30 @@ _CATALOG: tuple[ModelEntry, ...] = (
         rate_limits={"free": {"rpm": 5, "rpd": 100, "tpm": 250_000}},
     ),
     ModelEntry(
+        id="gemini-3.1-flash-lite",
+        provider="gemini",
+        name="Gemini 3.1 Flash-Lite",
+        free_tier=True, tool_calling=True, streaming=True, parallel_tool_calls=True,
+        context_window=1_048_576, speed_tps=363,
+        rate_limits={"free": {"rpm": 15, "rpd": 500, "tpm": 250_000}},
+    ),
+    ModelEntry(
+        id="gemma-4-26b-a4b-it",
+        provider="gemini",
+        name="Gemma 4 26B A4B IT",
+        free_tier=True, tool_calling=True, streaming=True, parallel_tool_calls=True,
+        context_window=262_144, speed_tps=25,
+        rate_limits={"free": {"rpm": 15, "rpd": 1500, "tpm": 16_000}}, #unsure
+    ),
+    ModelEntry(
+        id="gemma-4-31b-it",
+        provider="gemini",
+        name="Gemma 4 31B IT",
+        free_tier=True, tool_calling=True, streaming=True, parallel_tool_calls=True,
+        context_window=262_144, speed_tps=24,
+        rate_limits={"free": {"rpm": 15, "rpd": 1500, "tpm": 16_000}}, #unsure
+    ),
+    ModelEntry(
         id="gpt-5.5",
         provider="openai",
         name="GPT-5.5",
@@ -162,6 +186,14 @@ _CATALOG: tuple[ModelEntry, ...] = (
         name="MiniMax-M2.5",
         free_tier=True, tool_calling=True, streaming=True, parallel_tool_calls=True,
         context_window=197_000, speed_tps=None,
+        rate_limits={"free": {"rpm": 500, "tpm": 2_000_000}},
+    ),
+    ModelEntry(
+        id="stepfun-ai/Step-3.5-Flash",
+        provider="siliconflow",
+        name="Step-3.5-Flash",
+        free_tier=True, tool_calling=True, streaming=True, parallel_tool_calls=True,
+        context_window=262_000, speed_tps=None,
         rate_limits={"free": {"rpm": 500, "tpm": 2_000_000}},
     ),
 )
