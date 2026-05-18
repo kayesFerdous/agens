@@ -18,12 +18,13 @@ router = APIRouter()
 
 PROVIDER_NAMES = {
     "gemini": "Google Gemini",
+    "openai": "OpenAI",
     "groq": "Groq",
     "cerebras": "Cerebras",
     "siliconflow": "SiliconFlow",
 }
 
-PROVIDER_ORDER = ("gemini", "groq", "cerebras", "siliconflow")
+PROVIDER_ORDER = ("gemini", "openai", "groq", "cerebras", "siliconflow")
 
 
 def _speed_label(speed_tps: int | None) -> str:
@@ -37,6 +38,8 @@ def _speed_label(speed_tps: int | None) -> str:
 
 
 def _quota_label(entry: ModelEntry) -> str:
+    if not entry.free_tier:
+        return "Paid API"
     free = entry.rate_limits.get("free", {})
     parts: list[str] = []
     if free.get("rpm"):
@@ -83,7 +86,7 @@ async def list_models(db: AsyncSession = Depends(get_db)) -> ModelsResponse:
         entries = [
             entry
             for entry in get_catalog()
-            if entry.provider == provider_id and entry.free_tier
+            if entry.provider == provider_id
         ]
         active_keys = await repo.get_active_by_provider(provider_id)
         models: list[ModelInfo] = []

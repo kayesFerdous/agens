@@ -1,7 +1,12 @@
 <script>
   import { onMount, tick } from 'svelte';
-  import { fetchModels } from '../lib/api.js';
+  import { fetchModels, getWebPrefs, updateWebPrefs } from '../lib/api.js';
   import { activePage, settingsTab } from '../lib/store.js';
+  import geminiLogo from '../assets/gemini.svg';
+  import openaiLogo from '../assets/openai.svg';
+  import groqLogo from '../assets/groq.svg';
+  import cerebrasLogo from '../assets/cerebras.svg';
+  import siliconflowLogo from '../assets/siliconcloud.svg';
 
   let { selectedModel = $bindable(null), onchange } = $props();
 
@@ -14,6 +19,14 @@
   let triggerRef = $state();
   let popoverRef = $state();
   let searchRef = $state();
+
+  const providerLogos = {
+    gemini: geminiLogo,
+    openai: openaiLogo,
+    groq: groqLogo,
+    cerebras: cerebrasLogo,
+    siliconflow: siliconflowLogo
+  };
 
   const selectedInfo = $derived(findModel(selectedModel));
   const displayLabel = $derived(
@@ -93,6 +106,7 @@
   function selectAuto() {
     selectedModel = null;
     if (onchange) onchange(null);
+    updateWebPrefs({ selected_model: null }).catch(() => {});
     open = false;
   }
 
@@ -101,6 +115,7 @@
     const value = modelValue(provider, model);
     selectedModel = value;
     if (onchange) onchange(value);
+    updateWebPrefs({ selected_model: value }).catch(() => {});
     open = false;
   }
 
@@ -184,8 +199,19 @@
     }
   }
 
+  async function loadPrefs() {
+    try {
+      const prefs = await getWebPrefs();
+      selectedModel = prefs.selected_model || null;
+      if (onchange) onchange(selectedModel);
+    } catch {
+      selectedModel = null;
+    }
+  }
+
   onMount(() => {
     loadModels();
+    loadPrefs();
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   });
@@ -255,7 +281,12 @@
               class="provider-header"
               title={!provider.has_active_key ? `Add a ${provider.name} API key in Settings to enable these models.` : provider.name}
             >
-              <span>{provider.name}</span>
+              <span class="provider-heading">
+                {#if providerLogos[provider.id]}
+                  <img src={providerLogos[provider.id]} alt="" class="provider-logo" />
+                {/if}
+                <span>{provider.name}</span>
+              </span>
               {#if !provider.has_active_key}
                 <button class="add-key" type="button" onclick={goToApiKeys}>Add key →</button>
               {/if}
@@ -280,8 +311,8 @@
                 <span class="row-copy">
                   <span class="row-title">
                     <span class="title-text">{model.name}</span>
-                    {#if model.free_tier}<span class="badge">🆓</span>{/if}
                     {#if model.status === 'cooldown'}<span class="badge">⏳</span>{/if}
+                    {#if model.free_tier}<span class="free-text">free</span>{/if}
                   </span>
                   <span class="row-subtitle">
                     {#if model.status === 'cooldown'}
@@ -453,6 +484,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
+    width: 100%;
     min-width: 0;
     font-size: 13px;
     font-weight: 500;
@@ -460,14 +492,28 @@
   }
 
   .title-text {
+    flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .badge {
+  .badge,
+  .free-text {
     flex-shrink: 0;
+  }
+
+  .badge {
     font-size: 12px;
+  }
+
+  .free-text {
+    margin-left: auto;
+    color: var(--ag-ink-3);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    opacity: 0.65;
   }
 
   .row-subtitle {
@@ -497,6 +543,21 @@
     color: var(--ag-ink-2);
     font-size: 11px;
     font-weight: 600;
+  }
+
+  .provider-heading {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    gap: 7px;
+  }
+
+  .provider-logo {
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
+    color: currentColor;
+    opacity: 0.9;
   }
 
   .add-key {

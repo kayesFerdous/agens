@@ -6,7 +6,7 @@ from typing import Optional
 @dataclass(frozen=True, slots=True)
 class ModelEntry:
     id: str
-    provider: str          # "gemini", "groq", "cerebras", "siliconflow"
+    provider: str          # "gemini", "openai", "groq", "cerebras", "siliconflow"
     name: str
     free_tier: bool
     tool_calling: bool
@@ -43,6 +43,38 @@ _CATALOG: tuple[ModelEntry, ...] = (
         free_tier=True, tool_calling=True, streaming=True, parallel_tool_calls=True,
         context_window=1_048_576, speed_tps=800,
         rate_limits={"free": {"rpm": 5, "rpd": 100, "tpm": 250_000}},
+    ),
+    ModelEntry(
+        id="gpt-5.5",
+        provider="openai",
+        name="GPT-5.5",
+        free_tier=False, tool_calling=True, streaming=True, parallel_tool_calls=True,
+        context_window=1_050_000, speed_tps=650,
+        rate_limits={"paid": {}},
+    ),
+    ModelEntry(
+        id="gpt-5.4",
+        provider="openai",
+        name="GPT-5.4",
+        free_tier=False, tool_calling=True, streaming=True, parallel_tool_calls=True,
+        context_window=1_050_000, speed_tps=750,
+        rate_limits={"paid": {}},
+    ),
+    ModelEntry(
+        id="gpt-5.4-mini",
+        provider="openai",
+        name="GPT-5.4 Mini",
+        free_tier=False, tool_calling=True, streaming=True, parallel_tool_calls=True,
+        context_window=400_000, speed_tps=1_000,
+        rate_limits={"paid": {}},
+    ),
+    ModelEntry(
+        id="gpt-5.4-nano",
+        provider="openai",
+        name="GPT-5.4 Nano",
+        free_tier=False, tool_calling=True, streaming=True, parallel_tool_calls=True,
+        context_window=400_000, speed_tps=1_400,
+        rate_limits={"paid": {}},
     ),
     ModelEntry(
         id="llama-3.1-8b-instant",

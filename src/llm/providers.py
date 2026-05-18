@@ -26,6 +26,11 @@ PROVIDER_DEFAULTS: dict[str, dict] = {
         "default_model": "gemini-2.0-flash",
         "parallel_tool_calls": False,   # Gemini OpenAI compat is picky here
     },
+    "openai": {
+        "base_url": "https://api.openai.com/v1",
+        "default_model": "gpt-5.5",
+        "parallel_tool_calls": True,
+    },
     "groq": {
         "base_url": "https://api.groq.com/openai/v1",
         "default_model": "llama-3.3-70b-versatile",

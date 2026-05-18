@@ -69,6 +69,28 @@ export async function fetchModels() {
   return res.json();
 }
 
+export async function getWebPrefs() {
+  const res = await fetch('/prefs/web');
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(error.detail || 'Failed to fetch web preferences');
+  }
+  return res.json();
+}
+
+export async function updateWebPrefs(prefsPatch) {
+  const res = await fetch('/prefs/web', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(prefsPatch)
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(error.detail || 'Failed to update web preferences');
+  }
+  return res.json();
+}
+
 /**
  * @typedef {Object} DoneEventPayload
  * @property {"done"} type

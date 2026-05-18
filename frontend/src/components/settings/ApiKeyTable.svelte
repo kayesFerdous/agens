@@ -49,11 +49,17 @@
   }
 
   import geminiLogo from '../../assets/gemini.svg';
-  import gemmaLogo from '../../assets/gemma.svg';
+  import openaiLogo from '../../assets/openai.svg';
+  import groqLogo from '../../assets/groq.svg';
+  import cerebrasLogo from '../../assets/cerebras.svg';
+  import siliconflowLogo from '../../assets/siliconcloud.svg';
 
   const logosMap = {
     gemini: geminiLogo,
-    gemma: gemmaLogo,
+    openai: openaiLogo,
+    groq: groqLogo,
+    cerebras: cerebrasLogo,
+    siliconflow: siliconflowLogo,
   };
 
   function getLogoUrl(provider) {

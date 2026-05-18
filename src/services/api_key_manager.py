@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import APIKey, KeyStatus
 from db.repositories.api_key import APIKeyRepository, is_model_available
+from llm.providers import PROVIDER_DEFAULTS
 
 
 SHORT_COOLDOWN = 60        # fallback for minute-level limits with no header
@@ -27,6 +28,11 @@ class APIKeyManager:
     # --- Write ---
 
     async def add_key(self, raw_key: str, provider: str, label: str | None = None) -> APIKey:
+        provider = provider.strip().lower()
+        if provider not in PROVIDER_DEFAULTS:
+            raise ValueError(
+                f"Unknown provider: {provider}. Valid providers: {', '.join(PROVIDER_DEFAULTS)}"
+            )
         key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
 
         if await self.repo.get_by_hash(key_hash):

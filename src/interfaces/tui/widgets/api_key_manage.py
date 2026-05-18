@@ -33,8 +33,12 @@ _STATUS_DISPLAY: dict[KeyStatus, tuple[str, str, str]] = {
 _PROVIDER_ICON: dict[str, str] = {
     "gemini": "◆",
     "openai": "◇",
-    "anthropic": "△",
+    "groq": "○",
+    "cerebras": "◒",
+    "siliconflow": "◈",
 }
+
+_SUPPORTED_PROVIDERS = "gemini · openai · groq · cerebras · siliconflow"
 
 # Fixed column widths — plain chars only, no markup
 _W_PROV  = 12
@@ -314,7 +318,7 @@ class APIKeyAddScreen(ModalScreen[str | None]):
             with Vertical(id="addkey-form"):
                 yield Static("[#8C877E]Provider[/#8C877E]", classes="field-label")
                 yield Static(
-                    "[#A99DD1]gemini · openai · anthropic[/#A99DD1]",
+                    f"[#A99DD1]{_SUPPORTED_PROVIDERS}[/#A99DD1]",
                     classes="field-hint",
                 )
                 yield Input(placeholder="e.g. gemini", id="addkey-provider")

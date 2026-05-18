@@ -58,12 +58,14 @@ def _create_app(agent: Agent) -> FastAPI:
     from interfaces.api.chat.router import router as chat_router
     from interfaces.api.api_keys.router import router as api_keys_router
     from interfaces.api.models.router import router as models_router
+    from interfaces.api.prefs.router import router as prefs_router
     from interfaces.api.settings.router import router as settings_router
 
     app.include_router(sessions_router, prefix="/sessions", tags=["sessions"])
     app.include_router(chat_router, prefix="/chat", tags=["chat"])
     app.include_router(api_keys_router, prefix="/api-keys", tags=["api-keys"])
     app.include_router(models_router, prefix="/api", tags=["models"])
+    app.include_router(prefs_router, prefix="/prefs", tags=["prefs"])
     app.include_router(settings_router, prefix="/settings", tags=["settings"])
 
     app.mount("/static", StaticFiles(directory=FRONTEND_DIST), name="frontend")
@@ -100,7 +102,7 @@ def _create_app(agent: Agent) -> FastAPI:
 
     @app.get("/{path:path}", include_in_schema=False)
     async def serve_frontend(path: str):
-        api_prefixes = ("sessions", "chat", "api-keys", "api", "settings", "setup", "shutdown")
+        api_prefixes = ("sessions", "chat", "api-keys", "api", "prefs", "settings", "setup", "shutdown")
         if path in api_prefixes or path.startswith(tuple(f"{prefix}/" for prefix in api_prefixes)):
             raise HTTPException(status_code=404)
         return FileResponse(FRONTEND_DIST / "index.html")

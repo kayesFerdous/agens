@@ -15,6 +15,7 @@ export default defineConfig({
       '/chat': 'http://localhost:8000',
       '/api': 'http://localhost:8000',
       '/api-keys': 'http://localhost:8000',
+      '/prefs': 'http://localhost:8000',
       '/settings': 'http://localhost:8000',
     },
   },

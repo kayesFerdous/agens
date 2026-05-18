@@ -11,11 +11,25 @@
   let error = null;
 
   import geminiLogo from '../../assets/gemini.svg';
-  import gemmaLogo from '../../assets/gemma.svg';
+  import openaiLogo from '../../assets/openai.svg';
+  import groqLogo from '../../assets/groq.svg';
+  import cerebrasLogo from '../../assets/cerebras.svg';
+  import siliconflowLogo from '../../assets/siliconcloud.svg';
+
+  const providers = [
+    { id: 'gemini', name: 'Google Gemini' },
+    { id: 'openai', name: 'OpenAI' },
+    { id: 'groq', name: 'Groq' },
+    { id: 'cerebras', name: 'Cerebras' },
+    { id: 'siliconflow', name: 'SiliconFlow' },
+  ];
 
   const logosMap = {
     gemini: geminiLogo,
-    gemma: gemmaLogo,
+    openai: openaiLogo,
+    groq: groqLogo,
+    cerebras: cerebrasLogo,
+    siliconflow: siliconflowLogo,
   };
 
   function getLogoUrl(p) {
@@ -111,10 +125,9 @@
             <img src={currentLogoUrl} alt={provider} class="provider-select-logo" />
           {/if}
           <select id="provider" bind:value={provider} disabled={loading} class={currentLogoUrl ? "has-logo" : ""}>
-            <!-- <option value="openai">OpenAI</option> -->
-            <!-- <option value="anthropic">Anthropic</option> -->
-            <!-- <option value="deepseek">DeepSeek</option> -->
-            <option value="gemini">Gemini</option>
+            {#each providers as item}
+              <option value={item.id}>{item.name}</option>
+            {/each}
           </select>
         </div>
       </div>

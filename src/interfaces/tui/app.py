@@ -16,7 +16,7 @@ from textual.widgets import Static
 
 from .commands import execute_command, parse_command
 from .history import InputHistory
-from .prefs import get_tool_groups, set_tool_groups
+from .prefs import get_selected_model, get_tool_groups, set_selected_model, set_tool_groups
 from .theme import ASSISTANT_CSS
 from .widgets.chat_view import ChatView
 from .widgets.command_palette import CommandPalette
@@ -64,7 +64,7 @@ class AssistantTUI(App):
         self._current_tool_group: ToolGroup | None = None
         self._pending_tool_blocks: dict[str, ToolBlock] = {}
         self._token_count = 0
-        self._selected_model: str | None = None
+        self._selected_model: str | None = get_selected_model()
         self._tool_groups: dict[str, bool] = get_tool_groups()
         self.model_name = self._detect_model_name()
         self._awaiting_confirmation = False
@@ -533,6 +533,7 @@ class AssistantTUI(App):
                 return  # user cancelled
             selected = result.get("model")
             self._selected_model = selected
+            set_selected_model(selected)
             label = get_model_label(selected)
             self.query_one(AppHeader).update_model(label)
             self._update_model_bar()
