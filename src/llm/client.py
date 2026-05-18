@@ -7,7 +7,7 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
-from openai import AsyncOpenAI, APIStatusError, APITimeoutError
+from openai import AsyncOpenAI, APIStatusError, APITimeoutError, APIError
 
 from llm.providers import ProviderConfig
 from llm.errors import normalize_error, RateLimitError, LLMUnavailableError
@@ -15,6 +15,38 @@ from llm.stream import assemble_stream
 from core.types import StreamEvent, ToolCall
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_tool_call_ids(messages: list[dict]) -> tuple[list[dict], int]:
+    """Rewrite every tool_call ID to a unique 'call_N' sequence."""
+    result: list[dict] = []
+    id_map: dict[str, str] = {}
+    counter = 0
+
+    for msg in messages:
+        new_msg = dict(msg)
+
+        if msg.get("role") == "assistant" and msg.get("tool_calls"):
+            new_tool_calls: list[dict] = []
+            for tc in msg["tool_calls"]:
+                old_id = tc.get("id")
+                if old_id is not None:
+                    new_id = f"call_{counter}"
+                    counter += 1
+                    id_map[old_id] = new_id
+                    new_tool_calls.append({**tc, "id": new_id})
+                else:
+                    new_tool_calls.append(tc)
+            new_msg["tool_calls"] = new_tool_calls
+
+        if msg.get("role") == "tool":
+            old_tool_id = msg.get("tool_call_id")
+            if old_tool_id in id_map:
+                new_msg["tool_call_id"] = id_map[old_tool_id]
+
+        result.append(new_msg)
+
+    return result, counter
 
 
 class LLMClient:
@@ -32,17 +64,20 @@ class LLMClient:
             api_key=config.api_key,
             base_url=config.base_url,
             timeout=config.timeout,
+            max_retries=0,
         )
 
-    def swap_key(self, new_api_key: str) -> None:
-        """Replace the API key in-place (used by rotation logic)."""
-        self.config = ProviderConfig(
-            **{**self.config.__dict__, "api_key": new_api_key}
-        )
+    def swap_key(self, new_config: ProviderConfig) -> None:
+        """
+        Replace the active provider config and rebuild the OpenAI client.
+        Used when rotation moves to a different key, possibly on another provider.
+        """
+        self.config = new_config
         self._openai = AsyncOpenAI(
-            api_key=new_api_key,
-            base_url=self.config.base_url,
-            timeout=self.config.timeout,
+            api_key=new_config.api_key,
+            base_url=new_config.base_url,
+            timeout=new_config.timeout,
+            max_retries=0,
         )
 
     async def react_stream(
@@ -64,7 +99,7 @@ class LLMClient:
         active_model = model or self.config.default_model
         tool_history: list[ToolCall] = []
         # Working message list — we append to it as the conversation progresses.
-        working_messages = list(messages)
+        working_messages, tool_call_counter = _sanitize_tool_call_ids(list(messages))
 
         for iteration in range(max_iterations):
             logger.debug("ReAct iteration %d, model=%s", iteration + 1, active_model)
@@ -95,6 +130,15 @@ class LLMClient:
                 raise normalize_error(e, provider=self.config.name)
             except APITimeoutError:
                 raise LLMUnavailableError(f"Request timed out after {self.config.timeout}s")
+            except APIError as e:
+                error_msg = str(e).lower()
+                if "failed_generation" in error_msg or "failed to call a function" in error_msg:
+                    raise LLMUnavailableError(
+                        f"{self.config.name} model failed to generate a valid tool call. "
+                        "Try a different model or reduce the number of enabled tools."
+                    )
+                # Base APIError without a status code — wrap it directly, don't call normalize_error
+                raise LLMUnavailableError(f"{self.config.name} API error: {e}")
 
             # ── No tool calls → final answer ─────────────────────────────────────
             if not assembled_tool_calls:
@@ -107,6 +151,12 @@ class LLMClient:
 
             # ── Tool calls present → execute them, loop ───────────────────────────
             # Append the assistant's tool-call turn to working messages.
+            remapped_calls: list[dict] = []
+            for tc in assembled_tool_calls:
+                new_id = f"call_{tool_call_counter}"
+                tool_call_counter += 1
+                remapped_calls.append({**tc, "id": new_id})
+
             working_messages.append({
                 "role": "assistant",
                 "content": "".join(text_parts) or None,
@@ -119,11 +169,11 @@ class LLMClient:
                             "arguments": tc["arguments_raw"],
                         },
                     }
-                    for tc in assembled_tool_calls
+                    for tc in remapped_calls
                 ],
             })
 
-            for tc in assembled_tool_calls:
+            for tc in remapped_calls:
                 name = tc["name"]
                 args = tc["arguments"]  # Already parsed dict
 

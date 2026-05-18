@@ -315,6 +315,10 @@ class Agent:
         last_done_event: StreamEvent | None = None
         max_retries = 20
         retry_exhausted_error: str | None = None
+        active_model = model_name or self._llm.config.default_model
+        selected_provider_bound = bool(
+            selected_provider and self._llm.config.name == selected_provider
+        )
 
         # ── Gated tool executor ──────────────────────────────────────────────────
         # Wraps self._execute_tool to intercept needs_confirmation responses.
@@ -470,10 +474,13 @@ class Agent:
             answer_parts.clear()
             last_done_event = None
             stream_error: str | None = None
-            active_model = model_name or self._llm.config.default_model
 
             try:
-                if selected_provider and self._llm.config.name != selected_provider:
+                if (
+                    selected_provider
+                    and not selected_provider_bound
+                    and self._llm.config.name != selected_provider
+                ):
                     bound = await self._router.pick_next(preferred=preferred_model_ref)
                     if bound is None:
                         raise LLMUnavailableError(
@@ -482,14 +489,16 @@ class Agent:
                     self._llm = bound.client
                     self._current_key_id = bound.key_id
                     self.model_name = bound.entry.id
+                    active_model = bound.entry.id
+                    selected_provider_bound = True
                     yield StreamEvent(
                         type="status",
                         message=f"Model set to {bound.entry.name}.",
                     )
 
                 # Pre-flight key check — swap key if current one is cooling down.
-                swapped = await self._ensure_model_available(
-                    active_model, api_key_manager, db, preferred=preferred_model_ref
+                swapped, active_model = await self._ensure_key_available(
+                    active_model, api_key_manager, db
                 )
                 if swapped:
                     yield StreamEvent(
@@ -568,46 +577,58 @@ class Agent:
                 break
 
             except RateLimitError as e:
-                current_model = self.model_name or self._llm.config.default_model
+                current_model = active_model
                 logger.warning(
-                    "Rate limit on attempt %d: model=%s", attempt, current_model
+                    "Rate limit on attempt %d: provider=%s model=%s retry_after=%ds daily=%s",
+                    attempt,
+                    self._llm.config.name,
+                    current_model,
+                    e.retry_after,
+                    e.is_daily,
                 )
-
-                # 1. Smart cooldown via catalog
-                from llm.catalog import get_model, cooldown_for
-                entry = get_model(current_model)
-                cooldown_sec = cooldown_for(entry, "rate_limit") if entry else 60
-                if self._current_key_id:
-                    await api_key_manager.repo.set_model_cooldown(
-                        self._current_key_id,
-                        current_model,
-                        reason="rate_limit",
-                        duration_seconds=cooldown_sec,
+                if self._current_key_id is None:
+                    yield StreamEvent(
+                        type="error",
+                        error="No active API key is bound to this request.",
                     )
+                    return
 
-                # 2. Cross-provider fallback via router
-                bound = await self._router.pick_next(
-                    preferred=preferred_model_ref or model_name,  # user override if any
-                    exclude={current_model},
-                )
-                if bound:
-                    self._llm = bound.client
-                    self._current_key_id = bound.key_id
-                    self.model_name = bound.entry.id
+                try:
+                    new_config = await api_key_manager.rotate_key(
+                        provider=self._llm.config.name,
+                        model=current_model,
+                        error=e,
+                        current_key_id=self._current_key_id,
+                        db=db,
+                    )
+                    if new_config is None:
+                        raise LLMUnavailableError(
+                            "All API keys are exhausted across all providers."
+                        )
+
+                    self._llm.swap_key(new_config)
+                    self._current_key_id = api_key_manager.last_rotated_key_id
+                    active_model = new_config.default_model
+                    self.model_name = active_model
+                    logger.info(
+                        "Rotated to provider=%s model=%s",
+                        new_config.name,
+                        active_model,
+                    )
                     yield StreamEvent(
                         type="status",
-                        message=f"Rate limited on {current_model}. "
-                                f"Falling back to {bound.entry.name}.",
+                        message=f"Switched to {new_config.name}. Retrying.",
                     )
                     if attempt < max_retries - 1:
-                        continue   # retry the react_stream with new client
-                # 3. Truly exhausted
-                yield StreamEvent(
-                    type="error",
-                    error=f"All free-tier models are rate-limited. "
-                          f"Last tried: {current_model}.",
-                )
-                return
+                        continue
+                    yield StreamEvent(
+                        type="error",
+                        error=f"Retry budget exhausted. Last tried: {current_model}.",
+                    )
+                    return
+                except LLMUnavailableError as e2:
+                    yield StreamEvent(type="error", error=str(e2))
+                    return
 
             except LLMUnavailableError as e:
                 logger.warning("LLM unavailable on attempt %d: %s", attempt, e)
@@ -632,47 +653,67 @@ class Agent:
         model: str,
         api_key_manager: APIKeyManager,
         db: AsyncSession,
-    ) -> bool:
+    ) -> tuple[bool, str]:
         """
         Check if the current key is cooling down for this model.
         If so, find and swap to an available key.
+
+        Returns (swapped, active_model). The active model can change when the
+        replacement key belongs to a different provider.
         """
+        from llm.providers import build_provider_config
+
         repo = APIKeyRepository(db)
 
         if self._current_key_id is None:
             available = await repo.pick_available_key(self._llm.config.name, model)
             if available is None:
+                available = await repo.pick_available_key(None, None)
+            if available is None:
                 raise LLMUnavailableError(
-                    f"No available keys for provider={self._llm.config.name} model={model}"
+                    "No available keys for any provider."
                 )
             raw_key = api_key_manager.fernet.decrypt(available.encrypted_key.encode()).decode()
-            self._llm.swap_key(raw_key)
+            new_config = build_provider_config(available.provider, api_key=raw_key)
+            self._llm.swap_key(new_config)
             self._current_key_id = available.id
-            self.model_name = self._llm.config.default_model
-            return True
+            self.model_name = new_config.default_model
+            logger.info(
+                "Pre-flight: swapped to provider=%s model=%s",
+                new_config.name,
+                new_config.default_model,
+            )
+            return True, new_config.default_model
 
         is_available = await api_key_manager.is_model_available_for_key(
             self._current_key_id,
             model,
         )
         if is_available:
-            return False
+            return False, model
 
         logger.info("Current key cooling down for model=%s, finding backup...", model)
         available = await repo.pick_available_key(self._llm.config.name, model)
         if available is None:
+            available = await repo.pick_available_key(None, None)
+        if available is None:
             raise LLMUnavailableError(
-                f"No available keys for provider={self._llm.config.name} model={model}"
+                "No available keys for any provider."
             )
 
         raw_key = api_key_manager.fernet.decrypt(
             available.encrypted_key.encode()
         ).decode()
-        self._llm.swap_key(raw_key)
+        new_config = build_provider_config(available.provider, api_key=raw_key)
+        self._llm.swap_key(new_config)
         self._current_key_id = available.id
-        self.model_name = self._llm.config.default_model
-        logger.info("Pre-flight: swapped to backup key for model=%s", model)
-        return True
+        self.model_name = new_config.default_model
+        logger.info(
+            "Pre-flight: swapped to provider=%s model=%s",
+            new_config.name,
+            new_config.default_model,
+        )
+        return True, new_config.default_model
 
 
     async def _ensure_model_available(

@@ -80,7 +80,7 @@ _CATALOG: tuple[ModelEntry, ...] = (
         id="llama-3.1-8b-instant",
         provider="groq",
         name="Llama 3.1 8B Instant",
-        free_tier=True, tool_calling=True, streaming=True, parallel_tool_calls=True,
+        free_tier=True, tool_calling=True, streaming=True, parallel_tool_calls=False,
         context_window=131_072, speed_tps=560,
         rate_limits={"free": {"rpm": 30, "rpd": 14_400, "tpm": 6_000, "tpd": 500_000}},
     ),
@@ -117,9 +117,9 @@ _CATALOG: tuple[ModelEntry, ...] = (
         rate_limits={"free": {"rpm": 30, "rpd": 14_400, "tpm": 60_000, "tpd": 1_000_000}},
     ),
     ModelEntry(
-        id="Qwen/Qwen3-8B",
+        id="Qwen/Qwen2.5-72B-Instruct",
         provider="siliconflow",
-        name="Qwen3-8B",
+        name="Qwen2.5 72B Instruct",
         free_tier=True, tool_calling=True, streaming=True, parallel_tool_calls=True,
         context_window=131_072, speed_tps=None,
         rate_limits={"free": {"rpm": 1_000, "tpm": 50_000}},
@@ -144,9 +144,8 @@ _FALLBACK_CHAIN: list[str] = [
     "gemini-2.5-flash",
     "meta-llama/llama-4-scout-17b-16e-instruct",
     "qwen/qwen3-32b",
-    "gemini-2.5-pro",
     "gpt-oss-120b",   # groq first; cerebras is same id, router de-dupes by provider
-    "Qwen/Qwen3-8B",
+    "Qwen/Qwen2.5-72B-Instruct",
     "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B",
 ]
 

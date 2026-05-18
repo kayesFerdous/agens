@@ -42,6 +42,19 @@ def get_model_cooldown_info(key: APIKey, model: str) -> dict | None:
     }
 
 
+def has_active_model_cooldown(key: APIKey) -> bool:
+    """Return True if any model cooldown entry is still active for this key."""
+    if not key.model_cooldowns:
+        return False
+
+    now = datetime.now(timezone.utc)
+    for entry in key.model_cooldowns.values():
+        until_raw = entry.get("until")
+        if until_raw and datetime.fromisoformat(until_raw) > now:
+            return True
+    return False
+
+
 class APIKeyRepository:
 
     def __init__(self, session: AsyncSession):
@@ -153,6 +166,7 @@ class APIKeyRepository:
             select(APIKey)
             .options(load_only(
                 APIKey.id,
+                APIKey.provider,
                 APIKey.encrypted_key,
                 APIKey.last_used_at,
                 APIKey.model_cooldowns,  # required by is_model_available()
@@ -242,14 +256,42 @@ class APIKeyRepository:
             key.model_cooldowns = cooldowns
             await self.session.commit()
 
-    async def pick_available_key(self, provider: str, model: str) -> APIKey | None:
+    async def get_active_keys(self) -> list[APIKey]:
+        result = await self.session.execute(
+            select(APIKey)
+            .options(load_only(
+                APIKey.id,
+                APIKey.provider,
+                APIKey.encrypted_key,
+                APIKey.last_used_at,
+                APIKey.model_cooldowns,
+            ))
+            .where(APIKey.status == KeyStatus.ACTIVE)
+        )
+        return list(result.scalars().all())
+
+    async def pick_available_key(
+        self,
+        provider: str | None,
+        model: str | None,
+    ) -> APIKey | None:
         """Returns the first ACTIVE key that has no cooldown for the given model.
 
+        If provider is None, keys across all providers are considered. If model is
+        None, only keys with no active model cooldowns are eligible.
         Also cleans up any expired cooldown entries so they don't accumulate.
         """
-        keys = await self.get_active_by_provider(provider)
+        keys = (
+            await self.get_active_by_provider(provider)
+            if provider is not None
+            else await self.get_active_keys()
+        )
         for key in keys:
             await self.cleanup_expired_cooldowns(key)
+            if model is None:
+                if not has_active_model_cooldown(key):
+                    return key
+                continue
             if is_model_available(key, model):
                 return key
         return None

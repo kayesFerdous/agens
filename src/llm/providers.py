@@ -23,7 +23,7 @@ class ProviderConfig:
 PROVIDER_DEFAULTS: dict[str, dict] = {
     "gemini": {
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "default_model": "gemini-2.0-flash",
+        "default_model": "gemini-2.5-flash-lite",
         "parallel_tool_calls": False,   # Gemini OpenAI compat is picky here
     },
     "openai": {
@@ -33,17 +33,17 @@ PROVIDER_DEFAULTS: dict[str, dict] = {
     },
     "groq": {
         "base_url": "https://api.groq.com/openai/v1",
-        "default_model": "llama-3.3-70b-versatile",
+        "default_model": "gpt-oss-120b",
         "parallel_tool_calls": True,
     },
     "cerebras": {
         "base_url": "https://api.cerebras.ai/v1",
-        "default_model": "llama-3.3-70b",
+        "default_model": "gpt-oss-120b",
         "parallel_tool_calls": True,
     },
     "siliconflow": {
         "base_url": "https://api.siliconflow.cn/v1",
-        "default_model": "Qwen/Qwen2.5-72B-Instruct",
+        "default_model": "DeepSeek-R1-Qwen3-8B",
         "parallel_tool_calls": True,
     },
 }
