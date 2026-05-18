@@ -42,8 +42,8 @@ PROVIDER_DEFAULTS: dict[str, dict] = {
         "parallel_tool_calls": True,
     },
     "siliconflow": {
-        "base_url": "https://api.siliconflow.cn/v1",
-        "default_model": "DeepSeek-R1-Qwen3-8B",
+        "base_url": "https://api.siliconflow.com/v1",
+        "default_model": "deepseek-ai/DeepSeek-V4-Flash",
         "parallel_tool_calls": True,
     },
 }
