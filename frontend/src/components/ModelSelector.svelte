@@ -1,11 +1,14 @@
 <script>
   import { onMount, tick } from 'svelte';
   import { fetchModels, getWebPrefs, updateWebPrefs } from '../lib/api.js';
-  import { activePage, settingsTab } from '../lib/store.js';
+  import { activePage, settingsTab, theme } from '../lib/store.js';
   import geminiLogo from '../assets/gemini.svg';
   import openaiLogo from '../assets/openai.svg';
+  import openaiLogoDark from '../assets/openai-darkmode.svg';
   import groqLogo from '../assets/groq.svg';
+  import groqLogoDark from '../assets/groq-darkmode.svg';
   import cerebrasLogo from '../assets/cerebras.svg';
+  import cerebrasLogoDark from '../assets/cerebras-darkmode.svg';
   import siliconflowLogo from '../assets/siliconcloud.svg';
 
   let { selectedModel = $bindable(null), onchange } = $props();
@@ -20,13 +23,13 @@
   let popoverRef = $state();
   let searchRef = $state();
 
-  const providerLogos = {
+  const providerLogos = $derived({
     gemini: geminiLogo,
-    openai: openaiLogo,
-    groq: groqLogo,
-    cerebras: cerebrasLogo,
+    openai: $theme === 'dark' ? openaiLogoDark : openaiLogo,
+    groq: $theme === 'dark' ? groqLogoDark : groqLogo,
+    cerebras: $theme === 'dark' ? cerebrasLogoDark : cerebrasLogo,
     siliconflow: siliconflowLogo
-  };
+  });
 
   const selectedInfo = $derived(findModel(selectedModel));
   const displayLabel = $derived(

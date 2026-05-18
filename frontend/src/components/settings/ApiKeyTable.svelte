@@ -48,17 +48,21 @@
     });
   }
 
+  import { theme } from '../../lib/store.js';
   import geminiLogo from '../../assets/gemini.svg';
   import openaiLogo from '../../assets/openai.svg';
+  import openaiLogoDark from '../../assets/openai-darkmode.svg';
   import groqLogo from '../../assets/groq.svg';
+  import groqLogoDark from '../../assets/groq-darkmode.svg';
   import cerebrasLogo from '../../assets/cerebras.svg';
+  import cerebrasLogoDark from '../../assets/cerebras-darkmode.svg';
   import siliconflowLogo from '../../assets/siliconcloud.svg';
 
-  const logosMap = {
+  $: logosMap = {
     gemini: geminiLogo,
-    openai: openaiLogo,
-    groq: groqLogo,
-    cerebras: cerebrasLogo,
+    openai: $theme === 'dark' ? openaiLogoDark : openaiLogo,
+    groq: $theme === 'dark' ? groqLogoDark : groqLogo,
+    cerebras: $theme === 'dark' ? cerebrasLogoDark : cerebrasLogo,
     siliconflow: siliconflowLogo,
   };
 

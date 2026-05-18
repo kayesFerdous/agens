@@ -393,7 +393,7 @@ class Agent:
                         ),
                     }
 
-                if channel == Channel.TELEGRAM:
+                if channel in (Channel.TELEGRAM, Channel.WEB):
                     # Telegram blocks ALL confirmation-required commands.
                     logger.info(
                         "Confirmation-required command blocked on telegram: tool=%s session=%s",
@@ -403,7 +403,7 @@ class Agent:
                         "status": "blocked_channel",
                         "message": (
                             "This command requires confirmation, which is not supported "
-                            "over Telegram for security reasons. Please use the web or "
+                            "over Telegram for security reasons. Please use the "
                             "terminal interface to run this command."
                         ),
                     }
