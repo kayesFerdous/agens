@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.widget import Widget
@@ -16,7 +15,6 @@ class InputRow(Widget):
         yield Static("─" * 400, classes="input-top-rule")
         with Horizontal(classes="input-line"):
             yield Static(">", classes="prompt-char")
-            yield Static("Auto ✦", id="model-button", classes="model-button")
             yield Input(placeholder="", id="main-input")
         yield Static("─" * 400, classes="input-bottom-rule")
 
@@ -44,12 +42,6 @@ class InputRow(Widget):
         except Exception:
             pass
 
-    def set_model_label(self, label: str) -> None:
-        try:
-            self.query_one("#model-button", Static).update(label)
-        except Exception:
-            pass
-
     def clear_input(self) -> None:
         try:
             self.query_one("#main-input", Input).value = ""
@@ -73,16 +65,6 @@ class InputRow(Widget):
                 palette.filter = value
             else:
                 palette.hide()
-        except Exception:
-            pass
-
-    def on_click(self, event: events.Click) -> None:
-        widget = getattr(event, "widget", None)
-        if getattr(widget, "id", None) != "model-button" or self._locked:
-            return
-        event.stop()
-        try:
-            self.app.show_model_selector()
         except Exception:
             pass
 

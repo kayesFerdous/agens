@@ -222,20 +222,6 @@ InputRow .prompt-char {
     padding: 0;
 }
 
-InputRow .model-button {
-    width: auto;
-    max-width: 32;
-    color: #A99DD1;
-    background: #1A1713;
-    padding: 0 1;
-    margin: 0 1 0 0;
-}
-
-InputRow .model-button:hover {
-    background: #2A2558;
-    color: #F5F0E8;
-}
-
 InputRow Input {
     height: 1;
     min-height: 1;
@@ -420,15 +406,22 @@ Footer {
     display: none;
 }
 
-/* ── Status strip — second row of bottom bar, uppercase meta ───────────── */
+/* ── Model picker button (below input row) ───────────────────────────── */
 #model-bar {
     height: 1;
     min-height: 1;
-    width: 100%;
-    background: transparent;
-    color: #56524C;
-    padding: 0 3;
+    width: auto;
+    max-width: 32;
+    background: #1A1713;
+    color: #A99DD1;
+    padding: 0 1;
+    margin: 0 0 0 3;
     border: none;
+}
+
+#model-bar:hover {
+    background: #2A2558;
+    color: #F5F0E8;
 }
 
 /* ── 7 & 8. Model selection modal ──────────────────────────────────── */
