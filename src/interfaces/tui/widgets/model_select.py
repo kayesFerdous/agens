@@ -13,12 +13,8 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
-from config.settings import settings
-
-try:
-    import httpx
-except ImportError:  # pragma: no cover - python-telegram-bot normally provides it.
-    httpx = None
+from db.database import async_session
+from interfaces.api.models.router import list_models
 
 
 CACHE_TTL_SECONDS = 60
@@ -37,13 +33,6 @@ class RowMeta:
     disabled: bool = False
 
 
-def _api_base_url() -> str:
-    host = settings.WEB_HOST
-    if host in {"0.0.0.0", "::"}:
-        host = "127.0.0.1"
-    return f"http://{host}:{settings.WEB_PORT}"
-
-
 async def _fetch_models() -> tuple[dict[str, Any] | None, str | None]:
     global _MODEL_CACHE, _MODEL_CACHE_TS
 
@@ -51,16 +40,10 @@ async def _fetch_models() -> tuple[dict[str, Any] | None, str | None]:
     if _MODEL_CACHE is not None and now - _MODEL_CACHE_TS < CACHE_TTL_SECONDS:
         return _MODEL_CACHE, None
 
-    if httpx is None:
-        if _MODEL_CACHE is not None:
-            return _MODEL_CACHE, "Could not load model list - using cached data"
-        return None, "Could not load model list"
-
     try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
-            response = await client.get(f"{_api_base_url()}/api/models")
-            response.raise_for_status()
-            _MODEL_CACHE = response.json()
+        async with async_session() as db:
+            response = await list_models(db)
+            _MODEL_CACHE = response.model_dump(mode="json")
             _MODEL_CACHE_TS = now
             return _MODEL_CACHE, None
     except Exception:
@@ -209,7 +192,7 @@ def _build_options(
 
 
 class ModelSelectScreen(ModalScreen[dict[str, str | None] | None]):
-    """Searchable model selector fed by GET /api/models."""
+    """Searchable model selector fed by the shared model catalog."""
 
     BINDINGS = [
         Binding("escape", "cancel", "Cancel", priority=True),
