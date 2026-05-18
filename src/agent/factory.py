@@ -11,6 +11,7 @@ from core.registry import ToolRegistry
 from llm.client import LLMClient
 from llm.errors import LLMUnavailableError
 from llm.providers import PROVIDER_DEFAULTS, build_provider_config
+from llm.router import FreeTierRouter
 from config.settings import settings
 from config.config_manager import ConfigManager
 from tools.file_read import FileReadTool
@@ -68,24 +69,23 @@ async def build_agent(session: AsyncSession) -> Agent:
     config_manager = ConfigManager()
 
     repo = APIKeyRepository(session)
-    provider_name = getattr(settings, "DEFAULT_PROVIDER", "gemini")
-    default_model = getattr(settings, "DEFAULT_MODEL", "") or PROVIDER_DEFAULTS[provider_name]["default_model"]
-    key = await repo.pick_available_key(provider=provider_name, model=default_model)
-    if key is None:
+    router = FreeTierRouter(repo, fernet)
+
+    # Let the router pick the best available free model right now.
+    bound = await router.pick_next()
+    if bound is None:
         raise LLMUnavailableError(
-            f"No API keys found for provider '{provider_name}'. Add one with: agens apikey add"
+            "No free-tier API keys are available. Add keys with: agens apikey add"
         )
-    raw_key = fernet.decrypt(key.encrypted_key.encode()).decode()
 
     registry = _build_registry(config_manager, usage, fernet)
 
-    config = build_provider_config(provider_name, api_key=raw_key, model=default_model)
-    llm = LLMClient(config)
-    llm.current_key_id = key.id  # type: ignore[attr-defined]
+    bound.client.current_key_id = bound.key_id  # type: ignore[attr-defined]
 
     return Agent(
         registry=registry,
-        llm=llm,
+        llm=bound.client,
+        router=router,
         config_manager=config_manager,
         fernet=fernet,
     )

@@ -14,6 +14,7 @@ from typing import Any, AsyncIterator, Awaitable, Callable
 from db.repositories.api_key import APIKeyRepository
 from llm.client import LLMClient
 from llm.errors import RateLimitError, LLMUnavailableError
+from llm.router import FreeTierRouter
 from core.tool_groups import get_enabled_tool_names, get_enabled_tool_schemas
 from core.registry import ToolRegistry
 from core.types import (
@@ -59,11 +60,13 @@ class Agent:
         self,
         registry: ToolRegistry,
         llm: LLMClient,
+        router: FreeTierRouter,
         config_manager: ConfigManager,
         fernet: Fernet,
     ) -> None:
         self._registry = registry
         self._llm = llm
+        self._router = router
         self._current_key_id: str | None = getattr(llm, "current_key_id", None)
         self.model_name = llm.config.default_model
         self._config_manager = config_manager
@@ -468,7 +471,7 @@ class Agent:
 
             try:
                 # Pre-flight key check — swap key if current one is cooling down.
-                swapped = await self._ensure_key_available(
+                swapped = await self._ensure_model_available(
                     active_model, api_key_manager, db
                 )
                 if swapped:
@@ -548,44 +551,46 @@ class Agent:
                 break
 
             except RateLimitError as e:
-                if self._current_key_id:
-                    e.key_id = self._current_key_id
+                current_model = self.model_name or self._llm.config.default_model
                 logger.warning(
-                    "Rate limit on attempt %d: model=%s retry_after=%ds daily=%s",
-                    attempt, active_model, e.retry_after, e.is_daily,
+                    "Rate limit on attempt %d: model=%s", attempt, current_model
                 )
-                try:
-                    if not self._current_key_id:
-                        raise LLMUnavailableError(
-                            f"No current API key is tracked for provider '{self._llm.config.name}'."
-                        )
-                    new_raw_key = await api_key_manager.rotate_key(
-                        provider=self._llm.config.name,
-                        model=active_model,
-                        error=e,
-                        current_key_id=self._current_key_id,
-                        db=db,
+
+                # 1. Smart cooldown via catalog
+                from llm.catalog import get_model, cooldown_for
+                entry = get_model(current_model)
+                cooldown_sec = cooldown_for(entry, "rate_limit") if entry else 60
+                if self._current_key_id:
+                    await api_key_manager.repo.set_model_cooldown(
+                        self._current_key_id,
+                        current_model,
+                        reason="rate_limit",
+                        duration_seconds=cooldown_sec,
                     )
-                    if new_raw_key is None:
-                        raise LLMUnavailableError(
-                            f"All API keys are on cooldown for model '{active_model}'."
-                        )
-                    self._llm.swap_key(new_raw_key)
-                    self._current_key_id = api_key_manager.last_rotated_key_id
-                    self.model_name = self._llm.config.default_model
+
+                # 2. Cross-provider fallback via router
+                bound = await self._router.pick_next(
+                    preferred=model_name,          # user override if any
+                    exclude={current_model},
+                )
+                if bound:
+                    self._llm = bound.client
+                    self._current_key_id = bound.key_id
+                    self.model_name = bound.entry.id
+                    yield StreamEvent(
+                        type="status",
+                        message=f"Rate limited on {current_model}. "
+                                f"Falling back to {bound.entry.name}.",
+                    )
                     if attempt < max_retries - 1:
-                        yield StreamEvent(
-                            type="status",
-                            message="API key rotated. Retrying the request.",
-                        )
-                    else:
-                        retry_exhausted_error = (
-                            f"Request failed after {max_retries} attempts due to rate limits "
-                            f"for model '{active_model}'. Please try again later."
-                        )
-                except LLMUnavailableError as e2:
-                    yield StreamEvent(type="error", error=str(e2))
-                    return
+                        continue   # retry the react_stream with new client
+                # 3. Truly exhausted
+                yield StreamEvent(
+                    type="error",
+                    error=f"All free-tier models are rate-limited. "
+                          f"Last tried: {current_model}.",
+                )
+                return
 
             except LLMUnavailableError as e:
                 logger.warning("LLM unavailable on attempt %d: %s", attempt, e)
@@ -651,6 +656,38 @@ class Agent:
         self.model_name = self._llm.config.default_model
         logger.info("Pre-flight: swapped to backup key for model=%s", model)
         return True
+
+
+    async def _ensure_model_available(
+        self,
+        model: str,
+        api_key_manager: APIKeyManager,
+        db: AsyncSession,
+    ) -> bool:
+        """Pre-flight check. Returns True if we swapped to a new model/key."""
+        if self._current_key_id is None:
+            bound = await self._router.pick_next(preferred=model)
+            if bound is None:
+                raise LLMUnavailableError("No free-tier keys available.")
+            self._llm = bound.client
+            self._current_key_id = bound.key_id
+            self.model_name = bound.entry.id
+            return True
+
+        is_ok = await api_key_manager.is_model_available_for_key(
+            self._current_key_id, model
+        )
+        if is_ok:
+            return False
+
+        bound = await self._router.pick_next(preferred=model, exclude={model})
+        if bound is None:
+            raise LLMUnavailableError(f"No backup models available for {model}.")
+        self._llm = bound.client
+        self._current_key_id = bound.key_id
+        self.model_name = bound.entry.id
+        return True
+
 
     async def _execute_tool(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         tool = self._registry.get(name)
