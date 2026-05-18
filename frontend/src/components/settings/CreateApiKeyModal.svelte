@@ -11,14 +11,7 @@
   let error = null;
 
   import { theme } from '../../lib/store.js';
-  import geminiLogo from '../../assets/gemini.svg';
-  import openaiLogo from '../../assets/openai.svg';
-  import openaiLogoDark from '../../assets/openai-darkmode.svg';
-  import groqLogo from '../../assets/groq.svg';
-  import groqLogoDark from '../../assets/groq-darkmode.svg';
-  import cerebrasLogo from '../../assets/cerebras.svg';
-  import cerebrasLogoDark from '../../assets/cerebras-darkmode.svg';
-  import siliconflowLogo from '../../assets/siliconcloud.svg';
+  import ProviderLogo from '../ProviderLogo.svelte';
 
   const providers = [
     { id: 'gemini', name: 'Google Gemini' },
@@ -27,20 +20,6 @@
     { id: 'cerebras', name: 'Cerebras' },
     { id: 'siliconflow', name: 'SiliconFlow' },
   ];
-
-  $: logosMap = {
-    gemini: geminiLogo,
-    openai: $theme === 'dark' ? openaiLogoDark : openaiLogo,
-    groq: $theme === 'dark' ? groqLogoDark : groqLogo,
-    cerebras: $theme === 'dark' ? cerebrasLogoDark : cerebrasLogo,
-    siliconflow: siliconflowLogo,
-  };
-
-  function getLogoUrl(p) {
-    return logosMap[p.toLowerCase()] || '';
-  }
-  
-  $: currentLogoUrl = getLogoUrl(provider);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -125,10 +104,8 @@
       <div class="form-group">
         <label for="provider">Provider</label>
         <div class="provider-select-wrapper">
-          {#if currentLogoUrl}
-            <img src={currentLogoUrl} alt={provider} class="provider-select-logo" />
-          {/if}
-          <select id="provider" bind:value={provider} disabled={loading} class={currentLogoUrl ? "has-logo" : ""}>
+          <ProviderLogo {provider} class="provider-select-logo" />
+          <select id="provider" bind:value={provider} disabled={loading} class="has-logo">
             {#each providers as item}
               <option value={item.id}>{item.name}</option>
             {/each}
@@ -325,11 +302,11 @@
     align-items: center;
   }
 
-  .provider-select-logo {
+  :global(.provider-select-logo) {
     position: absolute;
     left: 12px;
-    width: 20px;
-    height: 20px;
+    width: 20px !important;
+    height: 20px !important;
     object-fit: contain;
     pointer-events: none;
   }

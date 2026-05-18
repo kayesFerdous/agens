@@ -2,14 +2,7 @@
   import { onMount, tick } from 'svelte';
   import { fetchModels, getWebPrefs, updateWebPrefs } from '../lib/api.js';
   import { activePage, settingsTab, theme } from '../lib/store.js';
-  import geminiLogo from '../assets/gemini.svg';
-  import openaiLogo from '../assets/openai.svg';
-  import openaiLogoDark from '../assets/openai-darkmode.svg';
-  import groqLogo from '../assets/groq.svg';
-  import groqLogoDark from '../assets/groq-darkmode.svg';
-  import cerebrasLogo from '../assets/cerebras.svg';
-  import cerebrasLogoDark from '../assets/cerebras-darkmode.svg';
-  import siliconflowLogo from '../assets/siliconcloud.svg';
+  import ProviderLogo from './ProviderLogo.svelte';
 
   let { selectedModel = $bindable(null), onchange } = $props();
 
@@ -22,14 +15,6 @@
   let triggerRef = $state();
   let popoverRef = $state();
   let searchRef = $state();
-
-  const providerLogos = $derived({
-    gemini: geminiLogo,
-    openai: $theme === 'dark' ? openaiLogoDark : openaiLogo,
-    groq: $theme === 'dark' ? groqLogoDark : groqLogo,
-    cerebras: $theme === 'dark' ? cerebrasLogoDark : cerebrasLogo,
-    siliconflow: siliconflowLogo
-  });
 
   const selectedInfo = $derived(findModel(selectedModel));
   const displayLabel = $derived(
@@ -285,9 +270,7 @@
               title={!provider.has_active_key ? `Add a ${provider.name} API key in Settings to enable these models.` : provider.name}
             >
               <span class="provider-heading">
-                {#if providerLogos[provider.id]}
-                  <img src={providerLogos[provider.id]} alt="" class="provider-logo" />
-                {/if}
+                <ProviderLogo provider={provider.id} class="provider-logo" />
                 <span>{provider.name}</span>
               </span>
               {#if !provider.has_active_key}
@@ -555,9 +538,9 @@
     gap: 7px;
   }
 
-  .provider-logo {
-    width: 14px;
-    height: 14px;
+  :global(.provider-logo) {
+    width: 14px !important;
+    height: 14px !important;
     object-fit: contain;
     color: currentColor;
     opacity: 0.9;

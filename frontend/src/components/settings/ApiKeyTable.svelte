@@ -49,27 +49,7 @@
   }
 
   import { theme } from '../../lib/store.js';
-  import geminiLogo from '../../assets/gemini.svg';
-  import openaiLogo from '../../assets/openai.svg';
-  import openaiLogoDark from '../../assets/openai-darkmode.svg';
-  import groqLogo from '../../assets/groq.svg';
-  import groqLogoDark from '../../assets/groq-darkmode.svg';
-  import cerebrasLogo from '../../assets/cerebras.svg';
-  import cerebrasLogoDark from '../../assets/cerebras-darkmode.svg';
-  import siliconflowLogo from '../../assets/siliconcloud.svg';
-
-  $: logosMap = {
-    gemini: geminiLogo,
-    openai: $theme === 'dark' ? openaiLogoDark : openaiLogo,
-    groq: $theme === 'dark' ? groqLogoDark : groqLogo,
-    cerebras: $theme === 'dark' ? cerebrasLogoDark : cerebrasLogo,
-    siliconflow: siliconflowLogo,
-  };
-
-  function getLogoUrl(provider) {
-    return logosMap[provider.toLowerCase()] || '';
-  }
-
+  import ProviderLogo from '../ProviderLogo.svelte';
 </script>
 
 <div class="keys-list">
@@ -77,10 +57,7 @@
     <div class="key-card">
       <div class="key-header">
         <div class="provider-info">
-          {#if getLogoUrl(key.provider)}
-            <img src={getLogoUrl(key.provider)} alt={key.provider} class="provider-logo" onerror={(e) => { e.currentTarget.style.display='none'; e.currentTarget.nextElementSibling.style.display='flex'; }} />
-          {/if}
-          <div class="provider-logo-fallback" style={getLogoUrl(key.provider) ? "display: none;" : ""}>{key.provider.charAt(0).toUpperCase()}</div>
+          <ProviderLogo provider={key.provider} />
           <span class="provider-name">{key.label ? `${key.label} — ${key.provider}` : key.provider}</span>
         </div>
         
@@ -191,26 +168,6 @@
     gap: 12px;
     flex: 1;
     min-width: 0;
-  }
-
-  .provider-logo {
-    width: 24px;
-    height: 24px;
-    border-radius: 4px;
-    object-fit: contain;
-  }
-
-  .provider-logo-fallback {
-    width: 24px;
-    height: 24px;
-    border-radius: 4px;
-    background: var(--ag-accent-light);
-    color: var(--ag-ink);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    font-weight: 500;
   }
 
   .provider-name {
