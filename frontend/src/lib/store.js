@@ -24,6 +24,7 @@ export const isStreaming = writable(false);
 export const noApiKeys = writable(false);
 export const isSidebarOpen = writable(typeof window !== 'undefined' ? window.innerWidth > 820 : true);
 export const toolGroups = writable(loadToolGroups());
+export const selectedModel = writable(null);
 
 /**
  * Set by App.svelte after loading a session whose last assistant message has

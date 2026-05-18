@@ -5,7 +5,7 @@ from typing import Optional
 
 from cryptography.fernet import Fernet
 from db.repositories.api_key import APIKeyRepository
-from llm.catalog import ModelEntry, get_fallback_chain, get_model, cooldown_for
+from llm.catalog import ModelEntry, get_catalog, get_fallback_chain, get_model, cooldown_for
 from llm.providers import build_provider_config
 from llm.client import LLMClient
 
@@ -14,6 +14,13 @@ class BoundModel:
     entry: ModelEntry
     key_id: str
     client: LLMClient
+
+
+def _find_catalog_entry(provider: str, model_id: str) -> ModelEntry | None:
+    for entry in get_catalog():
+        if entry.provider == provider and entry.id == model_id:
+            return entry
+    return None
 
 class FreeTierRouter:
     """
@@ -32,12 +39,16 @@ class FreeTierRouter:
         exclude: set[str] | None = None,
     ) -> Optional[BoundModel]:
         """
-        preferred: exact model id requested by user (optional).
+        preferred: exact model id or provider/model id requested by user (optional).
         exclude:   model ids currently cooling down.
         """
         candidates: list[ModelEntry] = []
         if preferred:
-            p = get_model(preferred)
+            if "/" in preferred:
+                preferred_provider, preferred_model = preferred.split("/", maxsplit=1)
+                p = _find_catalog_entry(preferred_provider, preferred_model)
+            else:
+                p = get_model(preferred)
             if p:
                 candidates.append(p)
         candidates += [c for c in self._chain if c not in candidates]

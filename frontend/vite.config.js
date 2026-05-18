@@ -13,6 +13,7 @@ export default defineConfig({
     proxy: {
       '/sessions': 'http://localhost:8000',
       '/chat': 'http://localhost:8000',
+      '/api': 'http://localhost:8000',
       '/api-keys': 'http://localhost:8000',
       '/settings': 'http://localhost:8000',
     },

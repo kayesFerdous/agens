@@ -222,6 +222,20 @@ InputRow .prompt-char {
     padding: 0;
 }
 
+InputRow .model-button {
+    width: auto;
+    max-width: 32;
+    color: #A99DD1;
+    background: #1A1713;
+    padding: 0 1;
+    margin: 0 1 0 0;
+}
+
+InputRow .model-button:hover {
+    background: #2A2558;
+    color: #F5F0E8;
+}
+
 InputRow Input {
     height: 1;
     min-height: 1;

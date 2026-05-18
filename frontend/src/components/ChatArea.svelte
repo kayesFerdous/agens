@@ -86,8 +86,6 @@
     handleSubmit(text);
   }
 
-  // Default model — kept in sync with ModelSelector default
-  const DEFAULT_MODEL = "gemini/gemini-2.5-flash-lite";
   const KEY_UNAVAILABLE_PREFIX = "All API keys are currently exhausted or unavailable.";
 
   function handleSubmit(textOrPayload) {
@@ -95,11 +93,11 @@
     if (typeof textOrPayload === "string") {
       // Called from WelcomeScreen suggestion chips
       text = textOrPayload;
-      model = DEFAULT_MODEL;
+      model = null;
     } else if (textOrPayload && typeof textOrPayload === "object") {
       // Called from ChatInput with { text, model }
       text = textOrPayload.text;
-      model = textOrPayload.model ?? DEFAULT_MODEL;
+      model = textOrPayload.model ?? null;
     } else {
       return;
     }

@@ -303,8 +303,11 @@ class Agent:
         messages.append({"role": "user", "content": user_request})
 
         model_name: str | None = None
+        selected_provider: str | None = None
+        preferred_model_ref: str | None = None
         if model:
-            _, model_name = model.split("/", maxsplit=1)
+            selected_provider, model_name = model.split("/", maxsplit=1)
+            preferred_model_ref = model
 
         api_key_manager = APIKeyManager(repo=APIKeyRepository(db), fernet=self._fernet)
 
@@ -470,9 +473,23 @@ class Agent:
             active_model = model_name or self._llm.config.default_model
 
             try:
+                if selected_provider and self._llm.config.name != selected_provider:
+                    bound = await self._router.pick_next(preferred=preferred_model_ref)
+                    if bound is None:
+                        raise LLMUnavailableError(
+                            f"No available keys for provider={selected_provider} model={active_model}"
+                        )
+                    self._llm = bound.client
+                    self._current_key_id = bound.key_id
+                    self.model_name = bound.entry.id
+                    yield StreamEvent(
+                        type="status",
+                        message=f"Model set to {bound.entry.name}.",
+                    )
+
                 # Pre-flight key check — swap key if current one is cooling down.
                 swapped = await self._ensure_model_available(
-                    active_model, api_key_manager, db
+                    active_model, api_key_manager, db, preferred=preferred_model_ref
                 )
                 if swapped:
                     yield StreamEvent(
@@ -570,7 +587,7 @@ class Agent:
 
                 # 2. Cross-provider fallback via router
                 bound = await self._router.pick_next(
-                    preferred=model_name,          # user override if any
+                    preferred=preferred_model_ref or model_name,  # user override if any
                     exclude={current_model},
                 )
                 if bound:
@@ -663,10 +680,11 @@ class Agent:
         model: str,
         api_key_manager: APIKeyManager,
         db: AsyncSession,
+        preferred: str | None = None,
     ) -> bool:
         """Pre-flight check. Returns True if we swapped to a new model/key."""
         if self._current_key_id is None:
-            bound = await self._router.pick_next(preferred=model)
+            bound = await self._router.pick_next(preferred=preferred or model)
             if bound is None:
                 raise LLMUnavailableError("No free-tier keys available.")
             self._llm = bound.client
@@ -680,7 +698,7 @@ class Agent:
         if is_ok:
             return False
 
-        bound = await self._router.pick_next(preferred=model, exclude={model})
+        bound = await self._router.pick_next(preferred=preferred or model, exclude={model})
         if bound is None:
             raise LLMUnavailableError(f"No backup models available for {model}.")
         self._llm = bound.client

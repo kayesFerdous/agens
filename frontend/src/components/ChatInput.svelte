@@ -1,12 +1,18 @@
 <script>
   import ModelSelector from './ModelSelector.svelte';
   import ToolGroupSelector from './ToolGroupSelector.svelte';
+  import { selectedModel as selectedModelStore } from '../lib/store.js';
 
   // Allow external control of stop button visibility while disabled.
-  let { disabled = false, showStop = false, selectedModel = $bindable('gemini/gemini-2.5-flash-lite'), onsubmit, onstop } = $props();
+  let { disabled = false, showStop = false, onsubmit, onstop } = $props();
 
   let text = $state('');
+  let currentModel = $state(null);
   let textareaElement = $state();
+
+  $effect(() => {
+    selectedModelStore.set(currentModel);
+  });
 
   function handleWindowKeydown(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -22,7 +28,7 @@
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (!disabled && text.trim()) {
-        if (onsubmit) onsubmit({ text: text.trim(), model: selectedModel });
+        if (onsubmit) onsubmit({ text: text.trim(), model: currentModel });
         text = '';
       }
     }
@@ -30,7 +36,7 @@
 
   function handleSubmit() {
     if (!disabled && text.trim()) {
-      if (onsubmit) onsubmit({ text: text.trim(), model: selectedModel });
+      if (onsubmit) onsubmit({ text: text.trim(), model: currentModel });
       text = '';
     }
   }
@@ -40,7 +46,7 @@
   }
 
   function handleModelChange(val) {
-    selectedModel = val;
+    currentModel = val;
   }
 </script>
 
@@ -63,7 +69,7 @@
     <div class="bottom-bar">
       <div class="control-group">
         <ModelSelector
-          bind:selectedModel
+          bind:selectedModel={currentModel}
           onchange={handleModelChange}
         />
         <ToolGroupSelector />

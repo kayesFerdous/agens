@@ -121,6 +121,9 @@ _FALLBACK_CHAIN: list[str] = [
 def get_model(model_id: str) -> ModelEntry | None:
     return _BY_ID.get(model_id)
 
+def get_catalog() -> tuple[ModelEntry, ...]:
+    return _CATALOG
+
 def get_fallback_chain() -> list[ModelEntry]:
     """Return ordered, deduplicated entries that are free-tier capable."""
     seen: set[str] = set()

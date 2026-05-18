@@ -16,7 +16,7 @@ from textual.widgets import Static
 
 from .commands import execute_command, parse_command
 from .history import InputHistory
-from .prefs import get_selected_model, get_tool_groups, set_selected_model, set_tool_groups
+from .prefs import get_tool_groups, set_tool_groups
 from .theme import ASSISTANT_CSS
 from .widgets.chat_view import ChatView
 from .widgets.command_palette import CommandPalette
@@ -41,6 +41,7 @@ class AssistantTUI(App):
         Binding("ctrl+q", "quit", "Quit", priority=True),
         Binding("ctrl+l", "clear_chat", "Clear"),
         Binding("ctrl+k", "focus_input", "Focus input"),
+        Binding("ctrl+m", "show_models", "Models"),
         Binding("escape", "interrupt", "Interrupt"),
         Binding("enter", "no_key_select", "Select", priority=True, show=False),
         Binding("up", "history_prev", "Previous input", show=False),
@@ -63,7 +64,7 @@ class AssistantTUI(App):
         self._current_tool_group: ToolGroup | None = None
         self._pending_tool_blocks: dict[str, ToolBlock] = {}
         self._token_count = 0
-        self._selected_model: str | None = get_selected_model()  # restored from prefs
+        self._selected_model: str | None = None
         self._tool_groups: dict[str, bool] = get_tool_groups()
         self.model_name = self._detect_model_name()
         self._awaiting_confirmation = False
@@ -527,11 +528,11 @@ class AssistantTUI(App):
         """Push the model selection modal; result is applied via callback."""
         from .widgets.model_select import ModelSelectScreen, get_model_label
 
-        def _on_selected(selected: str | None) -> None:
-            if selected is None:
+        def _on_selected(result: dict[str, str | None] | None) -> None:
+            if result is None:
                 return  # user cancelled
+            selected = result.get("model")
             self._selected_model = selected
-            set_selected_model(selected)  # persist across restarts
             label = get_model_label(selected)
             self.query_one(AppHeader).update_model(label)
             self._update_model_bar()
@@ -542,6 +543,11 @@ class AssistantTUI(App):
             )
 
         self.push_screen(ModelSelectScreen(current_model=self._selected_model), callback=_on_selected)
+
+    def action_show_models(self) -> None:
+        if self._awaiting_confirmation or self._active_no_api_key_prompt is not None:
+            return
+        self.show_model_selector()
 
     def show_tool_group_selector(self) -> None:
         """Push the active tool group selection modal."""
@@ -642,7 +648,8 @@ class AssistantTUI(App):
         from .widgets.model_select import get_model_label
         try:
             bar = self.query_one("#model-bar", Static)
-            label = get_model_label(self._selected_model or self.model_name)
+            label = get_model_label(self._selected_model)
+            self.query_one(InputRow).set_model_label(label)
             cwd = self._format_footer_cwd()
             bar.update(
                 f"  [#7B6EAA]{label}[/#7B6EAA]"
