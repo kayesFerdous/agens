@@ -1,6 +1,8 @@
 import asyncio
+from dataclasses import dataclass
 import logging
 import re
+from datetime import datetime
 from html import escape as html_escape, unescape
 
 import markdown
@@ -11,17 +13,19 @@ from telegram.helpers import escape_markdown
 from telegram.ext import ContextTypes, Application
 
 from agent.agent import Agent, Channel
-from core.model_catalog import ALL_MODELS, get_model_label, resolve_model
 from core.tool_groups import DEFAULT_TOOL_GROUPS
 from db.database import async_session
 from db import repository as session_repo
 from db.models import APIKey, KeyStatus
 from db.repositories.api_key import APIKeyRepository
+from interfaces.api.models.router import list_models
+from interfaces.api.models.schemas import ModelInfo, ModelsResponse, ProviderModels
 from interfaces.api_key_state import (
     NO_API_KEYS_TELEGRAM_MESSAGE,
     has_any_api_keys,
     user_key_unavailable_message,
 )
+from llm.catalog import get_catalog
 from .prefs import get_selected_model, set_selected_model, get_tool_groups, set_tool_groups
 
 logger = logging.getLogger(__name__)
@@ -45,6 +49,30 @@ TELEGRAM_HTML_TAGS = {
     "tg-spoiler",
     "u",
 }
+MODEL_CALLBACK_CLOSE = "close"
+MODEL_CALLBACK_AUTO = "auto"
+MODEL_CALLBACK_BACK = "back"
+MODEL_CALLBACK_PROVIDER_PREFIX = "provider:"
+MODEL_CALLBACK_SET_PREFIX = "set:"
+PROVIDER_NAME_FALLBACKS = {
+    "gemini": "Google Gemini",
+    "openai": "OpenAI",
+    "groq": "Groq",
+    "cerebras": "Cerebras",
+    "siliconflow": "SiliconFlow",
+}
+
+
+@dataclass(frozen=True)
+class TelegramModelOption:
+    value: str
+    provider_id: str
+    provider_name: str
+    model_id: str
+    model_name: str
+    status: str
+    cooldown_until_ts: int | None
+    has_active_key: bool
 
 
 def _md(text: str) -> str:
@@ -83,7 +111,7 @@ async def start_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     model_name = None
     if update.effective_user:
         model_name = get_selected_model(update.effective_user.id)
-    model_label = get_model_label(model_name) if model_name else "the default model"
+    model_label = _get_selected_model_label(model_name)
     await update.message.reply_text(  # type: ignore[union-attr]
         "\n".join([
             "*Assistant ready*",
@@ -127,30 +155,361 @@ def _current_model_for_user(update: Update) -> str | None:
     return get_selected_model(update.effective_user.id)
 
 
-def _build_model_keyboard(current_model: str | None) -> InlineKeyboardMarkup:
+def _get_selected_model_label(selected_model: str | None) -> str:
+    if not selected_model:
+        return "Auto (best available)"
+    if "/" not in selected_model:
+        return selected_model
+    provider_id, model_id = selected_model.split("/", maxsplit=1)
+    for entry in get_catalog():
+        if entry.provider == provider_id and entry.id == model_id:
+            provider_name = PROVIDER_NAME_FALLBACKS.get(provider_id, provider_id)
+            return f"{provider_name} / {entry.name}"
+    return selected_model
+
+
+async def _load_models_response() -> ModelsResponse:
+    async with async_session() as db:
+        return await list_models(db)
+
+
+def _flatten_model_options(model_data: ModelsResponse) -> list[TelegramModelOption]:
+    options: list[TelegramModelOption] = []
+    for provider in model_data.providers:
+        for model in provider.models:
+            options.append(
+                TelegramModelOption(
+                    value=f"{provider.id}/{model.id}",
+                    provider_id=provider.id,
+                    provider_name=provider.name,
+                    model_id=model.id,
+                    model_name=model.name,
+                    status=model.status,
+                    cooldown_until_ts=model.cooldown_until_ts,
+                    has_active_key=provider.has_active_key,
+                )
+            )
+    return options
+
+
+def _find_provider(model_data: ModelsResponse, provider_id: str) -> ProviderModels | None:
+    return next((provider for provider in model_data.providers if provider.id == provider_id), None)
+
+
+def _find_model_option(
+    model_data: ModelsResponse,
+    selected_value: str,
+) -> TelegramModelOption | None:
+    for option in _flatten_model_options(model_data):
+        if option.value == selected_value:
+            return option
+    return None
+
+
+def _find_model_matches(query: str, options: list[TelegramModelOption]) -> list[TelegramModelOption]:
+    value = query.strip().lower()
+    if not value:
+        return []
+
+    exact: list[TelegramModelOption] = []
+    for option in options:
+        aliases = {
+            option.value.lower(),
+            option.model_id.lower(),
+            option.model_name.lower(),
+            f"{option.provider_id}/{option.model_name}".lower(),
+            f"{option.provider_name}/{option.model_name}".lower(),
+        }
+        if value in aliases:
+            exact.append(option)
+    if exact:
+        return exact
+
+    partial: list[TelegramModelOption] = []
+    for option in options:
+        haystack = " ".join([
+            option.value,
+            option.provider_id,
+            option.provider_name,
+            option.model_id,
+            option.model_name,
+        ]).lower()
+        if value in haystack:
+            partial.append(option)
+    return partial
+
+
+def _model_status_icon(model: ModelInfo, *, has_active_key: bool) -> str:
+    if not has_active_key or model.status == "no_key":
+        return "🔒"
+    if model.status == "cooldown":
+        return "⏳"
+    return "🟢"
+
+
+def _trim_button_text(text: str, max_chars: int = 56) -> str:
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 1].rstrip() + "…"
+
+
+def _format_cooldown_time(cooldown_until_ts: int | None) -> str | None:
+    if cooldown_until_ts is None:
+        return None
+    dt = datetime.fromtimestamp(cooldown_until_ts)
+    return dt.strftime("%H:%M")
+
+
+def _build_model_root_keyboard(current_model: str | None, model_data: ModelsResponse) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
-    for model_id, label, _ in ALL_MODELS:
-        prefix = "✅ " if model_id == current_model else ""
+
+    auto_prefix = "✅ " if current_model is None else ""
+    rows.append([
+        InlineKeyboardButton(
+            text=f"{auto_prefix}✨ Auto (best available)",
+            callback_data=f"{MODEL_CALLBACK_PREFIX}{MODEL_CALLBACK_AUTO}",
+        )
+    ])
+
+    for provider in model_data.providers:
+        provider_prefix = "✅ " if current_model and current_model.startswith(f"{provider.id}/") else ""
+        availability = "🟢" if provider.has_active_key else "🔒"
+        label = _trim_button_text(f"{provider_prefix}{availability} {provider.name} ({len(provider.models)})")
         rows.append([
             InlineKeyboardButton(
-                text=f"{prefix}{label}",
-                callback_data=f"{MODEL_CALLBACK_PREFIX}{model_id}",
+                text=label,
+                callback_data=f"{MODEL_CALLBACK_PREFIX}{MODEL_CALLBACK_PROVIDER_PREFIX}{provider.id}",
             )
         ])
-    rows.append([InlineKeyboardButton(text="Close", callback_data=f"{MODEL_CALLBACK_PREFIX}close")])
+    rows.append([InlineKeyboardButton(
+        text="✕ Close",
+        callback_data=f"{MODEL_CALLBACK_PREFIX}{MODEL_CALLBACK_CLOSE}",
+    )])
     return InlineKeyboardMarkup(rows)
 
 
-def _render_model_prompt(current_model: str | None) -> str:
-    if current_model:
-        return (
-            f"*{_md('Current model:')}* `{_md(get_model_label(current_model))}`\n\n"
-            f"{_md('Tap a model below to change it.')}"
-        )
-    return (
-        f"*{_md('Current model:')}* `default`\n\n"
-        f"{_md('Tap a model below to set one, or keep using the default model.')}"
+def _build_provider_model_keyboard(
+    provider: ProviderModels,
+    current_model: str | None,
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    auto_prefix = "✅ " if current_model is None else ""
+    rows.append([InlineKeyboardButton(
+        text=f"{auto_prefix}✨ Auto (best available)",
+        callback_data=f"{MODEL_CALLBACK_PREFIX}{MODEL_CALLBACK_AUTO}",
+    )])
+    for model in provider.models:
+        value = f"{provider.id}/{model.id}"
+        prefix = "✅ " if value == current_model else ""
+        status = _model_status_icon(model, has_active_key=provider.has_active_key)
+        free_badge = " · free" if model.free_tier else ""
+        text = _trim_button_text(f"{prefix}{status} {model.name}{free_badge}")
+        rows.append([InlineKeyboardButton(
+            text=text,
+            callback_data=f"{MODEL_CALLBACK_PREFIX}{MODEL_CALLBACK_SET_PREFIX}{value}",
+        )])
+
+    rows.append([
+        InlineKeyboardButton(
+            text="← Providers",
+            callback_data=f"{MODEL_CALLBACK_PREFIX}{MODEL_CALLBACK_BACK}",
+        ),
+        InlineKeyboardButton(
+            text="✕ Close",
+            callback_data=f"{MODEL_CALLBACK_PREFIX}{MODEL_CALLBACK_CLOSE}",
+        ),
+    ])
+    return InlineKeyboardMarkup(rows)
+
+
+def _render_model_root_prompt(current_model: str | None) -> str:
+    return "\n".join([
+        f"*{_md('Model Selection')}*",
+        "",
+        f"*{_md('Current model:')}* `{_md(_get_selected_model_label(current_model))}`",
+        _md("Choose a provider below, or pick Auto to let Agens choose the best available model."),
+    ])
+
+
+def _render_provider_prompt(provider: ProviderModels, current_model: str | None) -> str:
+    ready_count = sum(1 for model in provider.models if model.status == "available")
+    cooldown_count = sum(1 for model in provider.models if model.status == "cooldown")
+    unavailable_count = sum(
+        1 for model in provider.models if model.status == "no_key" or not provider.has_active_key
     )
+    lines = [
+        f"*{_md(provider.name)}*",
+        "",
+        f"*{_md('Current model:')}* `{_md(_get_selected_model_label(current_model))}`",
+        "",
+        _md(
+            f"{ready_count} ready · {cooldown_count} cooling down · {unavailable_count} unavailable"
+        ),
+        _md("Legend: 🟢 ready · ⏳ cooling down · 🔒 unavailable"),
+    ]
+    if not provider.has_active_key:
+        lines.extend([
+            "",
+            _md(f"No active {provider.name} key found. Use /keys to enable or add one."),
+        ])
+    return "\n".join(lines)
+
+
+def _render_model_updated_message(
+    label: str,
+    *,
+    auto_mode: bool = False,
+    cooldown_until_ts: int | None = None,
+) -> str:
+    if auto_mode:
+        return "\n".join([
+            "*Model updated*",
+            "",
+            _md("Now using Auto mode."),
+            _md("Agens will pick the best available model for each new request."),
+        ])
+
+    lines = [
+        "*Model updated*",
+        "",
+        _md(f"Now using {label}."),
+    ]
+    cooldown = _format_cooldown_time(cooldown_until_ts)
+    if cooldown:
+        lines.append(_md(f"Heads up: this model is cooling down until about {cooldown}."))
+    else:
+        lines.append(_md("New chats will use this model."))
+    return "\n".join(lines)
+
+
+def _render_model_not_found_message(choice: str) -> str:
+    return "\n".join([
+        "*Model not found*",
+        "",
+        _md(f"I could not find a model matching: {choice}"),
+        _md("Try a more specific query or pick from the interactive list below."),
+    ])
+
+
+def _render_model_ambiguous_message(choice: str, matches: list[TelegramModelOption]) -> str:
+    lines = [
+        "*Multiple matches found*",
+        "",
+        _md(f"Your query '{choice}' matches several models:"),
+    ]
+    for option in matches[:5]:
+        lines.append(f"• `{_md(option.value)}` — {_md(option.model_name)}")
+    lines.extend([
+        "",
+        _md("Use /model with the full provider/model id, or pick from the list below."),
+    ])
+    return "\n".join(lines)
+
+
+async def _send_model_root_picker(update: Update, current_model: str | None) -> None:
+    model_data = await _load_models_response()
+    await update.message.reply_text(  # type: ignore[union-attr]
+        _render_model_root_prompt(current_model),
+        reply_markup=_build_model_root_keyboard(current_model, model_data),
+        parse_mode=ParseMode.MARKDOWN_V2,
+    )
+
+
+def _is_auto_choice(value: str) -> bool:
+    return value.strip().lower() in {"auto", "default", "router", "best"}
+
+
+def _is_picker_choice(value: str) -> bool:
+    return value.strip().lower() in {"list", "show", "picker", "choose", "open"}
+
+
+async def _handle_direct_model_choice(
+    update: Update,
+    choice: str,
+    current_model: str | None,
+    model_data: ModelsResponse,
+) -> bool:
+    user = update.effective_user
+    if not user:
+        return False
+
+    if _is_auto_choice(choice):
+        set_selected_model(user.id, None)
+        await update.message.reply_text(  # type: ignore[union-attr]
+            _render_model_updated_message("Auto", auto_mode=True),
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        return True
+
+    options = _flatten_model_options(model_data)
+    matches = _find_model_matches(choice, options)
+    if len(matches) == 1:
+        selected = matches[0]
+        if not selected.has_active_key or selected.status == "no_key":
+            await update.message.reply_text(  # type: ignore[union-attr]
+                "\n".join([
+                    "*Model unavailable*",
+                    "",
+                    _md(f"{selected.provider_name} has no active key for {selected.model_name}."),
+                    _md("Use /keys to enable a key, then try again."),
+                ]),
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+            await _send_model_root_picker(update, current_model)
+            return True
+
+        set_selected_model(user.id, selected.value)
+        await update.message.reply_text(  # type: ignore[union-attr]
+            _render_model_updated_message(
+                _get_selected_model_label(selected.value),
+                cooldown_until_ts=selected.cooldown_until_ts,
+            ),
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        return True
+
+    if len(matches) > 1:
+        await update.message.reply_text(  # type: ignore[union-attr]
+            _render_model_ambiguous_message(choice, matches),
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        await _send_model_root_picker(update, current_model)
+        return True
+
+    await update.message.reply_text(  # type: ignore[union-attr]
+        _render_model_not_found_message(choice),
+        parse_mode=ParseMode.MARKDOWN_V2,
+    )
+    await _send_model_root_picker(update, current_model)
+    return True
+
+
+async def _edit_to_model_root(
+    query,
+    current_model: str | None,
+    model_data: ModelsResponse,
+) -> None:
+    await query.edit_message_text(
+        _render_model_root_prompt(current_model),
+        reply_markup=_build_model_root_keyboard(current_model, model_data),
+        parse_mode=ParseMode.MARKDOWN_V2,
+    )
+
+
+async def _edit_to_provider_picker(
+    query,
+    provider: ProviderModels,
+    current_model: str | None,
+) -> None:
+    await query.edit_message_text(
+        _render_provider_prompt(provider, current_model),
+        reply_markup=_build_provider_model_keyboard(provider, current_model),
+        parse_mode=ParseMode.MARKDOWN_V2,
+    )
+
+
+def _is_unavailable_option(option: TelegramModelOption) -> bool:
+    return (not option.has_active_key) or option.status == "no_key"
 
 
 async def model_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -158,29 +517,26 @@ async def model_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     command_parts = message_text.split(maxsplit=1)
     current_model = _current_model_for_user(update)
 
+    try:
+        model_data = await _load_models_response()
+    except Exception as exc:
+        logger.warning("Could not load model picker data: %s", exc)
+        await update.message.reply_text(  # type: ignore[union-attr]
+            _md("Could not load model list right now. Please try again."),
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        return
+
     if len(command_parts) > 1:
         choice = command_parts[1].strip()
-        lowered = choice.lower()
-        if lowered not in {"list", "show", "picker", "choose"}:
-            resolved = resolve_model(choice)
-            if resolved:
-                if update.effective_user:
-                    set_selected_model(update.effective_user.id, resolved)
-                await update.message.reply_text(  # type: ignore[union-attr]
-                    "\n".join([
-                        "*Model updated*",
-                        "",
-                        _md(f"Now using {get_model_label(resolved)}."),
-                        _md("New chats will use this model."),
-                    ]),
-                    parse_mode=ParseMode.MARKDOWN_V2,
-                )
+        if not _is_picker_choice(choice):
+            handled = await _handle_direct_model_choice(update, choice, current_model, model_data)
+            if handled:
                 return
 
-    current_model = _current_model_for_user(update)
     await update.message.reply_text(  # type: ignore[union-attr]
-        _render_model_prompt(current_model),
-        reply_markup=_build_model_keyboard(current_model),
+        _render_model_root_prompt(current_model),
+        reply_markup=_build_model_root_keyboard(current_model, model_data),
         parse_mode=ParseMode.MARKDOWN_V2,
     )
 
@@ -190,43 +546,88 @@ async def handle_model_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) 
     if not query or not query.data or not query.data.startswith(MODEL_CALLBACK_PREFIX):
         return
 
-    await query.answer()
-    selection = query.data[len(MODEL_CALLBACK_PREFIX):]
-
-    if selection == "close":
-        await query.edit_message_text(
-            "*Model picker closed*",
-            parse_mode=ParseMode.MARKDOWN_V2,
-        )
-        return
-
-    resolved = resolve_model(selection)
-    if not resolved:
-        await query.answer("That model is not available.", show_alert=True)
-        return
-
     user = update.effective_user
     if not user:
         await query.answer("Unable to identify the Telegram user.", show_alert=True)
         return
 
-    current_model = get_selected_model(user.id)
-    if current_model == resolved:
-        await query.answer(f"Already using {get_model_label(resolved)}")
+    selection = query.data[len(MODEL_CALLBACK_PREFIX):]
+
+    if selection == MODEL_CALLBACK_CLOSE:
+        await query.edit_message_text(
+            "*Model picker closed*",
+            parse_mode=ParseMode.MARKDOWN_V2,
+        )
+        await query.answer()
         return
 
-    set_selected_model(user.id, resolved)
-    await query.edit_message_text(
-        "\n".join([
-            "*Model updated*",
-            "",
-            _md(f"Now using {get_model_label(resolved)}."),
-            _md("New chats will use this model."),
-        ]),
-        reply_markup=_build_model_keyboard(resolved),
-        parse_mode=ParseMode.MARKDOWN_V2,
-    )
-    await query.answer(f"Model set to {get_model_label(resolved)}")
+    try:
+        model_data = await _load_models_response()
+    except Exception as exc:
+        logger.warning("Could not load model picker data: %s", exc)
+        await query.answer("Could not load models right now.", show_alert=True)
+        return
+
+    current_model = get_selected_model(user.id)
+
+    if selection in {MODEL_CALLBACK_BACK, ""}:
+        await _edit_to_model_root(query, current_model, model_data)
+        await query.answer()
+        return
+
+    if selection == MODEL_CALLBACK_AUTO:
+        if current_model is None:
+            await query.answer("Already using Auto mode.")
+            return
+        set_selected_model(user.id, None)
+        await _edit_to_model_root(query, None, model_data)
+        await query.answer("Auto model selection enabled.")
+        return
+
+    if selection.startswith(MODEL_CALLBACK_PROVIDER_PREFIX):
+        provider_id = selection[len(MODEL_CALLBACK_PROVIDER_PREFIX):]
+        provider = _find_provider(model_data, provider_id)
+        if provider is None:
+            await query.answer("That provider is not available.", show_alert=True)
+            return
+        await _edit_to_provider_picker(query, provider, current_model)
+        await query.answer()
+        return
+
+    if selection.startswith(MODEL_CALLBACK_SET_PREFIX):
+        selected_value = selection[len(MODEL_CALLBACK_SET_PREFIX):]
+        option = _find_model_option(model_data, selected_value)
+        if option is None:
+            await query.answer("That model is not available.", show_alert=True)
+            return
+
+        provider = _find_provider(model_data, option.provider_id)
+        if provider is None:
+            await query.answer("That model provider is not available.", show_alert=True)
+            return
+
+        if _is_unavailable_option(option):
+            await query.answer(
+                f"No active {option.provider_name} key for this model. Use /keys.",
+                show_alert=True,
+            )
+            return
+
+        if current_model == option.value:
+            await query.answer(f"Already using {option.model_name}.")
+            return
+
+        set_selected_model(user.id, option.value)
+        await _edit_to_provider_picker(query, provider, option.value)
+        if option.cooldown_until_ts:
+            cooldown = _format_cooldown_time(option.cooldown_until_ts) or "soon"
+            await query.answer(f"Set to {option.model_name} (cooling down until ~{cooldown}).")
+        else:
+            await query.answer(f"Model set to {option.model_name}.")
+        return
+
+    await query.answer("Unknown model action.", show_alert=True)
+    return
 
 
 # ── /tools ─────────────────────────────────────────────────────────────────────
