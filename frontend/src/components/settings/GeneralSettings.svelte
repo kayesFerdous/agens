@@ -3,7 +3,7 @@
   import SettingRow from "./SettingRow.svelte";
   import { getSettings, updateSettings } from "../../lib/api.js";
 
-  let settings = $state({ safety_mode: true });
+  let settings = $state({});
   let loading = $state(true);
   let error = $state(null);
   let saveStatus = $state(null); // null, 'saving', 'success', 'error'
@@ -25,34 +25,6 @@
   onMount(() => {
     loadSettings();
   });
-
-  async function handleSafetyModeChange(event) {
-    const newValue = event.target.checked;
-    const oldValue = settings.safety_mode;
-
-    // Optimistic UI update
-    settings.safety_mode = newValue;
-    saveStatus = "saving";
-
-    try {
-      await updateSettings({ safety_mode: newValue });
-      saveStatus = "success";
-      if (saveTimeout) clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(() => {
-        saveStatus = null;
-      }, 2000);
-    } catch (err) {
-      // Revert on error
-      settings.safety_mode = oldValue;
-      saveStatus = "error";
-      console.error(err);
-      if (saveTimeout) clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(() => {
-        saveStatus = null;
-      }, 3000);
-    }
-  }
-
 </script>
 
 <div class="general-settings">
@@ -79,23 +51,7 @@
     </div>
   {:else}
     <div class="settings-card">
-      <SettingRow
-        label="Safety mode"
-        description="When enabled, the agent will ask for your confirmation before running any shell command."
-      >
-        <label class="safety-toggle" class:off={!settings.safety_mode}>
-          <input
-            type="checkbox"
-            checked={settings.safety_mode}
-            onchange={handleSafetyModeChange}
-            aria-label="Safety mode"
-          />
-          <span class="toggle-track"></span>
-          <span class="toggle-thumb"></span>
-          <span class="toggle-label">{settings.safety_mode ? "On" : "Off"}</span
-          >
-        </label>
-      </SettingRow>
+      <div class="empty-state">No general settings available.</div>
     </div>
   {/if}
 </div>
@@ -233,7 +189,7 @@
 
   .safety-toggle.off .toggle-track {
     background: var(--ag-warm-light);
-    border-color: rgba(201,124,74,0.25);
+    border-color: rgba(201, 124, 74, 0.25);
   }
 
   .safety-toggle.off .toggle-label {
