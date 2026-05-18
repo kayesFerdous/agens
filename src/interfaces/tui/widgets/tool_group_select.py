@@ -20,7 +20,7 @@ TOOL_GROUP_OPTIONS: list[tuple[str, str, str]] = [
     ("filesystem", "Filesystem", "Read, search, write, and edit workspace files"),
     ("scheduling", "Scheduling", "Manage schedule events"),
     ("system", "System", "Run shell commands and update assistant config"),
-    ("web", "Web", "Search the web"),
+    ("web", "Web", "Search the web and fetch full page content"),
 ]
 
 

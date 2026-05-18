@@ -18,7 +18,6 @@ from tools.file_read import FileReadTool
 from tools.file_write import FileWriteTool
 from tools.file_edit import FileEditTool
 from tools.shell_command import ShellCommandTool
-from tools.search_web import WebSearchTool
 from tools.schedule_add import ScheduleAddTool
 from tools.schedule_delete import ScheduleDeleteTool
 from tools.schedule_list import ScheduleListTool
@@ -27,13 +26,12 @@ from tools.update_config import UpdateConfigTool
 from tools.find import FindTool
 from tools.grep import GrepTool
 from tools.list_directory import ListDirectoryTool
-
+from tools.web_search import WebSearchTool
+from tools.web_fetch import WebFetchTool
 
 
 def _build_registry(
     config_manager: ConfigManager,
-    usage: Usage,
-    fernet: Fernet,
 ) -> ToolRegistry:
     registry = ToolRegistry()
     registry.register(FileReadTool())
@@ -47,9 +45,8 @@ def _build_registry(
     registry.register(ScheduleListTool())
     registry.register(ScheduleDeleteTool())
     registry.register(ScheduleUpdateTool())
-
-    # WebSearchTool resolves its own key per call — only fernet is needed at construction.
-    registry.register(WebSearchTool(fernet, usage=usage))
+    registry.register(WebSearchTool())
+    registry.register(WebFetchTool())
 
     registry.register(UpdateConfigTool(config_manager))
     return registry
@@ -78,7 +75,7 @@ async def build_agent(session: AsyncSession) -> Agent:
             "No free-tier API keys are available. Add keys with: agens apikey add"
         )
 
-    registry = _build_registry(config_manager, usage, fernet)
+    registry = _build_registry(config_manager)
 
     bound.client.current_key_id = bound.key_id  # type: ignore[attr-defined]
 

@@ -14,7 +14,7 @@ TOOL_GROUPS: dict[str, list[str]] = {
     "filesystem": ["file_read", "file_write", "file_edit", "list_directory", "find", "grep"],
     "scheduling": ["schedule_add", "schedule_delete", "schedule_list", "schedule_update"],
     "system":     ["shell_command", "update_config"],
-    "web":        ["search_web"],
+    "web":        ["web_search", "web_fetch"],
 }
 
 

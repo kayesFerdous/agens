@@ -24,7 +24,7 @@
     {
       id: 'web',
       label: 'Web',
-      description: 'Current web context',
+      description: 'Web search + full-page fetch',
       icon: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3.6 9h16.8M3.6 15h16.8M12 3c2.2 2.5 3.2 5.5 3.2 9S14.2 18.5 12 21c-2.2-2.5-3.2-5.5-3.2-9S9.8 5.5 12 3z',
     },
   ];

@@ -650,7 +650,8 @@ def _build_tools_keyboard(current_groups: dict[str, bool]) -> InlineKeyboardMark
 def _render_tools_prompt() -> str:
     return (
         f"*{_md('Tool Groups')}*\n\n"
-        f"{_md('Tap a tool group below to toggle it on or off.')}"
+        f"{_md('Tap a tool group below to toggle it on or off.')}\n"
+        f"{_md('Web group includes web_search + web_fetch.')}"
     )
 
 

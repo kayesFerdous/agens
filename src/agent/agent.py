@@ -27,7 +27,7 @@ from planner.prompt_builder import build_system_prompt
 from memory.manager import MemoryManager
 from services.api_key_manager import APIKeyManager
 from services.settings_service import SettingsService
-from tools.search_web import SearchUnavailableError
+# from tools.search_web import SearchUnavailableError
 from db.database import async_session
 
 logger = get_logger(__name__)
@@ -635,9 +635,9 @@ class Agent:
                 yield StreamEvent(type="error", error=str(e))
                 return
 
-            except SearchUnavailableError as e:
-                yield StreamEvent(type="token", content=str(e))
-                return
+            # except SearchUnavailableError as e:
+            #     yield StreamEvent(type="token", content=str(e))
+            #     return
 
             except Exception as e:
                 logger.error("Streaming ReAct loop failed: %s", e, exc_info=True)

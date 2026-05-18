@@ -89,8 +89,11 @@ _GROUP_INSTRUCTIONS: dict[str, str] = {
 
     "web": """\
 ## Web search
-- Use for live data, recent events, or anything beyond your training cutoff.
-- Keep queries specific and narrow — avoid broad terms.\
+- Use web_search for live data, recent events, or anything beyond your training cutoff.
+- Keep queries specific and narrow — avoid broad terms.
+- web_search returns titles, URLs, and short snippets only.
+- If a snippet is insufficient, call web_fetch on the most relevant URL to read the full page.
+- Do not call web_fetch speculatively — only when the snippet clearly lacks the needed detail.\
 """,
 }
 
