@@ -20,9 +20,9 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from ctypes import wintypes
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -169,11 +169,19 @@ def _interface_details(name: str) -> str:
     return ""
 
 
-def _web_shutdown_url() -> str:
+def _web_base_url() -> str:
     host = settings.WEB_HOST
     if host in {"0.0.0.0", "localhost"}:
         host = "127.0.0.1"
-    return f"http://{host}:{settings.WEB_PORT}/shutdown"
+    return f"http://{host}:{settings.WEB_PORT}"
+
+
+def _web_shutdown_url() -> str:
+    return f"{_web_base_url()}/shutdown"
+
+
+def _web_health_url() -> str:
+    return f"{_web_base_url()}/health"
 
 
 def _request_web_shutdown() -> bool:
@@ -299,11 +307,96 @@ def _terminate_process(pid: int) -> None:
     os.kill(pid, signal.SIGTERM)
 
 
-def _spawn_interface_process(selected: list[str]) -> subprocess.Popen[bytes]:
+def _running_interfaces_from_state() -> dict[str, int]:
+    state = _load_interface_state()
+    running: dict[str, int] = {}
+    stale_interfaces: list[str] = []
+
+    if not state or not isinstance(state, dict):
+        return running
+
+    legacy_pid = state.get("pid")
+    iface_map = state.get("interfaces") or {}
+    if not isinstance(iface_map, dict):
+        if isinstance(legacy_pid, int) and not _is_running(legacy_pid):
+            _clear_interface_state()
+        return running
+
+    for name, details in iface_map.items():
+        if name not in _KNOWN_INTERFACES:
+            continue
+        pid = details.get("pid") if isinstance(details, dict) else None
+        if not isinstance(pid, int):
+            pid = legacy_pid
+        if isinstance(pid, int) and _is_running(pid):
+            running[name] = pid
+        else:
+            stale_interfaces.append(name)
+
+    if stale_interfaces:
+        _remove_interface_state(stale_interfaces)
+
+    return running
+
+
+def _is_url_reachable(url: str, *, timeout: float = 0.5) -> bool:
+    req = Request(url, method="GET")
+    try:
+        with urlopen(req, timeout=timeout):
+            return True
+    except (HTTPError, URLError, OSError):
+        return False
+
+
+def _wait_for_background_start(
+    process: subprocess.Popen[bytes],
+    selected: list[str],
+    *,
+    timeout: float = 10.0,
+) -> bool:
+    deadline = time.monotonic() + timeout
+    saw_state = False
+
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            logger.error(
+                "Background interface process exited early: pid=%s returncode=%s interfaces=%s",
+                process.pid,
+                process.returncode,
+                ", ".join(selected),
+            )
+            return False
+
+        running = _running_interfaces_from_state()
+        saw_state = saw_state or all(name in running for name in selected)
+
+        if "web" in selected:
+            if saw_state and _is_url_reachable(_web_health_url()):
+                return True
+        elif saw_state:
+            return True
+
+        time.sleep(0.1)
+
+    logger.warning(
+        "Timed out waiting for background interface readiness: pid=%s interfaces=%s",
+        process.pid,
+        ", ".join(selected),
+    )
+    return saw_state
+
+
+def _spawn_interface_process(
+    selected: list[str],
+    *,
+    open_browser: bool = False,
+) -> subprocess.Popen[bytes]:
     cmd = [
         sys.executable,
-        str(Path(__file__).resolve()),
+        "-m",
+        "agens",
         "_run-interfaces",
+        *(["--open-browser"] if open_browser and "web" in selected else []),
         *selected,
     ]
     kwargs: dict[str, Any] = {}
@@ -315,13 +408,20 @@ def _spawn_interface_process(selected: list[str]) -> subprocess.Popen[bytes]:
     else:
         kwargs["start_new_session"] = True
 
-    return subprocess.Popen(
-        cmd,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        **kwargs,
-    )
+    log_dir = get_runtime_root() / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_name = "-".join(selected)
+    log_path = log_dir / f"interfaces-{log_name}.log"
+
+    logger.info("Spawning interface process: %s", " ".join(cmd))
+    with log_path.open("ab") as log_file:
+        return subprocess.Popen(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            **kwargs,
+        )
 
 
 def _validate_interfaces(interfaces: list[str]) -> list[str]:
@@ -347,12 +447,18 @@ def _validate_interfaces(interfaces: list[str]) -> list[str]:
     return selected
 
 
-def _build_starter(name: str, agent, *, tui_session_id: str | None = None):  # type: ignore[return]
+def _build_starter(
+    name: str,
+    agent,
+    *,
+    tui_session_id: str | None = None,
+    open_browser: bool = False,
+):  # type: ignore[return]
     """Return the start_<name>(agent) coroutine for the requested interface."""
     match name:
         case "web":
             from interfaces.web.app import start_web
-            return start_web(agent)
+            return start_web(agent, open_browser=open_browser)
         case "telegram":
             from interfaces.telegram.bot import start_telegram
             return start_telegram(agent)
@@ -361,7 +467,12 @@ def _build_starter(name: str, agent, *, tui_session_id: str | None = None):  # t
             return start_tui(agent, session_id=tui_session_id)
 
 
-async def _run_interfaces(selected: list[str], *, tui_session_id: str | None = None) -> None:
+async def _run_interfaces(
+    selected: list[str],
+    *,
+    tui_session_id: str | None = None,
+    open_browser: bool = False,
+) -> None:
     if "tui" in selected and len(selected) > 1:
         others = [s for s in selected if s != "tui"]
         error_console.print(
@@ -409,6 +520,7 @@ async def _run_interfaces(selected: list[str], *, tui_session_id: str | None = N
             name,
             agent,
             tui_session_id=tui_session_id if name == "tui" else None,
+            open_browser=open_browser and name == "web",
         )
         if starter is None:
             raise ValueError(f"Unsupported interface: {name}")
@@ -438,6 +550,8 @@ async def _run_interfaces(selected: list[str], *, tui_session_id: str | None = N
 
 
 def _run_interface_command(interfaces: list[str], *, tui_session_id: str | None = None) -> None:
+    bootstrap_runtime()
+
     if not interfaces:
         error_console.print("[red]Error:[/red] No interfaces specified.")
         raise typer.Exit(code=1)
@@ -449,6 +563,15 @@ def _run_interface_command(interfaces: list[str], *, tui_session_id: str | None 
 
     foreground = [name for name in selected if name in _INTERACTIVE_INTERFACES]
     background = [name for name in selected if name not in _INTERACTIVE_INTERFACES]
+    running = _running_interfaces_from_state()
+    already_running = [name for name in background if name in running]
+    if already_running:
+        for name in already_running:
+            console.print(
+                f"{name} interface is already running "
+                f"(PID {running[name]}): {_interface_details(name)}"
+            )
+        background = [name for name in background if name not in running]
 
     if background:
         if "telegram" in background:
@@ -472,10 +595,19 @@ def _run_interface_command(interfaces: list[str], *, tui_session_id: str | None 
         
         if background:
             try:
-                process = _spawn_interface_process(background)
-                _write_interface_state(background, pid=process.pid)
+                process = _spawn_interface_process(
+                    background,
+                    open_browser=selected == ["web"],
+                )
             except OSError as exc:
                 error_console.print(f"[red]Error:[/red] Failed to launch interface process: {exc}")
+                raise typer.Exit(code=1)
+
+            if not _wait_for_background_start(process, background):
+                error_console.print(
+                    "[red]Error:[/red] Interface process exited before it became ready. "
+                    f"See {get_runtime_root() / 'logs'} for startup logs."
+                )
                 raise typer.Exit(code=1)
 
             console.print(
@@ -493,11 +625,17 @@ def _run_interface_command(interfaces: list[str], *, tui_session_id: str | None 
 @app.command("_run-interfaces", hidden=True)
 def run_interfaces_process(
     interfaces: list[str] = typer.Argument(..., help="Interfaces to launch."),
+    open_browser: bool = typer.Option(
+        False,
+        "--open-browser",
+        help="Open the web interface once it is reachable.",
+        hidden=True,
+    ),
 ) -> None:
     """Internal blocking runner used by detached interface processes."""
     selected = _validate_interfaces(interfaces)
     try:
-        _run(_run_interfaces(selected))
+        _run(_run_interfaces(selected, open_browser=open_browser))
     except KeyboardInterrupt:
         console.print("\nShutting down. Goodbye.")
 

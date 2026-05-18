@@ -1,8 +1,12 @@
 # interfaces/web/app.py — FastAPI app factory and async start function
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.error import HTTPError, URLError
+from urllib.request import Request as UrlRequest, urlopen
+import webbrowser
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
@@ -20,6 +24,49 @@ from interfaces.api_key_state import NO_API_KEYS_SETUP_MESSAGE, has_any_api_keys
 setup_logging()
 logger = get_logger(__name__)
 FRONTEND_DIST = Path(__file__).parent / "dist"
+
+
+def _public_web_url() -> str:
+    host = settings.WEB_HOST
+    if host in {"0.0.0.0", "localhost"}:
+        host = "127.0.0.1"
+    return f"http://{host}:{settings.WEB_PORT}"
+
+
+def _is_reachable(url: str) -> bool:
+    req = UrlRequest(url, method="GET")
+    try:
+        with urlopen(req, timeout=0.5):
+            return True
+    except (HTTPError, URLError, OSError):
+        return False
+
+
+async def _open_browser_when_ready() -> None:
+    base_url = _public_web_url()
+    health_url = f"{base_url}/health"
+    deadline = asyncio.get_running_loop().time() + 15.0
+
+    while asyncio.get_running_loop().time() < deadline:
+        reachable = await asyncio.to_thread(_is_reachable, health_url)
+        if reachable:
+            try:
+                opened = await asyncio.to_thread(
+                    webbrowser.open,
+                    base_url,
+                    new=0,
+                    autoraise=True,
+                )
+                if opened:
+                    logger.info("Opened web browser at %s", base_url)
+                else:
+                    logger.debug("No browser controller was available for %s", base_url)
+            except Exception as exc:  # noqa: BLE001 - browser launch should not affect startup.
+                logger.debug("Unable to open browser for web interface: %s", exc)
+            return
+        await asyncio.sleep(0.2)
+
+    logger.debug("Timed out waiting to open browser for web interface at %s", base_url)
 
 
 def _create_app(agent: Agent) -> FastAPI:
@@ -70,6 +117,10 @@ def _create_app(agent: Agent) -> FastAPI:
 
     app.mount("/static", StaticFiles(directory=FRONTEND_DIST), name="frontend")
 
+    @app.get("/health", include_in_schema=False)
+    async def health():
+        return {"status": "ok"}
+
     @app.post("/shutdown", include_in_schema=False)
     async def shutdown(request: Request):
         """Request a graceful shutdown of the running assistant process."""
@@ -110,7 +161,7 @@ def _create_app(agent: Agent) -> FastAPI:
     return app
 
 
-async def start_web(agent: Agent) -> None:
+async def start_web(agent: Agent, *, open_browser: bool = False) -> None:
     """Start the uvicorn server asynchronously (compatible with asyncio.gather)."""
     app = _create_app(agent)
 
@@ -128,4 +179,17 @@ async def start_web(agent: Agent) -> None:
 
     app.state.request_web_shutdown = request_web_shutdown
     logger.info("Starting web interface on %s:%d", settings.WEB_HOST, settings.WEB_PORT)
-    await server.serve()
+    browser_task: asyncio.Task[None] | None = None
+    if open_browser:
+        browser_task = asyncio.create_task(
+            _open_browser_when_ready(),
+            name="web-browser-opener",
+        )
+
+    try:
+        await server.serve()
+    finally:
+        if browser_task:
+            if not browser_task.done():
+                browser_task.cancel()
+            await asyncio.gather(browser_task, return_exceptions=True)
