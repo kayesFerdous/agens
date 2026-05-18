@@ -19,6 +19,7 @@ from interfaces.api.models.router import list_models
 
 CACHE_TTL_SECONDS = 60
 API_KEYS_COMMAND_HINT = "/keys"
+PRIMARY_ACCENT_COLOR = "#7B6EAA"
 
 _MODEL_CACHE: dict[str, Any] | None = None
 _MODEL_CACHE_TS = 0.0
@@ -101,9 +102,9 @@ def _highlight(text: str, query: str) -> str:
     end = start + len(query)
     return (
         escape(text[:start])
-        + "[yellow]"
+        + f"[{PRIMARY_ACCENT_COLOR}]"
         + escape(text[start:end])
-        + "[/yellow]"
+        + f"[/{PRIMARY_ACCENT_COLOR}]"
         + escape(text[end:])
     )
 
