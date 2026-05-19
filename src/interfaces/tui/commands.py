@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from db.database import async_session
+from services.settings_service import SettingsService
+
 if TYPE_CHECKING:
     from .app import AssistantTUI
 
@@ -16,6 +19,7 @@ COMMANDS = {
     "/keys": "List registered API keys",
     "/addkey": "Add a new API key",
     "/tokens": "Show token count",
+    "/safety": "Toggle safety mode",
     "?": "Show this help message",
 }
 
@@ -94,6 +98,28 @@ async def execute_command(text: str, app: "AssistantTUI") -> None:
 
     elif resolved_command == "/tokens":
         await chat.add_system(f"Session tokens: [bold]{app.token_count}[/bold]")
+
+    elif resolved_command == "/safety":
+        async def _toggle_safety() -> bool:
+            async with async_session() as db:
+                service = SettingsService(db)
+                current = await service.get_settings()
+                updated = await service.update_settings(
+                    safety_mode=not current.safety_mode
+                )
+                return updated.safety_mode
+
+        try:
+            enabled = await _toggle_safety()
+        except Exception as exc:
+            await chat.add_system(
+                f"Safety mode toggle failed: [red]{exc}[/red]"
+            )
+            return
+
+        status = "ON" if enabled else "OFF"
+        color = "green" if enabled else "yellow"
+        await chat.add_system(f"Safety mode: [{color}]{status}[/{color}]")
 
 
 def is_command(text: str) -> bool:

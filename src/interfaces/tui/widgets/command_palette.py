@@ -17,6 +17,7 @@ COMMANDS = [
     ("/keys", "  List registered API keys"),
     ("/addkey", "Add a new API key"),
     ("/tokens", "Show session token count"),
+    ("/safety", "Toggle safety mode"),
 ]
 
 
