@@ -115,14 +115,16 @@ class APIKeyManager:
     async def is_model_available_for_key(self, key_id: str, model: str) -> bool:
         key = await self.repo.get_by_id(key_id)
 
-        if key: 
+        if key:
+            if key.status != KeyStatus.ACTIVE:
+                return False
             if not key.model_cooldowns:
                 return True
             entry = key.model_cooldowns.get(model)
             if not entry or entry.get("until") is None:
                 return True
             if datetime.fromisoformat(entry["until"]) <= datetime.now(timezone.utc):
-                await self.repo.clear_model_cooldown(key, model) 
+                await self.repo.clear_model_cooldown(key, model)
                 return True
 
             return False

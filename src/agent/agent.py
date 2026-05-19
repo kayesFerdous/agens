@@ -692,7 +692,7 @@ class Agent:
         if is_available:
             return False, model
 
-        logger.info("Current key cooling down for model=%s, finding backup...", model)
+        logger.info("Current key unavailable for model=%s, finding backup...", model)
         available = await repo.pick_available_key(self._llm.config.name, model)
         if available is None:
             available = await repo.pick_available_key(None, None)
