@@ -20,7 +20,7 @@
     try {
       // By default no pagination mapping needed as API limits at 100 which is plenty for now
       keys = await getApiKeys();
-      noApiKeys.set(!keys.some(key => key.status === 'active'));
+      noApiKeys.set(keys.length === 0);
     } catch (err) {
       error = err.message || 'Failed to load API keys.';
     } finally {
@@ -50,6 +50,7 @@
     try {
       await deleteApiKey(keyToDelete);
       keys = keys.filter(k => k.id !== keyToDelete);
+      noApiKeys.set(keys.length === 0);
     } catch (err) {
       alert(err.message || 'Failed to delete key');
     } finally {
@@ -61,6 +62,7 @@
     try {
       const updated = await updateApiKeyStatus(keyId, newStatus);
       keys = keys.map(k => k.id === keyId ? updated : k);
+      noApiKeys.set(keys.length === 0);
     } catch (err) {
       alert(err.message || 'Failed to update status');
     }

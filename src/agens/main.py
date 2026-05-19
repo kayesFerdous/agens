@@ -49,6 +49,7 @@ from interfaces.api_key_state import (
     user_key_unavailable_message,
     has_any_api_keys,
 )
+from llm.errors import LLMUnavailableError
 
 
 setup_logging("ERROR" if settings.PRODUCTION else "INFO")
@@ -498,7 +499,7 @@ async def _run_interfaces(
             async with async_session() as db:
                 agent = await build_agent(db)
             agent.no_api_keys_at_startup = False
-        except RuntimeError as exc:
+        except (RuntimeError, LLMUnavailableError) as exc:
             logger.warning("Agent started without a usable key: %s", exc)
             agent = build_dormant_agent()
             agent.no_api_keys_at_startup = False
@@ -713,7 +714,7 @@ def chat_command(
         try:
             async with async_session() as db:
                 agent = await build_agent(db)
-        except RuntimeError:
+        except (RuntimeError, LLMUnavailableError):
             agent = build_dormant_agent()
 
         async with async_session() as db:

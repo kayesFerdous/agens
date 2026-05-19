@@ -29,7 +29,7 @@ from .widgets.sudo_prompt import SudoPasswordPrompt
 from .widgets.tool_block import ToolBlock
 from .widgets.welcome_screen import WelcomeScreen
 from .widgets.tool_group import ToolGroup
-from interfaces.api_key_state import has_active_api_keys, user_key_unavailable_message
+from interfaces.api_key_state import has_any_api_keys, user_key_unavailable_message
 
 
 class AssistantTUI(App):
@@ -193,10 +193,10 @@ class AssistantTUI(App):
 
     async def _run_api_key_gated_turn(self, text: str) -> None:
         await self._dismiss_welcome()
-        has_active_key = await self._has_active_api_key()
-        if has_active_key is None:
+        has_configured_key = await self._has_configured_api_key()
+        if has_configured_key is None:
             return
-        if not has_active_key:
+        if not has_configured_key:
             await self._mount_no_api_keys_onboarding()
             return
 
@@ -617,11 +617,11 @@ class AssistantTUI(App):
     async def _refresh_api_key_gate(self) -> None:
         if not self._waiting_for_api_key:
             return
-        has_active_key = await self._has_active_api_key()
-        if has_active_key is None:
+        has_configured_key = await self._has_configured_api_key()
+        if has_configured_key is None:
             return
 
-        if not has_active_key:
+        if not has_configured_key:
             if self._active_no_api_key_prompt is not None:
                 self.query_one(InputRow).set_locked(True)
                 self._active_no_api_key_prompt.focus()
@@ -640,13 +640,13 @@ class AssistantTUI(App):
         )
         input_row.focus_input()
 
-    async def _has_active_api_key(self) -> bool | None:
+    async def _has_configured_api_key(self) -> bool | None:
         try:
             from db.database import async_session
             from db.repositories.api_key import APIKeyRepository
 
             async with async_session() as db:
-                return await has_active_api_keys(APIKeyRepository(db))
+                return await has_any_api_keys(APIKeyRepository(db))
         except Exception as exc:
             await self.query_one(ChatView).add_system(
                 f"[red]Could not check API keys:[/red] {exc}"
