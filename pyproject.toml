@@ -41,7 +41,9 @@ where = ["src"]
 namespaces = true
 
 [tool.setuptools.package-data]
-"*" = ["**/*"]
+"agens._bundled_assets" = ["**/*"]
+"db.migrations" = ["script.py.mako", "versions/*.py"]
+"interfaces.web" = ["dist/**/*"]
 
 [tool.setuptools.exclude-package-data]
 "*" = ["**/__pycache__/*", "**/*.pyc", "**/*.pyo"]

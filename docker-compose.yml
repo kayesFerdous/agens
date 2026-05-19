@@ -1,0 +1,89 @@
+services:
+  agens:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: agens:latest
+    restart: unless-stopped
+    ports:
+      - "${AGENS_WEB_PORT:-8000}:8000"
+    environment:
+      PRODUCTION: "true"
+      WEB_HOST: "0.0.0.0"
+      WEB_PORT: "8000"
+      XDG_CONFIG_HOME: "/data/config"
+      DATABASE_URL: "sqlite+aiosqlite:////data/db/agens.db"
+      WORKSPACE_ROOT: "/workspace"
+      AGENS_ENV_FILE: "${AGENS_ENV_FILE:-}"
+      DEFAULT_PROVIDER: "${DEFAULT_PROVIDER:-gemini}"
+      DEFAULT_MODEL: "${DEFAULT_MODEL:-gemini-2.5-flash-lite}"
+    volumes:
+      - agens_config:/data/config
+      - agens_database:/data/db
+      - agens_memories:/data/memories
+      - agens_runtime:/data/runtime
+      - agens_workspace:/workspace
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/health', timeout=3).read()",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  agens-dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: agens:dev
+    command:
+      [
+        "sh",
+        "-c",
+        "cd /app/frontend && npm run dev -- --host 0.0.0.0 & cd /app && agens _run-interfaces web",
+      ]
+    ports:
+      - "${AGENS_WEB_PORT:-8000}:8000"
+      - "${AGENS_FRONTEND_PORT:-5173}:5173"
+    environment:
+      PRODUCTION: "false"
+      WEB_HOST: "0.0.0.0"
+      WEB_PORT: "8000"
+      FRONTEND_LINK: "http://localhost:5173"
+      XDG_CONFIG_HOME: "/data/config"
+      DATABASE_URL: "sqlite+aiosqlite:////data/db/agens.db"
+      WORKSPACE_ROOT: "/workspace"
+    volumes:
+      - .:/app
+      - /app/.venv
+      - /app/frontend/node_modules
+      - agens_config:/data/config
+      - agens_database:/data/db
+      - agens_memories:/data/memories
+      - agens_runtime:/data/runtime
+      - agens_workspace:/workspace
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/health', timeout=3).read()",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+volumes:
+  agens_config:
+  agens_database:
+  agens_memories:
+  agens_runtime:
+  agens_workspace:

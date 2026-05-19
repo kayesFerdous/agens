@@ -1,0 +1,41 @@
+# syntax=docker/dockerfile:1.7
+
+FROM python:3.13-slim AS dev
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PRODUCTION=false \
+    WEB_HOST=0.0.0.0 \
+    WEB_PORT=8000 \
+    FRONTEND_LINK=http://localhost:5173 \
+    XDG_CONFIG_HOME=/data/config \
+    DATABASE_URL=sqlite+aiosqlite:////data/db/agens.db \
+    WORKSPACE_ROOT=/workspace
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates nodejs npm build-essential \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system --gid 10001 agens \
+    && useradd --system --uid 10001 --gid agens --home-dir /home/agens --create-home agens \
+    && mkdir -p /app /data/config /data/db /data/memories /data/runtime /workspace \
+    && chown -R agens:agens /app /data /workspace /home/agens
+
+WORKDIR /app
+COPY pyproject.toml MANIFEST.in README.md ./
+COPY src/ ./src/
+RUN --mount=type=cache,target=/root/.cache/pip pip install -e .
+
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci
+
+WORKDIR /app
+COPY frontend/ ./frontend/
+
+USER agens
+EXPOSE 8000 5173
+VOLUME ["/data/config", "/data/db", "/data/memories", "/data/runtime", "/workspace"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD python -c "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/health', timeout=3).read()" || exit 1
+
+CMD ["sh", "-c", "cd /app/frontend && npm run dev -- --host 0.0.0.0 & cd /app && agens _run-interfaces web"]

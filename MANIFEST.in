@@ -1,3 +1,8 @@
+include README.md
+include Dockerfile Dockerfile.dev docker-compose.yml .dockerignore
+graft docs
+graft scripts
 graft src
+prune src/**/__pycache__
 global-exclude __pycache__/*
 global-exclude *.py[cod]

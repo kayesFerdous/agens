@@ -23,6 +23,7 @@ import sys
 import time
 from ctypes import wintypes
 from datetime import datetime, timezone
+from importlib.metadata import PackageNotFoundError, version as package_version
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -76,6 +77,32 @@ VALID_INTERFACES = set(_KNOWN_INTERFACES)
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _package_version() -> str:
+    try:
+        return package_version("agens")
+    except PackageNotFoundError:
+        return "0+local"
+
+
+@app.callback(invoke_without_command=True)
+def root(
+    ctx: typer.Context,
+    version: bool = typer.Option(
+        False,
+        "--version",
+        "-V",
+        help="Show the installed Agens version and exit.",
+    ),
+) -> None:
+    """Agens command line interface."""
+    if version:
+        console.print(f"agens {_package_version()}")
+        raise typer.Exit(code=0)
+    if ctx.invoked_subcommand is None:
+        console.print(ctx.get_help())
+        raise typer.Exit(code=0)
 
 
 def _run(coro):

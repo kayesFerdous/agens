@@ -17,7 +17,7 @@ def default_database_url() -> str:
 
 
 class Settings(BaseSettings):
-    PRODUCTION: bool = True
+    PRODUCTION: bool = False
     DEFAULT_PROVIDER: str = "gemini"
     DEFAULT_MODEL: str = "gemini-2.5-flash-lite"
     DATABASE_URL: str = Field(default_factory=default_database_url)

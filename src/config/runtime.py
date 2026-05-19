@@ -297,7 +297,6 @@ def resolve_knowledge_path(relative_path: str) -> Path | None:
 # ---------------------------------------------------------------------------
 # Convenience: compact system-prompt snippet
 # ---------------------------------------------------------------------------
-
 def build_knowledge_prompt_snippet() -> str:
     """
     Return a compact, model-friendly description of available knowledge files
@@ -310,8 +309,11 @@ def build_knowledge_prompt_snippet() -> str:
     if not files:
         return "No knowledge files are currently available."
 
+    full_path = files[0].parent
+
     lines = ["Available knowledge files (use file_read to access):"]
     for f in files:
-        lines.append(f"  - {f}")
+        lines.append(f"  - {f.name}")
 
+    lines.append(f" Full paths: {full_path}/")
     return "\n".join(lines)
