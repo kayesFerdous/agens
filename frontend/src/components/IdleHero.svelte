@@ -14,25 +14,11 @@
   }
   
   .mark {
-    font-size: 4.5rem;
-    font-weight: 300;
-    letter-spacing: 0.25em;
+    font-size: 4rem;
+    font-weight: 800; /* Bold, strong like KIMI */
+    letter-spacing: 0.05em;
     margin: 0;
-    margin-left: 0.25em; /* Optical centering for tracking */
     color: var(--ag-ink);
-    opacity: 0;
-    animation: simpleFadeIn 0.8s ease-out 0.1s forwards;
-  }
-
-  @keyframes simpleFadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
   }
 
   @media (max-width: 640px) {

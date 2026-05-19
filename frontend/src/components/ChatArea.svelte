@@ -430,7 +430,7 @@
   }
 
   .chat-system.is-idle .idle-hero-wrapper {
-    margin-bottom: 40px; /* Spacious gap between hero and input */
+    margin-bottom: 24px; /* Reduced gap between hero and input */
     display: flex;
     justify-content: center;
     width: 100%;
@@ -439,7 +439,7 @@
   /* By default .input-wrapper limits width, let's keep it structurally sound */
   .chat-system.is-idle .input-wrapper {
     width: 100%;
-    max-width: 880px; /* Strong solid width for the input */
+    max-width: 920px; /* Strong solid width for the input */
   }
 
   /* --- ACTIVE STATE --- */
@@ -469,7 +469,7 @@
 
   .chat-system.is-active .input-wrapper {
     width: 100%;
-    max-width: 880px;
+    max-width: 920px;
     padding: 0 16px;
     pointer-events: auto; /* Re-enable clicks for the input component */
   }
