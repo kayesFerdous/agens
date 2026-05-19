@@ -5,10 +5,9 @@
   import { settingsTab } from '../../lib/store.js';
 
   const tabs = [
-    { id: 'general', label: 'General' },
     { id: 'apikeys', label: 'API keys' }
   ];
-  let activeTab = $state($settingsTab);
+  let activeTab = $state('apikeys');
 
   function handleTabChange(id) {
     activeTab = id;
@@ -16,8 +15,11 @@
   }
 
   $effect(() => {
-    if ($settingsTab !== activeTab) {
-      activeTab = $settingsTab;
+    if ($settingsTab !== 'apikeys') {
+      settingsTab.set('apikeys');
+    }
+    if (activeTab !== 'apikeys') {
+      activeTab = 'apikeys';
     }
   });
 </script>
