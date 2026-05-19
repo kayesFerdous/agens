@@ -424,13 +424,18 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     width: 100%;
     padding: 0 16px;
     z-index: 10;
+    position: relative;
   }
 
   .chat-system.is-idle .idle-hero-wrapper {
-    margin-bottom: 24px; /* Reduced gap between hero and input */
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
     display: flex;
     justify-content: center;
     width: 100%;
