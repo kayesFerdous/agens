@@ -1,5 +1,5 @@
 <div class="hero-container">
-  <h1 class="mark">AGENS</h1>
+  <h1 class="mark">agens</h1>
 </div>
 
 <style>
