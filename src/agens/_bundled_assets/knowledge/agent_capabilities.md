@@ -1,43 +1,29 @@
 # Agent Capabilities
 
-## What I can do
-
-### File Operations
-- Read files (`file_read`)
-- Write files (`file_write`)
-- Edit files (`file_edit`)
-- List directory contents (`list_directory`)
-
-### Search & Discovery
-- Search file contents by pattern (`grep`)
-- Find files by name or type (`find`)
-- Search the web (`search_web`)
-
-### System
-- Run shell commands (`shell_command`)
-
-### Schedule
-- Add events (`schedule_add`)
-- List events by today, tomorrow, this week, date, or all (`schedule_list`)
-- Update events by id (`schedule_update`)
-- Delete events by id or title match (`schedule_delete`)
-
-### Configuration
-- Update your personal config (`update_config`)
-  - Adjustable: user profile, assistant tone, preferences
-
-### Knowledge
-- Read knowledge files on demand
-- Topics available: see the knowledge file index in context
-
-## What I cannot do
-- Access the internet beyond web search
-- Remember anything between separate conversations
-- Modify my own source code or tools
+## Overview
+Agens runs on your computer. It can use built-in tools to help with files,
+search, web lookups, and simple scheduling. Your chats are saved locally so you
+can keep going across different screens.
 
 ## Interfaces
-Available on: TUI, API, Telegram, Web
+- Command line (CLI)
+- Web app
+- Terminal app (TUI)
+- Telegram chat
 
-## Notes
-- Config changes take effect immediately
-- Knowledge files can be added or edited by you in the runtime config directory
+## Core abilities
+- Work with files and folders (read, write, edit, list)
+- Search for files and text inside files
+- Look up information on the web and read pages
+- Run shell commands when needed
+- Add and manage basic schedule items
+- Update your settings
+
+## Key limitations
+- File and search tools only work inside the current workspace folder.
+- Web access is limited to search and page reading.
+- Risky actions may require your confirmation first.
+- You must provide your own AI API keys.
+
+## Learn more
+See `interfaces.md`, `tools.md`, `safety_and_limits.md`, and `configuration_and_data.md`.
