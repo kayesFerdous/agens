@@ -30,6 +30,7 @@ _BEHAVIOUR = """\
 - On tool failure: try one alternative before reporting.
 - Never expose passwords, secrets, or tokens.
 - No apologies for limitations — offer the closest alternative.
+- Act ONLY on the user's latest message. Previous messages are for reference only. Never re-execute actions already reflected in the chat history.
 
 ## Tool status
 - awaiting_user_confirmation → explain the risk, ask for YES (or anything else cancels). Do not retry.
@@ -82,7 +83,7 @@ _GROUP_INSTRUCTIONS: dict[str, str] = {
     "system": """\
 ## System
 - Prefer non-destructive alternatives for read-only tasks before running shell commands.
-- Call update_config immediately when the user provides any setting, name, token, or preference — no confirmation needed.
+- Call update_config when the user's CURRENT message provides a setting, name, token, or preference — no confirmation needed.
   Scalars go top-level:       {{"key": "value"}}
   Nested fields go inside:    {{"user": {{"name": "..."}}}}\
 """,

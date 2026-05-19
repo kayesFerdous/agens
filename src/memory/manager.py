@@ -35,32 +35,9 @@ class MemoryManager:
             if msg.role == "user":
                 result.append({"role": "user", "content": msg.content})
             elif msg.role == "assistant":
-                entry: dict[str, Any] = {"role": "assistant", "content": msg.content}
-                if msg.tool_calls:
-                    import json
-
-                    try:
-                        tool_calls_data = (
-                            msg.tool_calls
-                            if isinstance(msg.tool_calls, list)
-                            else json.loads(msg.tool_calls)
-                        )
-                        tool_calls = []
-                        for i, tc in enumerate(tool_calls_data):
-                            if not isinstance(tc, dict) or "tool" not in tc:
-                                continue
-                            tool_calls.append({
-                                "id": tc.get("id", f"call_{i}"),
-                                "type": "function",
-                                "function": {
-                                    "name": tc["tool"],
-                                    "arguments": json.dumps(tc.get("arguments", {})),
-                                },
-                            })
-                        if tool_calls:
-                            entry["tool_calls"] = tool_calls
-                    except (json.JSONDecodeError, KeyError, TypeError):
-                        pass
-                result.append(entry)
+                # We do not append past tool_calls here because doing so without
+                # appending the corresponding role: "tool" result messages causes
+                # the LLM to think the tools were never executed and try to rerun them.
+                result.append({"role": "assistant", "content": msg.content})
 
         return result
