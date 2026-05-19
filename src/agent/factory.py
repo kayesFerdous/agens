@@ -2,15 +2,10 @@
 from __future__ import annotations
 
 from cryptography.fernet import Fernet
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent.agent import Agent
-from core.types import Usage
-from db.repositories.api_key import APIKeyRepository
 from core.registry import ToolRegistry
-from llm.client import LLMClient
 from llm.errors import LLMUnavailableError
-from llm.providers import PROVIDER_DEFAULTS, build_provider_config
 from llm.router import FreeTierRouter
 from config.settings import settings
 from config.config_manager import ConfigManager
@@ -52,21 +47,15 @@ def _build_registry(
     return registry
 
 
-async def build_agent(session: AsyncSession) -> Agent:
+async def build_agent() -> Agent:
     """Build and return one Agent instance to be shared across all interfaces.
-
-    Args:
-        session: A short-lived AsyncSession used *only* during startup to fetch
-                 the initial API key.  The agent opens its own sessions per call.
 
     The agent stores fernet internally; callers never receive it separately.
     """
     fernet = Fernet(settings.FERNET_SECRET)
-    usage = Usage()
     config_manager = ConfigManager()
 
-    repo = APIKeyRepository(session)
-    router = FreeTierRouter(repo, fernet)
+    router = FreeTierRouter(fernet)
 
     # Let the router pick the best available free model right now.
     bound = await router.pick_next()

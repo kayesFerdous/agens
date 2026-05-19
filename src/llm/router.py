@@ -4,8 +4,9 @@ from dataclasses import dataclass
 from typing import Optional
 
 from cryptography.fernet import Fernet
+from db.database import async_session
 from db.repositories.api_key import APIKeyRepository
-from llm.catalog import ModelEntry, get_catalog, get_fallback_chain, get_model, cooldown_for
+from llm.catalog import ModelEntry, get_catalog, get_fallback_chain, get_model
 from llm.providers import build_provider_config
 from llm.client import LLMClient
 
@@ -28,8 +29,7 @@ class FreeTierRouter:
     Stateless: relies on api_key.model_cooldowns for exclusion logic.
     """
 
-    def __init__(self, repo: APIKeyRepository, fernet: Fernet):
-        self._repo = repo
+    def __init__(self, fernet: Fernet):
         self._fernet = fernet
         self._chain = get_fallback_chain()
 
@@ -53,20 +53,22 @@ class FreeTierRouter:
                 candidates.append(p)
         candidates += [c for c in self._chain if c not in candidates]
 
-        excluded = exclude or set()
-        for entry in candidates:
-            if entry.id in excluded:
-                continue
-            key = await self._repo.pick_available_key(entry.provider, entry.id)
-            if key is None:
-                continue
-            raw = self._fernet.decrypt(key.encrypted_key.encode()).decode()
-            config = build_provider_config(entry.provider, raw, entry.id)
-            # Override per-model parallel_tool_calls from catalog
-            config.parallel_tool_calls = entry.parallel_tool_calls
-            return BoundModel(
-                entry=entry,
-                key_id=key.id,
-                client=LLMClient(config),
-            )
+        async with async_session() as session:
+            repo = APIKeyRepository(session)
+            excluded = exclude or set()
+            for entry in candidates:
+                if entry.id in excluded:
+                    continue
+                key = await repo.pick_available_key(entry.provider, entry.id)
+                if key is None:
+                    continue
+                raw = self._fernet.decrypt(key.encrypted_key.encode()).decode()
+                config = build_provider_config(entry.provider, raw, entry.id)
+                # Override per-model parallel_tool_calls from catalog
+                config.parallel_tool_calls = entry.parallel_tool_calls
+                return BoundModel(
+                    entry=entry,
+                    key_id=key.id,
+                    client=LLMClient(config),
+                )
         return None

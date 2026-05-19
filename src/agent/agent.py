@@ -116,10 +116,7 @@ class Agent:
                 yield event
         finally:
             if not session_closed:
-                try:
-                    asyncio.get_running_loop().create_task(_close_db())
-                except RuntimeError:
-                    pass
+                await _close_db()
 
 
 

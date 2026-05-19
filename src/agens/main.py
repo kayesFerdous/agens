@@ -523,8 +523,7 @@ async def _run_interfaces(
         agent.no_api_keys_at_startup = True
     else:
         try:
-            async with async_session() as db:
-                agent = await build_agent(db)
+            agent = await build_agent()
             agent.no_api_keys_at_startup = False
         except (RuntimeError, LLMUnavailableError) as exc:
             logger.warning("Agent started without a usable key: %s", exc)
@@ -739,8 +738,7 @@ def chat_command(
                 return 1, NO_API_KEYS_CLI_MESSAGE
 
         try:
-            async with async_session() as db:
-                agent = await build_agent(db)
+            agent = await build_agent()
         except (RuntimeError, LLMUnavailableError):
             agent = build_dormant_agent()
 
