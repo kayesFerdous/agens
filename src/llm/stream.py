@@ -227,6 +227,9 @@ async def assemble_stream(
         "stream": True,
     }
 
+    # Request token usage in the final stream chunk when supported.
+    kwargs["stream_options"] = {"include_usage": True}
+
     if tool_schemas:
         kwargs["tools"] = _build_tools_param(tool_schemas)
         # Some providers need this explicitly set; others ignore it.
@@ -240,6 +243,7 @@ async def assemble_stream(
     # Structure: {key: {"id": str, "name": str, "arguments_raw": str, ...metadata}}
     pending_tool_calls: dict[Any, dict] = {}
     finish_reason: str | None = None
+    usage: dict | None = None
     stripper = ThinkingStripper()
 
     async with await client.chat.completions.create(**kwargs) as stream:
@@ -247,6 +251,13 @@ async def assemble_stream(
             choice = chunk.choices[0] if chunk.choices else None
             if choice is None:
                 continue
+
+            if getattr(chunk, "usage", None):
+                usage = {
+                    "prompt_tokens": chunk.usage.prompt_tokens,
+                    "completion_tokens": chunk.usage.completion_tokens,
+                    "total_tokens": chunk.usage.total_tokens,
+                }
 
             delta = choice.delta
             finish_reason = choice.finish_reason or finish_reason
@@ -308,4 +319,8 @@ async def assemble_stream(
             },
         }
 
-    yield {"type": "done", "finish_reason": finish_reason or "stop"}
+    yield {
+        "type": "done",
+        "finish_reason": finish_reason or "stop",
+        "usage": usage,
+    }

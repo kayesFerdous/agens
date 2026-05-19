@@ -63,7 +63,10 @@ class AssistantTUI(App):
         self._spinner = None
         self._current_tool_group: ToolGroup | None = None
         self._pending_tool_blocks: dict[str, ToolBlock] = {}
-        self._token_count = 0
+        self._prompt_token_count = 0
+        self._completion_token_count = 0
+        self._turn_prompt_tokens = 0
+        self._turn_completion_tokens = 0
         self._selected_model: str | None = get_selected_model()
         self._tool_groups: dict[str, bool] = get_tool_groups()
         self.model_name = self._detect_model_name()
@@ -216,9 +219,14 @@ class AssistantTUI(App):
         self._pending_tool_blocks = {}
         self._current_block = None
         chat = self.query_one(ChatView)
+        self._turn_completion_tokens = 0
+        self._turn_prompt_tokens = 0
 
         if render_user:
             await chat.add_user(text)
+            self._turn_prompt_tokens = self._estimate_tokens(text)
+            self._prompt_token_count += self._turn_prompt_tokens
+            self._update_token_display()
         self._spinner = await chat.add_spinner()
 
         self._stream_task = asyncio.create_task(self._stream(text))
@@ -239,8 +247,10 @@ class AssistantTUI(App):
                             self._spinner = None
                         self._current_block = await chat.add_assistant()
                     self._current_block.append_chunk(chunk)
-                    self._token_count += len(chunk.split())
-                    header.update_tokens(self._token_count)
+                    chunk_tokens = self._estimate_tokens(chunk)
+                    self._turn_completion_tokens += chunk_tokens
+                    self._completion_token_count += chunk_tokens
+                    header.update_tokens(self.token_count)
                     chat.maybe_scroll_end(was_near_bottom=was_near_bottom)
 
         except asyncio.CancelledError:
@@ -318,10 +328,15 @@ class AssistantTUI(App):
             await self._show_confirmation_event(event, kind)
         elif kind == "done":
             usage = self._event_value(event, "usage")
-            usage_total = getattr(usage, "total_tokens", None)
-            if usage_total is not None:
-                self._token_count = usage_total
-                self.query_one(AppHeader).update_tokens(self._token_count)
+            if usage is not None:
+                prompt_tokens = self._event_value(usage, "prompt_tokens")
+                completion_tokens = self._event_value(usage, "completion_tokens")
+                if prompt_tokens is not None and completion_tokens is not None:
+                    self._prompt_token_count += int(prompt_tokens) - self._turn_prompt_tokens
+                    self._completion_token_count += (
+                        int(completion_tokens) - self._turn_completion_tokens
+                    )
+                    self._update_token_display()
 
         return ""
 
@@ -458,7 +473,10 @@ class AssistantTUI(App):
         chat = self.query_one(ChatView)
         await chat.clear_all()
         await chat.add_system("Chat cleared. Type [bold]?[/bold] for help.")
-        self._token_count = 0
+        self._prompt_token_count = 0
+        self._completion_token_count = 0
+        self._turn_prompt_tokens = 0
+        self._turn_completion_tokens = 0
         self.query_one(AppHeader).update_tokens(0)
 
     def action_focus_input(self) -> None:
@@ -767,4 +785,14 @@ class AssistantTUI(App):
 
     @property
     def token_count(self) -> int:
-        return self._token_count
+        return self._prompt_token_count + self._completion_token_count
+
+    def _update_token_display(self) -> None:
+        self.query_one(AppHeader).update_tokens(self.token_count)
+
+    def _estimate_tokens(self, text: str) -> int:
+        # Rough tokenizer fallback: average 4 chars per token.
+        length = len(text.strip())
+        if length == 0:
+            return 0
+        return max(1, (length + 3) // 4)

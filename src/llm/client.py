@@ -12,7 +12,7 @@ from openai import AsyncOpenAI, APIStatusError, APITimeoutError, APIError
 from llm.providers import ProviderConfig
 from llm.errors import normalize_error, RateLimitError, LLMUnavailableError
 from llm.stream import assemble_stream
-from core.types import StreamEvent, ToolCall
+from core.types import StreamEvent, ToolCall, Usage
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +113,7 @@ class LLMClient:
         """
         active_model = model or self.config.default_model
         tool_history: list[ToolCall] = []
+        usage_accum = Usage()
         # Working message list — we append to it as the conversation progresses.
         working_messages, tool_call_counter = _sanitize_tool_call_ids(list(messages))
 
@@ -139,6 +140,13 @@ class LLMClient:
 
                     elif event["type"] == "done":
                         finish_reason = event["finish_reason"]
+                        usage = event.get("usage")
+                        if isinstance(usage, dict):
+                            usage_accum.record(
+                                prompt_tokens=usage.get("prompt_tokens", 0) or 0,
+                                completion_tokens=usage.get("completion_tokens", 0) or 0,
+                                total_tokens=usage.get("total_tokens", 0) or 0,
+                            )
                         break
 
             except APIStatusError as e:
@@ -160,6 +168,7 @@ class LLMClient:
                 yield StreamEvent(
                     type="done",
                     tool_calls=tool_history,
+                    usage=usage_accum,
                     next_action=None,
                 )
                 return
