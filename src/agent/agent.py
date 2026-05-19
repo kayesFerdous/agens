@@ -60,9 +60,9 @@ class Agent:
         self,
         registry: ToolRegistry,
         llm: LLMClient,
-        router: FreeTierRouter,
         config_manager: ConfigManager,
         fernet: Fernet,
+        router: FreeTierRouter | None = None,
     ) -> None:
         self._registry = registry
         self._llm = llm

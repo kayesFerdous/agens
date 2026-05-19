@@ -21,9 +21,9 @@ def build_dormant_agent() -> Agent:
     fernet = Fernet(settings.FERNET_SECRET)
     usage = Usage()
     config_manager = ConfigManager()
-    registry = _build_registry(config_manager, usage, fernet)
+    registry = _build_registry(config_manager)
     provider_name = getattr(settings, "DEFAULT_PROVIDER", "gemini")
     model = getattr(settings, "DEFAULT_MODEL", "") or None
-    llm = LLMClient(build_provider_config(provider_name, api_key="", model=model))
+    llm = LLMClient(build_provider_config(provider_name, api_key="sk-dormant-placeholder", model=model))
     llm.current_key_id = None  # type: ignore[attr-defined]
     return Agent(registry=registry, llm=llm, config_manager=config_manager, fernet=fernet)
