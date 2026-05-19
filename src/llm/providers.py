@@ -33,7 +33,7 @@ PROVIDER_DEFAULTS: dict[str, dict] = {
     },
     "groq": {
         "base_url": "https://api.groq.com/openai/v1",
-        "default_model": "gpt-oss-120b",
+        "default_model": "openai/gpt-oss-120b",
         "parallel_tool_calls": True,
     },
     "cerebras": {
