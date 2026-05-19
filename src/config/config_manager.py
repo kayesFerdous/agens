@@ -15,6 +15,7 @@ from .runtime import get_config_file
 
 class UserConfig(BaseModel):
     name: str = ""
+    memories: dict[str, str] = {}
 
 
 class AssistantConfig(BaseModel):
@@ -31,15 +32,6 @@ class AppConfig(BaseModel):
     assistant: AssistantConfig = AssistantConfig()
     preferences: PreferencesConfig = PreferencesConfig()
     telegram_token: str = ""
-
-    def to_system_prompt(self) -> str:
-        prefs = self.preferences.model_dump()
-        parts = [
-            f"User: {self.user.name} | Assistant: {self.assistant.name} | Tone: {self.assistant.tone}",
-        ]
-        if prefs:
-            parts.append(f"Preferences: {prefs}")
-        return "\n".join(parts)
 
 
 # ── Manager ─────────────────────────────────────────────────────
@@ -93,10 +85,16 @@ class ConfigManager:
 
     @staticmethod
     def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-        """Recursively merge override into a copy of base."""
+        """Recursively merge override into a copy of base.
+
+        Keys set to ``None`` in *override* are deleted from the result,
+        enabling the agent to "forget" individual entries (e.g. memories).
+        """
         result = deepcopy(base)
         for key, value in override.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            if value is None:
+                result.pop(key, None)
+            elif key in result and isinstance(result[key], dict) and isinstance(value, dict):
                 result[key] = ConfigManager._deep_merge(result[key], value)
             else:
                 result[key] = deepcopy(value)

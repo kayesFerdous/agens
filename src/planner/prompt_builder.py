@@ -85,7 +85,10 @@ _GROUP_INSTRUCTIONS: dict[str, str] = {
 - Prefer non-destructive alternatives for read-only tasks before running shell commands.
 - Call update_config when the user's CURRENT message provides a setting, name, token, or preference — no confirmation needed.
   Scalars go top-level:       {{"key": "value"}}
-  Nested fields go inside:    {{"user": {{"name": "..."}}}}\
+  Nested fields go inside:    {{"user": {{"name": "..."}}}}
+- When the user shares a personal fact (university, location, job, hobby, degree, etc.), save it immediately:
+  {{"user": {{"memories": {{"university": "BRAC"}}}}}}
+- When asked to forget something: {{"user": {{"memories": {{"key": null}}}}}}\
 """,
 
     "web": """\
@@ -174,9 +177,12 @@ def build_system_prompt(
     if "system" not in active_groups:
         sections.append(_NO_UPDATE_CONFIG)
 
-    # 5. Dynamic context — datetime + preferences
+    # 5. Dynamic context — datetime + preferences + memories
     prefs = config.preferences.model_dump()
     sections.append(_build_dynamic_context(prefs))
+    if config.user.memories:
+        mem = ", ".join(f"{k}: {v}" for k, v in config.user.memories.items())
+        sections.append(f"Remembered about user: {mem}")
 
     # 6. Knowledge files — only when available
     knowledge = build_knowledge_prompt_snippet()
