@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from rich.segment import Segment
 from rich.style import Style
-from textual import events
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
@@ -14,6 +13,7 @@ from textual.widgets._option_list import OptionDoesNotExist
 from textual.widgets._toggle_button import ToggleButton
 
 from core.tool_groups import DEFAULT_TOOL_GROUPS, normalize_tool_groups
+from interfaces.tui.prefs import set_tool_groups
 
 
 TOOL_GROUP_OPTIONS: list[tuple[str, str, str]] = [
@@ -68,14 +68,16 @@ class ToolGroupSelectScreen(ModalScreen[dict[str, bool] | None]):
     """Modal checklist for enabling and disabling tool groups."""
 
     BINDINGS = [
-        Binding("escape", "cancel", "Cancel", priority=True),
-        Binding("ctrl+c", "cancel", "Cancel", priority=True),
-        Binding("enter", "save", "Save", priority=True),
+        Binding("escape", "close", "Close", priority=True),
+        Binding("ctrl+c", "close", "Close", priority=True),
+        Binding("enter", "close", "Close", priority=True),
+        Binding("t", "toggle_selection", "Toggle", show=False),
     ]
 
     def __init__(self, current_tool_groups: dict[str, bool]) -> None:
         super().__init__()
         self._current_tool_groups = normalize_tool_groups(current_tool_groups)
+        self._dirty = False
 
     def compose(self) -> ComposeResult:
         selections = [
@@ -90,7 +92,7 @@ class ToolGroupSelectScreen(ModalScreen[dict[str, bool] | None]):
         with Vertical(id="tool-groups-panel"):
             with Vertical(id="tool-groups-title-bar"):
                 yield Static(
-                    "[bold]Tool groups[/bold]  [dim]space toggle · enter save · esc cancel[/dim]",
+                    "[bold]Tool groups[/bold]  [dim]t/space toggle · esc close[/dim]",
                     id="tool-groups-title",
                 )
             yield ThemedSelectionList(*selections, id="tool-groups-list")
@@ -102,9 +104,20 @@ class ToolGroupSelectScreen(ModalScreen[dict[str, bool] | None]):
     def on_mount(self) -> None:
         self.query_one("#tool-groups-list", ThemedSelectionList).focus()
 
-    def action_save(self) -> None:
+    def _current_selection(self) -> dict[str, bool]:
         selected = set(self.query_one("#tool-groups-list", ThemedSelectionList).selected)
-        self.dismiss({group: group in selected for group in DEFAULT_TOOL_GROUPS})
+        return {group: group in selected for group in DEFAULT_TOOL_GROUPS}
 
-    def action_cancel(self) -> None:
+    def action_toggle_selection(self) -> None:
+        self.query_one("#tool-groups-list", ThemedSelectionList).action_select()
+
+    def on_selection_list_selection_toggled(self, _: SelectionList.SelectionToggled) -> None:
+        self._dirty = True
+        self._current_tool_groups = self._current_selection()
+        set_tool_groups(self._current_tool_groups)
+
+    def action_close(self) -> None:
+        if self._dirty:
+            self.dismiss(self._current_selection())
+            return
         self.dismiss(None)
