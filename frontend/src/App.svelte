@@ -259,7 +259,7 @@
             <line x1="3" y1="18" x2="21" y2="18"></line>
           </svg>
         </button>
-        <span class="app-title">agens</span>
+     <!--  <span class="app-title">agens</span> -->
       </div>
       
       <div class="right">
