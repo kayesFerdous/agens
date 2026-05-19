@@ -13,7 +13,7 @@ Responsibilities:
 from __future__ import annotations
 
 import logging
-import shutil
+from importlib.resources import files as _pkg_files
 from pathlib import Path
 
 from platformdirs import user_config_path
@@ -28,15 +28,22 @@ APP_NAME = "agens"
 APP_AUTHOR = None     # set to your org/author string if desired on Windows
 
 # ---------------------------------------------------------------------------
-# Source (bundled) asset paths  — relative to this file's package root
+# Bundled asset access  — via importlib.resources (works in wheels / zips)
 # ---------------------------------------------------------------------------
 
-_THIS_FILE = Path(__file__).resolve()
-# Assumes layout:  src/config/runtime.py  →  repo root is three levels up
-_REPO_ROOT = _THIS_FILE.parents[2]
-BUNDLED_ASSETS_DIR: Path = _REPO_ROOT / "assets"
-BUNDLED_KNOWLEDGE_DIR: Path = BUNDLED_ASSETS_DIR / "knowledge"
-BUNDLED_PROMPTS_DIR: Path = BUNDLED_ASSETS_DIR / "prompts"
+def _bundled_assets_root():
+    """Return a Traversable pointing at the installed _bundled_assets package."""
+    return _pkg_files("agens._bundled_assets")
+
+
+def _bundled_knowledge():
+    """Return a Traversable for the bundled knowledge directory."""
+    return _bundled_assets_root().joinpath("knowledge")
+
+
+def _bundled_prompts():
+    """Return a Traversable for the bundled prompts directory."""
+    return _bundled_assets_root().joinpath("prompts")
 
 # ---------------------------------------------------------------------------
 # Runtime (user-writable) paths
@@ -111,35 +118,55 @@ def copy_default_assets(force: bool = False) -> None:
         Use with caution — this will discard user edits.
         Default is False (safe, preserves user edits).
     """
-    _copy_tree(BUNDLED_KNOWLEDGE_DIR, get_knowledge_dir(), force=force)
-    _copy_tree(BUNDLED_PROMPTS_DIR, get_prompts_dir(), force=force)
+    _copy_bundled_tree(_bundled_knowledge(), get_knowledge_dir(), force=force)
+    _copy_bundled_tree(_bundled_prompts(), get_prompts_dir(), force=force)
 
 
-def _copy_tree(src: Path, dst: Path, *, force: bool = False) -> None:
+def _copy_bundled_tree(
+    src,   # importlib.resources.abc.Traversable
+    dst: Path,
+    *,
+    force: bool = False,
+    _rel_parts: tuple[str, ...] = (),
+) -> None:
     """
-    Recursively copy *src* directory into *dst*.
+    Recursively copy a bundled asset *Traversable* tree into *dst*.
+
+    Works with both real filesystem Paths (editable installs) and
+    importlib Traversable objects (wheel / zip installs).
 
     Skips individual files that already exist in *dst* unless *force* is True.
     Missing parent directories are created automatically.
+    Skips ``__init__.py`` and ``__pycache__`` — those are packaging artifacts.
     """
-    if not src.exists():
-        log.debug("Bundled source not found, skipping: %s", src)
+    try:
+        children = list(src.iterdir())
+    except (FileNotFoundError, TypeError, NotADirectoryError):
+        log.debug("Bundled source not found or not a directory, skipping: %s", src)
         return
 
-    for src_file in src.rglob("*"):
-        if not src_file.is_file():
+    for child in children:
+        name = child.name
+
+        # Skip Python packaging artifacts
+        if name in ("__init__.py", "__pycache__"):
             continue
 
-        relative = src_file.relative_to(src)
-        dst_file = dst / relative
+        if child.is_dir():
+            _copy_bundled_tree(
+                child, dst, force=force, _rel_parts=_rel_parts + (name,)
+            )
+        elif child.is_file():
+            dst_file = dst / Path(*_rel_parts) / name if _rel_parts else dst / name
 
-        if dst_file.exists() and not force:
-            log.debug("Skipping existing user file: %s", dst_file)
-            continue
+            if dst_file.exists() and not force:
+                log.debug("Skipping existing user file: %s", dst_file)
+                continue
 
-        dst_file.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src_file, dst_file)
-        log.info("Copied asset: %s → %s", src_file, dst_file)
+            dst_file.parent.mkdir(parents=True, exist_ok=True)
+            # Read bytes from the Traversable and write to disk
+            dst_file.write_bytes(child.read_bytes())
+            log.info("Copied bundled asset → %s", dst_file)
 
 
 # ---------------------------------------------------------------------------
