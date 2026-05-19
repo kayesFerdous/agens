@@ -393,6 +393,21 @@ class Agent:
                         ),
                     }
 
+                if safety_mode:
+                    # Safety mode ON — permanently block; no path to execution.
+                    logger.info(
+                        "Command blocked by safety mode: tool=%s session=%s",
+                        name, session_id,
+                    )
+                    return {
+                        "status": "blocked",
+                        "message": (
+                            "Safety mode is ON. This command is blocked and cannot be executed "
+                            "through the assistant. Disable safety mode in Settings to enable "
+                            "the confirmation flow."
+                        ),
+                    }
+
                 if channel in (Channel.TELEGRAM, Channel.WEB):
                     # Telegram blocks ALL confirmation-required commands.
                     logger.info(
@@ -429,21 +444,6 @@ class Agent:
                         "status": "awaiting_user_confirmation",
                         "reason": result["reason"],
                         "preview": result["preview"],
-                    }
-
-                elif safety_mode:
-                    # Safety mode ON — permanently block; no path to execution.
-                    logger.info(
-                        "Command blocked by safety mode: tool=%s session=%s",
-                        name, session_id,
-                    )
-                    return {
-                        "status": "blocked",
-                        "message": (
-                            "Safety mode is ON. This command is blocked and cannot be executed "
-                            "through the assistant. Disable safety mode in Settings to enable "
-                            "the confirmation flow."
-                        ),
                     }
 
                 # Safety mode OFF on Web — normal confirmation flow (non-sudo only).
