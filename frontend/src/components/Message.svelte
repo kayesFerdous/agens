@@ -157,7 +157,7 @@
     padding: 10px 16px;
     font-size: 14px;
     line-height: 1.7;
-    max-width: min(72%, 660px);
+    max-width: 90%;
     white-space: pre-wrap;
     word-break: break-word;
   }
@@ -170,7 +170,8 @@
 
   .ai-body {
     min-width: 0;
-    max-width: min(76%, 700px);
+    flex: 1;
+    max-width: calc(95% - 40px);
   }
 
   .content {
