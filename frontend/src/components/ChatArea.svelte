@@ -1,4 +1,6 @@
 <script>
+  import { onMount } from "svelte";
+  import { get } from "svelte/store";
   import {
     messages,
     isStreaming,
@@ -14,6 +16,8 @@
   import Message from "./Message.svelte";
   import ChatInput from "./ChatInput.svelte";
 
+  const notificationIcon = new URL("../assets/logo.svg", import.meta.url).href;
+
   let currentStream = $state(null);
   let streamSessionId = $state(null);
   let chatWindow;
@@ -24,6 +28,73 @@
   let confirmationRequest = $state(null);
   // Prevent duplicate confirmation submissions.
   let confirmationBusy = $state(false);
+  let isTabHidden = typeof document !== "undefined" ? document.hidden : false;
+
+  function getLastAssistantMessage() {
+    return [...get(messages)].reverse().find((m) => m.role === "assistant");
+  }
+
+  async function requestNotificationPermission() {
+    try {
+      if (typeof window === "undefined" || typeof Notification === "undefined") {
+        return "unsupported";
+      }
+
+      if (Notification.permission !== "default") {
+        return Notification.permission;
+      }
+
+      const permission = await Notification.requestPermission();
+      return permission;
+    } catch {
+      // Notification permission failures should not affect chat flow.
+      return "error";
+    }
+  }
+
+  async function notifyAgentFinished() {
+    try {
+      if (typeof window === "undefined" || typeof Notification === "undefined") return;
+
+      if (Notification.permission === "default") {
+        await requestNotificationPermission();
+      }
+      if (Notification.permission !== "granted") return;
+
+      const lastAssistant = getLastAssistantMessage();
+      const notification = new Notification("Agent Finished", {
+        body: (lastAssistant?.content ?? "").slice(0, 40),
+        icon: notificationIcon,
+      });
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+    } catch {
+      // Notification display failures should not affect chat flow.
+    }
+  }
+
+  onMount(() => {
+    let wasStreaming = get(isStreaming);
+    const updateVisibility = () => {
+      isTabHidden = document.hidden;
+    };
+    const unsubscribe = isStreaming.subscribe((streaming) => {
+      if (wasStreaming && !streaming) {
+        if (isTabHidden) {
+          void notifyAgentFinished();
+        }
+      }
+      wasStreaming = streaming;
+    });
+
+    document.addEventListener("visibilitychange", updateVisibility);
+    return () => {
+      unsubscribe();
+      document.removeEventListener("visibilitychange", updateVisibility);
+    };
+  });
 
 
   // Keep the view pinned to the latest content in runes mode.
@@ -102,6 +173,7 @@
       return;
     }
     if (!text || $isStreaming || currentStream) return;
+    void requestNotificationPermission();
 
     confirmationRequest = null;
     pendingConfirmation = null;
@@ -385,6 +457,15 @@
        </div>
     {/if}
     <div class="input-wrapper">
+      {#if import.meta.env.DEV}
+        <button
+          type="button"
+          class="notification-test-button"
+          onclick={() => void requestNotificationPermission()}
+        >
+          Test notification permission
+        </button>
+      {/if}
       <ChatInput
         disabled={$isStreaming || !!pendingConfirmation}
         showStop={$isStreaming}
@@ -406,6 +487,18 @@
     height: 100%;
     position: relative;
     overflow: hidden;
+  }
+
+  .notification-test-button {
+    display: block;
+    margin: 0 auto 8px;
+    padding: 6px 10px;
+    border: 0.5px solid var(--ag-border);
+    border-radius: 8px;
+    background: var(--ag-warm-white);
+    color: var(--ag-ink-2);
+    font-size: 12px;
+    cursor: pointer;
   }
 
   /* --- IDLE STATE --- */
