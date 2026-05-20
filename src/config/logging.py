@@ -115,6 +115,7 @@ def setup_logging(
     level: int | str = logging.INFO,
     *,
     force: bool = False,
+    is_tui: bool = False,
 ) -> None:
     """Configure the root logger for the whole application.
 
@@ -128,6 +129,8 @@ def setup_logging(
                 Defaults to ``logging.INFO``.
         force:  Re-apply configuration even if already set up.  Useful in
                 tests that need a specific level.
+        is_tui: If True, log to a file instead of sys.stderr to prevent
+                corrupting the Textual TUI interface.
 
     Example::
 
@@ -150,13 +153,26 @@ def setup_logging(
     # that calls logging.basicConfig at import time).
     root.handlers.clear()
 
-    # Decide whether the terminal supports ANSI escape codes.
-    is_tty: bool = hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
+    if is_tui:
+        try:
+            from config.runtime import get_logs_dir
+            log_dir = get_logs_dir()
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log_file = log_dir / "agens.log"
+            handler = logging.FileHandler(log_file, encoding="utf-8")
+            handler.setLevel(level)
+            handler.setFormatter(_ColourFormatter(use_colours=False))
+            root.addHandler(handler)
+        except Exception:
+            pass
+    else:
+        # Decide whether the terminal supports ANSI escape codes.
+        is_tty: bool = hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
 
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setLevel(level)
-    handler.setFormatter(_ColourFormatter(use_colours=is_tty))
-    root.addHandler(handler)
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setLevel(level)
+        handler.setFormatter(_ColourFormatter(use_colours=is_tty))
+        root.addHandler(handler)
 
     # Silence chatty third-party libraries at WARNING by default so they
     # don't drown out your application logs.  Add more as needed.

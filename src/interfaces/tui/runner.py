@@ -7,10 +7,15 @@
 # If geometry text appears on screen, find scroll calls whose return value is rendered.
 from __future__ import annotations
 
+from config.logging import setup_logging
 from .app import AssistantTUI
 
 
 async def run_tui(agent, session_id: str | None = None) -> None:
+    # Reconfigure logging to write to agens.log instead of sys.stderr
+    # to avoid corrupting the Textual terminal display.
+    setup_logging(force=True, is_tui=True)
+
     app = AssistantTUI(agent=agent, session_id=session_id)
     await app.run_async()
     if app.session_id:
