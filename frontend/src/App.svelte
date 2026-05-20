@@ -467,12 +467,6 @@
     border-color: var(--ag-border);
   }
 
-  .app-title {
-    font-weight: 400;
-    font-size: 13px;
-    color: var(--ag-ink-3);
-  }
-
   .right {
     display: flex;
     align-items: center;

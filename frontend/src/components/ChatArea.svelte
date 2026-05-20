@@ -29,6 +29,7 @@
   // Prevent duplicate confirmation submissions.
   let confirmationBusy = $state(false);
   let isTabHidden = typeof document !== "undefined" ? document.hidden : false;
+  let pendingStreamNotification = null;
 
   function getLastAssistantMessage() {
     return [...get(messages)].reverse().find((m) => m.role === "assistant");
@@ -52,7 +53,21 @@
     }
   }
 
-  async function notifyAgentFinished() {
+  function getStreamEndNotification() {
+    if (pendingStreamNotification) {
+      const notification = pendingStreamNotification;
+      pendingStreamNotification = null;
+      return notification;
+    }
+
+    const lastAssistant = getLastAssistantMessage();
+    return {
+      title: "Agent Finished",
+      body: (lastAssistant?.content ?? "").slice(0, 40),
+    };
+  }
+
+  async function notifyStreamEnded(notification) {
     try {
       if (typeof window === "undefined" || typeof Notification === "undefined") return;
 
@@ -61,14 +76,13 @@
       }
       if (Notification.permission !== "granted") return;
 
-      const lastAssistant = getLastAssistantMessage();
-      const notification = new Notification("Agent Finished", {
-        body: (lastAssistant?.content ?? "").slice(0, 40),
+      const desktopNotification = new Notification(notification.title, {
+        body: notification.body,
         icon: notificationIcon,
       });
-      notification.onclick = () => {
+      desktopNotification.onclick = () => {
         window.focus();
-        notification.close();
+        desktopNotification.close();
       };
     } catch {
       // Notification display failures should not affect chat flow.
@@ -83,7 +97,9 @@
     const unsubscribe = isStreaming.subscribe((streaming) => {
       if (wasStreaming && !streaming) {
         if (isTabHidden) {
-          void notifyAgentFinished();
+          void notifyStreamEnded(getStreamEndNotification());
+        } else {
+          pendingStreamNotification = null;
         }
       }
       wasStreaming = streaming;
@@ -367,6 +383,10 @@
         }
       },
       onError(err) {
+        pendingStreamNotification = {
+          title: "Agent Error",
+          body: String(err).slice(0, 40),
+        };
         finalizeStream();
         confirmationRequest = null;
         pendingConfirmation = null;

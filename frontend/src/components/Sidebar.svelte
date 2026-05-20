@@ -315,24 +315,6 @@
     border-color: rgba(201,124,74,0.25);
   }
 
-  .settings-link {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    border-radius: 12px;
-    color: var(--ag-ink-2);
-    cursor: pointer;
-    border: 0.5px solid transparent;
-    transition: background 0.12s ease, border-color 0.12s ease;
-  }
-
-  .settings-link:hover {
-    background: var(--ag-warm-white);
-    border-color: var(--ag-border);
-    color: var(--ag-ink);
-  }
-
   .modal-overlay {
     position: fixed;
     inset: 0;
