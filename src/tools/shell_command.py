@@ -198,6 +198,17 @@ class ShellCommandTool(Tool):
                 result_stdout = stdout_bytes.decode(errors='replace')
                 result_stderr = stderr_bytes.decode(errors='replace')
                 result_returncode = proc.returncode
+            except asyncio.CancelledError:
+                # Prevent resource leak: clean up subprocess on cancellation
+                try:
+                    proc.terminate()
+                    # Wait briefly for graceful termination
+                    await asyncio.wait_for(proc.wait(), timeout=2.0)
+                except Exception:
+                    # Force kill if it ignores SIGTERM
+                    proc.kill()
+                    await proc.wait()
+                raise  # Propagate cancellation
             except asyncio.TimeoutError:
                 proc.kill()
                 await proc.wait()
