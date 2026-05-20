@@ -48,7 +48,7 @@ _CATALOG: tuple[ModelEntry, ...] = (
         id="gemini-2.5-pro",
         provider="gemini",
         name="Gemini 2.5 Pro",
-        free_tier=False, tool_calling=True, streaming=True, parallel_tool_calls=False,
+        free_tier=True, tool_calling=True, streaming=True, parallel_tool_calls=False,
         context_window=1_048_576, speed_tps=800,
         rate_limits={"free": {"rpm": 5, "rpd": 100, "tpm": 250_000}},
     ),
