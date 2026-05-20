@@ -83,12 +83,11 @@
     aria-expanded={open}
     title="Active tool groups"
   >
-    <span class="trigger-icon" aria-hidden="true">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 3l7 4v5c0 4.4-2.8 7.3-7 9-4.2-1.7-7-4.6-7-9V7z"></path>
-        <path d="M9 12l2 2 4-5"></path>
-      </svg>
-    </span>
+  <span class="trigger-icon" aria-hidden="true">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+    </svg>
+  </span>
     <span class="trigger-text">Tools</span>
     <span class="trigger-count">{enabledCount}/{GROUPS.length}</span>
   </button>
@@ -148,9 +147,9 @@
     height: 28px;
     padding: 0 10px;
     border-radius: 9px;
-    border: 0.5px solid rgba(123, 110, 170, 0.18);
-    background: color-mix(in srgb, var(--ag-accent-light) 72%, var(--ag-warm-white));
-    color: var(--ag-accent-deep);
+    border: 0.5px solid rgba(201,124,74,0.25);
+    background: var(--ag-warm-light);
+    color: var(--ag-warm);
     font-family: inherit;
     font-size: 11px;
     font-weight: 500;
@@ -167,8 +166,8 @@
 
   .tool-trigger:hover,
   .tool-trigger.open {
-    background: var(--ag-accent);
-    border-color: var(--ag-accent);
+    background: var(--ag-warm);
+    border-color: var(--ag-warm);
     color: var(--ag-warm-white);
   }
 
@@ -205,7 +204,7 @@
     width: min(340px, calc(100vw - 32px));
     padding: 10px;
     border-radius: 18px;
-    border: 0.5px solid color-mix(in srgb, var(--ag-border) 82%, var(--ag-accent));
+    border: 0.5px solid color-mix(in srgb, var(--ag-border) 82%, var(--ag-warm));
     background: color-mix(in srgb, var(--ag-warm-white) 92%, white);
     box-shadow:
       0 22px 60px rgba(28, 24, 20, 0.12),
@@ -293,7 +292,7 @@
 
   .group-row:hover,
   .group-row.enabled {
-    background: color-mix(in srgb, var(--ag-accent-light) 40%, transparent);
+    background: color-mix(in srgb, var(--ag-warm-light) 40%, transparent);
     border-color: rgba(123, 110, 170, 0.14);
   }
 
@@ -320,8 +319,8 @@
   }
 
   .group-row.enabled .row-icon {
-    color: var(--ag-accent-deep);
-    background: var(--ag-accent-light);
+    color: var(--ag-warm-deep);
+    background: var(--ag-warm-light);
     border-color: rgba(123, 110, 170, 0.18);
   }
 
@@ -376,8 +375,8 @@
   }
 
   .group-row.enabled .switch {
-    background: var(--ag-accent);
-    border-color: var(--ag-accent);
+    background: var(--ag-warm);
+    border-color: var(--ag-warm);
   }
 
   .group-row.enabled .switch-thumb {
