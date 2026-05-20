@@ -466,7 +466,7 @@
     flex-direction: column;
     align-items: center;
     padding-top: 32px;
-    padding-bottom: 24px;
+    padding-bottom: 0px;
     background: linear-gradient(to top, var(--ag-cream) 70%, transparent);
     z-index: 10;
     pointer-events: none; /* Let background clicks pass through */

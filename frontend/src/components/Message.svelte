@@ -7,19 +7,33 @@
   export let message;
   export let isLive = false;
 
-  
   let wasLive = false;
   $: {
     if (isLive) {
       wasLive = true;
-      
     } else if (wasLive && !isLive) {
       wasLive = false;
-      
     }
   }
 
   $: hasTools = (message.toolBlocks && message.toolBlocks.length > 0) || (message.tool_calls && message.tool_calls.length > 0);
+  
+  let traceOpen = false;
+  $: toolsCount = (message.toolBlocks?.length || 0) + (message.tool_calls?.length || 0);
+  $: aggStatus = computeAggStatus(message.toolBlocks, message.tool_calls);
+
+  function computeAggStatus(tb, tc) {
+    const states = [];
+    if (tb) states.push(...tb.map(t => t.status));
+    if (tc) states.push(...tc.map(t => t.error ? 'error' : 'done'));
+    if (states.includes('running')) return 'running';
+    if (states.includes('error')) return 'error';
+    return 'done';
+  }
+
+  function toggleTrace() {
+    traceOpen = !traceOpen;
+  }
 </script>
 
 {#if message.role === 'user'}
@@ -51,9 +65,21 @@
 
     {#if hasTools}
       <div class="trace-wrapper">
-        
+        <div class="trace-root" class:open={traceOpen}>
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="trace-root-row" on:click={toggleTrace}>
+            {#if aggStatus === 'running'}
+              <div class="ind run"></div>
+            {:else if aggStatus === 'error'}
+              <div class="ind err"></div>
+            {/if}
+            <span class="trace-label">trace</span>
+            <span class="trace-count">{toolsCount}</span>
+            <span class="trace-chev">›</span>
+          </div>
 
-        <div class="tools-timeline">
+          <div class="trace-children">
             {#if message.toolBlocks}
               {#each message.toolBlocks as block, index}
                 <ToolBlock 
@@ -62,7 +88,6 @@
                   result={block.result}
                   error={block.error}
                   status={block.status} 
-                  isLast={index === message.toolBlocks.length - 1}
                 />
               {/each}
             {/if}
@@ -74,11 +99,11 @@
                   result={call.result}
                   error={call.error}
                   status={call.error ? 'error' : 'done'} 
-                  isLast={index === message.tool_calls.length - 1}
                 />
               {/each}
             {/if}
           </div>
+        </div>
       </div>
     {/if}
 
@@ -178,34 +203,104 @@
   }
 
   .trace-wrapper {
-    margin: 0 0 8px;
-  }
-
-  .trace-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    margin: 0 0 6px;
-    color: var(--ag-ink-3);
-    font-size: 12px;
-    cursor: pointer;
-  }
-
-  .trace-chevron {
-    transition: transform 0.16s ease;
-  }
-
-  .trace-chevron.open {
-    transform: rotate(90deg);
-  }
-
-  .tools-timeline {
+    margin: 4px 0 8px;
     display: flex;
     flex-direction: column;
     max-width: 480px;
     align-self: flex-start;
-    margin: 2px 0;
   }
+
+  .trace-root {
+    max-width: 480px;
+    cursor: pointer;
+    position: relative;
+    user-select: none;
+    opacity: 0;
+    transform: translateY(1px);
+    animation: traceIn 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  .trace-root-row {
+    display: flex;
+    align-items: center;
+    height: 20px;
+    gap: 8px;
+    padding: 2px 0;
+    transition: opacity 0.2s;
+  }
+  .trace-root:hover .trace-root-row { opacity: 0.8; }
+
+  .ind {
+    width: 5px;
+    height: 5px;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .ind.run {
+    width: 10px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--ag-accent);
+    animation: slide 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+  @keyframes slide {
+    0%, 100% { transform: translateX(-3px); opacity: 0.4; }
+    50% { transform: translateX(3px); opacity: 1; }
+  }
+  .ind.err {
+    background: var(--ag-warm);
+    border-radius: 0.5px;
+    transform: rotate(45deg);
+    opacity: 0.6;
+    width: 4px;
+    height: 4px;
+  }
+
+  .trace-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ag-ink-3);
+    letter-spacing: 0.02em;
+  }
+
+  .trace-count {
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--ag-ink-3);
+    font-variant-numeric: tabular-nums;
+    margin-left: auto;
+  }
+
+  .trace-chev {
+    font-size: 10px;
+    color: var(--ag-ink-3);
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 0.5;
+    margin-left: 2px;
+  }
+  .trace-root.open .trace-chev {
+    transform: rotate(90deg);
+    opacity: 0.8;
+  }
+
+  .trace-children {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .trace-root.open .trace-children {
+    max-height: 2000px;
+    opacity: 1;
+  }
+
+  @keyframes traceIn {
+    from { opacity: 0; transform: translateY(1px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+
 
   @keyframes slideUp {
     from {

@@ -4,7 +4,6 @@
   export let result = null;
   export let error = null;
   export let status = 'running'; // 'running', 'done', 'error'
-  export let isLast = true;
 
   let expanded = false;
 
@@ -45,44 +44,46 @@
   </div>
   
   <div class="sheet">
-    <div class="sheet-inner">
-      <div class="out-section">
-        {#if arguments_obj && Object.keys(arguments_obj).length > 0}
-          <div class="section-label">Input</div>
-          {#each Object.entries(arguments_obj) as [k, v]}
-            <div class="out-kv">
-              <span class="j-key">"{k}"</span><span class="j-punc">:</span>
-              <span class="v pre input-val">{typeof v === 'object' ? JSON.stringify(v, null, 2) : v}</span>
-            </div>
-          {/each}
-        {/if}
-
-        {#if result || error}
+    <div class="sheet-scroll">
+      <div class="sheet-inner">
+        <div class="out-section">
           {#if arguments_obj && Object.keys(arguments_obj).length > 0}
-            <div class="divider"></div>
-          {/if}
-          <div class="section-label">Output</div>
-          
-          {#if error}
-            <div class="out-kv">
-              <span class="err-line pre">{typeof error === 'object' ? JSON.stringify(error, null, 2) : String(error)}</span>
-            </div>
-          {:else if typeof result === 'object' && result !== null}
-            {#each Object.entries(result).slice(0, 5) as [k, v]}
+            <div class="section-label">Input</div>
+            {#each Object.entries(arguments_obj) as [k, v]}
               <div class="out-kv">
                 <span class="j-key">"{k}"</span><span class="j-punc">:</span>
-                <span class="v pre">{typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v)}</span>
+                <span class="v pre input-val">{typeof v === 'object' ? JSON.stringify(v, null, 2) : v}</span>
               </div>
             {/each}
-            {#if Object.keys(result).length > 5}
-              <div class="out-kv"><span class="j-punc">...</span></div>
-            {/if}
-          {:else}
-            <div class="out-kv">
-              <span class="v pre">{String(result)}</span>
-            </div>
           {/if}
-        {/if}
+
+          {#if result || error}
+            {#if arguments_obj && Object.keys(arguments_obj).length > 0}
+              <div class="divider"></div>
+            {/if}
+            <div class="section-label">Output</div>
+            
+            {#if error}
+              <div class="out-kv">
+                <span class="err-line pre">{typeof error === 'object' ? JSON.stringify(error, null, 2) : String(error)}</span>
+              </div>
+            {:else if typeof result === 'object' && result !== null}
+              {#each Object.entries(result).slice(0, 5) as [k, v]}
+                <div class="out-kv">
+                  <span class="j-key">"{k}"</span><span class="j-punc">:</span>
+                  <span class="v pre">{typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v)}</span>
+                </div>
+              {/each}
+              {#if Object.keys(result).length > 5}
+                <div class="out-kv"><span class="j-punc">...</span></div>
+              {/if}
+            {:else}
+              <div class="out-kv">
+                <span class="v pre">{String(result)}</span>
+              </div>
+            {/if}
+          {/if}
+        </div>
       </div>
     </div>
   </div>
@@ -223,11 +224,19 @@
     background: transparent;
   }
   .trace[data-open="true"] .sheet {
-    max-height: 400px;
+    max-height: 414px; /* 400px + 6px + 8px padding */
     opacity: 1;
     padding: 6px 0 8px 15px;
+  }
+
+  .sheet-scroll {
+    max-height: 400px;
     overflow-y: auto;
   }
+
+  .sheet-scroll::-webkit-scrollbar { width: 3px; }
+  .sheet-scroll::-webkit-scrollbar-track { background: transparent; }
+  .sheet-scroll::-webkit-scrollbar-thumb { background: var(--ag-border); border-radius: 2px; }
 
   .sheet::before {
     content: '';
