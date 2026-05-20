@@ -191,7 +191,7 @@
     height: 18px;
     padding: 0 6px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.42);
+    background: transparent;
     color: inherit;
     font-size: 10px;
     font-weight: 600;
