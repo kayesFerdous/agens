@@ -86,7 +86,7 @@ def _create_app(agent: Agent) -> FastAPI:
         logger.info("Web interface shutting down")
 
     app = FastAPI(
-        title="Assistant API",
+        title="Agens API",
         version="0.1.0",
         lifespan=lifespan,
     )

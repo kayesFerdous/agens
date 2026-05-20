@@ -37,6 +37,7 @@ src/interfaces/web/dist/**
 *.local
 
 # Editor directories and files
+.antigravitycli
 .vscode/*
 !.vscode/extensions.json
 .idea
