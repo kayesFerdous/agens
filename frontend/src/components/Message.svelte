@@ -272,10 +272,10 @@
   }
 
   .trace-chev {
-    font-size: 10px;
+    font-size: 13px;
     color: var(--ag-ink-3);
     transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    opacity: 0.5;
+    opacity: 0.7;
     margin-left: 2px;
   }
   .trace-root.open .trace-chev {
