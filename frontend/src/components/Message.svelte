@@ -171,7 +171,7 @@
   .ai-body {
     min-width: 0;
     flex: 1;
-    max-width: calc(95% - 40px);
+    max-width: calc(100% - 40px);
   }
 
   .content {
