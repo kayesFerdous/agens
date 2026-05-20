@@ -46,6 +46,11 @@ PROVIDER_DEFAULTS: dict[str, dict] = {
         "default_model": "deepseek-ai/DeepSeek-V4-Flash",
         "parallel_tool_calls": True,
     },
+    "deepseek": {
+        "base_url": "https://api.deepseek.com",
+        "default_model": "deepseek-v4-flash",
+        "parallel_tool_calls": True,
+    },
 }
 
 

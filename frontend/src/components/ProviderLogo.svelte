@@ -9,6 +9,7 @@
   import cerebrasLogo from '../assets/cerebras.svg';
   import cerebrasLogoDark from '../assets/cerebras-darkmode.svg';
   import siliconflowLogo from '../assets/siliconcloud.svg';
+  import deepseekLogo from '../assets/deepseek.svg';
 
   let { provider = "", class: className = "" } = $props();
 
@@ -18,6 +19,7 @@
     groq: $theme === 'dark' ? groqLogoDark : groqLogo,
     cerebras: $theme === 'dark' ? cerebrasLogoDark : cerebrasLogo,
     siliconflow: siliconflowLogo,
+    deepseek: deepseekLogo,
   });
 
   const logoUrl = $derived(logosMap[provider.toLowerCase()] || '');

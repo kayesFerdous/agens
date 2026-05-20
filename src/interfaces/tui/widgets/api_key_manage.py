@@ -31,14 +31,15 @@ _STATUS_DISPLAY: dict[KeyStatus, tuple[str, str, str]] = {
 }
 
 _PROVIDER_ICON: dict[str, str] = {
-    "gemini": "◆",
-    "openai": "◇",
-    "groq": "○",
-    "cerebras": "◒",
+    "gemini": "✦",
+    "openai": "⬡",
+    "groq": "◎",
+    "cerebras": "▦",
     "siliconflow": "◈",
+    "deepseek": "◉"
 }
 
-_SUPPORTED_PROVIDERS = "gemini · openai · groq · cerebras · siliconflow"
+_SUPPORTED_PROVIDERS = "gemini · openai · groq · cerebras · siliconflow · deepseek"
 
 # Fixed column widths — plain chars only, no markup
 _W_PROV  = 12

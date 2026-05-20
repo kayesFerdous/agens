@@ -60,6 +60,7 @@ PROVIDER_NAME_FALLBACKS = {
     "groq": "Groq",
     "cerebras": "Cerebras",
     "siliconflow": "SiliconFlow",
+    "deepseek": "DeepSeek"
 }
 
 

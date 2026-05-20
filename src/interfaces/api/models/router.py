@@ -17,14 +17,15 @@ from llm.catalog import ModelEntry, get_catalog
 router = APIRouter()
 
 PROVIDER_NAMES = {
-    "gemini": "Google Gemini",
+    "gemini": "Gemini",
     "openai": "OpenAI",
     "groq": "Groq",
     "cerebras": "Cerebras",
     "siliconflow": "SiliconFlow",
+    "deepseek": "DeepSeek",
 }
 
-PROVIDER_ORDER = ("gemini", "openai", "groq", "cerebras", "siliconflow")
+PROVIDER_ORDER = ("gemini", "openai", "groq", "cerebras", "siliconflow", "deepseek")
 
 
 def _speed_label(speed_tps: int | None) -> str:

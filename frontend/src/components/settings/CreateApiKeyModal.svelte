@@ -19,6 +19,7 @@
     { id: 'groq', name: 'Groq' },
     { id: 'cerebras', name: 'Cerebras' },
     { id: 'siliconflow', name: 'SiliconFlow' },
+    { id: 'deepseek', name: 'DeepSeek' },
   ];
 
   async function handleSubmit(e) {

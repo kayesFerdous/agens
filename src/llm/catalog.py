@@ -6,7 +6,7 @@ from typing import Optional
 @dataclass(frozen=True, slots=True)
 class ModelEntry:
     id: str
-    provider: str          # "gemini", "openai", "groq", "cerebras", "siliconflow"
+    provider: str          # "gemini", "openai", "groq", "cerebras", "siliconflow", "deepseek"
     name: str
     free_tier: bool
     tool_calling: bool
@@ -203,6 +203,23 @@ _CATALOG: tuple[ModelEntry, ...] = (
         free_tier=True, tool_calling=True, streaming=True, parallel_tool_calls=True,
         context_window=262_000, speed_tps=None,
         rate_limits={"free": {"rpm": 500, "tpm": 2_000_000}},
+    ),
+    ModelEntry(
+        id="deepseek-v4-pro",
+        provider="deepseek",
+        name="DeepSeek-V4-Pro",
+        free_tier=False, tool_calling=True, streaming=True, parallel_tool_calls=True,
+        context_window=1_048_576, speed_tps=None,
+        rate_limits={"free": {}, "paid": {}},
+    ),
+
+    ModelEntry(
+        id="deepseek-v4-flash",
+        provider="deepseek",
+        name="DeepSeek-V4-Flash",
+        free_tier=False, tool_calling=True, streaming=True, parallel_tool_calls=True,
+        context_window=1_048_576, speed_tps=None,
+        rate_limits={"free": {}, "paid": {}},
     ),
 )
 
