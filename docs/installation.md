@@ -19,7 +19,13 @@ agens --version
 agens web
 ```
 
-Installer script:
+One-line installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kayesFerdous/assistant/main/scripts/install.sh | bash
+```
+
+Alternative (local script):
 
 ```bash
 chmod +x scripts/install.sh
@@ -29,13 +35,13 @@ chmod +x scripts/install.sh
 Pinned install:
 
 ```bash
-./scripts/install.sh install --version 0.1.0
+curl -fsSL https://raw.githubusercontent.com/kayesFerdous/assistant/main/scripts/install.sh | bash -s -- --version 0.1.0
 ```
 
 CI/non-interactive:
 
 ```bash
-./scripts/install.sh install --non-interactive --method pipx
+curl -fsSL https://raw.githubusercontent.com/kayesFerdous/assistant/main/scripts/install.sh | bash -s -- --non-interactive --method pipx
 ```
 
 ## macOS
@@ -49,7 +55,13 @@ pipx install agens
 agens web
 ```
 
-Installer script:
+One-line installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kayesFerdous/assistant/main/scripts/install.sh | bash
+```
+
+Alternative (local script):
 
 ```bash
 chmod +x scripts/install.sh
@@ -60,7 +72,13 @@ If the `agens` command is not found after installation, restart your shell or ru
 
 ## Windows
 
-PowerShell installer:
+One-line installer (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/kayesFerdous/assistant/main/scripts/install.ps1 | iex
+```
+
+Alternative (local script):
 
 ```powershell
 .\scripts\install.ps1 install
