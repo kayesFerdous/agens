@@ -513,7 +513,7 @@
     max-width: 880px;
     display: flex;
     flex-direction: column;
-    padding: 32px 16px 0;
+    padding: 32px 0 0;
   }
 
   .message-list {
