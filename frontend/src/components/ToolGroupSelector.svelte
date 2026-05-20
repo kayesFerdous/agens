@@ -146,7 +146,7 @@
     gap: 7px;
     height: 28px;
     padding: 0 10px;
-    border-radius: 9px;
+    border-radius: 12px;
     border: 0.5px solid rgba(201,124,74,0.25);
     background: var(--ag-warm-light);
     color: var(--ag-warm);
@@ -187,9 +187,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 28px;
-    height: 18px;
-    padding: 0 6px;
+    min-width: 22px;
+    height: 20px;
+    padding: 0 8px;
     border-radius: 999px;
     background: transparent;
     color: inherit;

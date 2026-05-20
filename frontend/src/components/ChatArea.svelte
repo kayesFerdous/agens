@@ -444,7 +444,7 @@
   /* By default .input-wrapper limits width, let's keep it structurally sound */
   .chat-system.is-idle .input-wrapper {
     width: 100%;
-    max-width: 920px; /* Strong solid width for the input */
+    max-width: 760px; /* Narrower input width */
   }
 
   /* --- ACTIVE STATE --- */
@@ -474,7 +474,7 @@
 
   .chat-system.is-active .input-wrapper {
     width: 100%;
-    max-width: 920px;
+    max-width: 760px;
     padding: 0 16px;
     pointer-events: auto; /* Re-enable clicks for the input component */
   }
@@ -510,10 +510,11 @@
   .content {
     flex: 1;
     width: 100%;
-    max-width: 880px;
+    max-width: 760px;
     display: flex;
     flex-direction: column;
-    padding: 32px 0 0;
+    padding: 32px 16px 0;
+    box-sizing: border-box;
   }
 
   .message-list {
