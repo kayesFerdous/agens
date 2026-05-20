@@ -21,6 +21,14 @@ class ModelEntry:
 # ------------------------------------------------------------------
 _CATALOG: tuple[ModelEntry, ...] = (
     ModelEntry(
+        id="gemini-3.5-flash",
+        provider="gemini",
+        name="Gemini 3.5 Flash",
+        free_tier=True, tool_calling=True, streaming=True, parallel_tool_calls=False,
+        context_window=1_048_576, speed_tps=None,
+        rate_limits={"free": {"rpm": None, "rpd": 1_500, "tpm": 1_000_000}},  # inferred from Gemini 2.5 Flash patterns
+    ),
+    ModelEntry(
         id="gemini-2.5-flash-lite",
         provider="gemini",
         name="Gemini 2.5 Flash-Lite",
