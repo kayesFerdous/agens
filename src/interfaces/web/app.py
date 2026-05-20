@@ -107,11 +107,13 @@ def _create_app(agent: Agent) -> FastAPI:
     from interfaces.api.models.router import router as models_router
     from interfaces.api.prefs.router import router as prefs_router
     from interfaces.api.settings.router import router as settings_router
+    from interfaces.api.status.router import router as status_router
 
     app.include_router(sessions_router, prefix="/sessions", tags=["sessions"])
     app.include_router(chat_router, prefix="/chat", tags=["chat"])
     app.include_router(api_keys_router, prefix="/api-keys", tags=["api-keys"])
     app.include_router(models_router, prefix="/api", tags=["models"])
+    app.include_router(status_router, prefix="/api/status", tags=["status"])
     app.include_router(prefs_router, prefix="/prefs", tags=["prefs"])
     app.include_router(settings_router, prefix="/settings", tags=["settings"])
 

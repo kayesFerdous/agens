@@ -5,6 +5,7 @@
   import { activeSessionId, theme, messages, activePage, restoredConfirmation, noApiKeys, settingsTab, isSidebarOpen } from './lib/store.js';
   import { getSession, shutdownAssistant, getSetupStatus } from './lib/api.js';
   import { sessionService } from './lib/sessionService.svelte.js';
+  import { statusService } from './lib/statusService.svelte.js';
   import Logo from './components/Logo.svelte';
 
   let showShutdownConfirm = false;
@@ -127,6 +128,7 @@
   }
 
   onMount(() => {
+    statusService.connect();
     (async () => {
       try {
         const setup = await getSetupStatus();
@@ -183,7 +185,10 @@
     };
 
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      statusService.disconnect();
+    };
   });
 
   $: {
@@ -263,9 +268,17 @@
       </div>
       
       <div class="right">
-        <div class="engine-status">
-          <span class="dot"></span>
-          Local engine active
+        <div class="engine-status" class:inactive={!statusService.isServerActive}>
+          <span
+            class="dot"
+            class:active={statusService.isServerActive}
+            class:inactive={!statusService.isServerActive}
+          ></span>
+          {#if statusService.isServerActive}
+            Local engine active
+          {:else}
+            Engine disconnected
+          {/if}
         </div>
         
         <div class="nav-icons">
@@ -476,10 +489,18 @@
     letter-spacing: 0.01em;
   }
 
+  .engine-status.inactive {
+    color: var(--ag-ink-3);
+  }
+
   .engine-status .dot {
     width: 6px;
     height: 6px;
     border-radius: 50%;
+    background-color: var(--ag-ink-3);
+  }
+
+  .engine-status .dot.active {
     background-color: var(--ag-accent);
   }
 
