@@ -1,52 +1,71 @@
-<div class="thinking-row">
-  <div class="t-pill">
-    <div class="tdots"><span></span><span></span><span></span></div>
-    thinking
+<div class="trace">
+  <div class="trace-row">
+    <div class="trace-left">
+      <div class="ind think"></div>
+      <span class="t-name">Planning...</span>
+    </div>
   </div>
 </div>
 
 <style>
-  .thinking-row {
+  .trace {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 5px 0;
-    margin-bottom: 2px;
-  }
-  
-  .t-pill {
-    background: var(--ag-accent-light);
-    border: 0.5px solid var(--ag-border);
-    border-radius: 20px;
-    padding: 3px 10px;
+    flex-direction: column;
+    max-width: 480px;
+    cursor: default;
+    opacity: 0;
+    transform: translateY(1px);
+    animation: traceIn 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    position: relative;
     font-family: var(--font-sans);
-    font-size: 11px;
-    color: var(--ag-accent);
+    margin: 2px 0 4px 0;
+  }
+
+  .trace-row {
     display: flex;
     align-items: center;
-    gap: 5px;
+    height: 22px;
+    gap: 10px;
+    padding: 3px 0;
   }
-  
-  .tdots span {
-    width: 3px;
-    height: 3px;
+
+  .trace-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .ind {
+    width: 5px;
+    height: 5px;
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  .ind.think {
+    border: 1.5px solid var(--ag-accent);
     border-radius: 50%;
-    background: var(--ag-accent-mid);
-    display: inline-block;
-    animation: b 1.2s infinite;
+    box-sizing: border-box;
+    animation: ringPulse 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }
-  
-  .tdots span:nth-child(2) { animation-delay: .2s; }
-  .tdots span:nth-child(3) { animation-delay: .4s; }
-  
-  @keyframes b {
-    0%, 80%, 100% { opacity: .25; }
-    40% { opacity: 1; }
+
+  @keyframes ringPulse {
+    0%, 100% { opacity: 0.3; transform: scale(0.9); }
+    50% { opacity: 1; transform: scale(1.1); }
   }
-  
-  .t-hint {
+
+  .t-name {
     font-size: 11px;
-    color: var(--ag-ink-3);
-    font-family: var(--font-sans);
+    font-weight: 500;
+    color: var(--ag-ink);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+
+  @keyframes traceIn {
+    from { opacity: 0; transform: translateY(1px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 </style>

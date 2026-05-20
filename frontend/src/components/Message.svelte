@@ -7,15 +7,15 @@
   export let message;
   export let isLive = false;
 
-  let traceExpanded = false;
+  
   let wasLive = false;
   $: {
     if (isLive) {
       wasLive = true;
-      traceExpanded = true;
+      
     } else if (wasLive && !isLive) {
       wasLive = false;
-      traceExpanded = false;
+      
     }
   }
 
@@ -51,19 +51,9 @@
 
     {#if hasTools}
       <div class="trace-wrapper">
-        {#if !isLive}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="trace-toggle" onclick={() => traceExpanded = !traceExpanded}>
-            trace
-            <svg class="trace-chevron" class:open={traceExpanded} width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="5 3 9 7 5 11" />
-            </svg>
-          </div>
-        {/if}
+        
 
-        {#if traceExpanded || isLive}
-          <div class="tools-timeline">
+        <div class="tools-timeline">
             {#if message.toolBlocks}
               {#each message.toolBlocks as block, index}
                 <ToolBlock 
@@ -89,7 +79,6 @@
               {/each}
             {/if}
           </div>
-        {/if}
       </div>
     {/if}
 
@@ -213,7 +202,9 @@
   .tools-timeline {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    max-width: 480px;
+    align-self: flex-start;
+    margin: 2px 0;
   }
 
   @keyframes slideUp {

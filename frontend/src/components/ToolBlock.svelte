@@ -9,46 +9,50 @@
   let expanded = false;
 
   function toggleExpanded() {
-    expanded = !expanded;
+    if (arguments_obj || result || error) {
+      expanded = !expanded;
+    }
   }
-
-  $: toolArgSummary = arguments_obj && Object.values(arguments_obj).length > 0
-    ? String(Object.values(arguments_obj)[0]).split('\n')[0].slice(0, 40) + (String(Object.values(arguments_obj)[0]).length > 40 ? '…' : '')
-    : '';
 </script>
 
-<div class="tool-row" class:has-timeline={!isLast}>
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="row-head" onclick={toggleExpanded}>
-    <div class="dot-wrapper">
-      <div class="dot" class:done={status === 'done'} class:running={status === 'running'} class:err={status === 'error'}></div>
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="trace" data-state={status} data-expand={String(!!(arguments_obj || result || error))} data-open={String(expanded)} on:click={toggleExpanded}>
+  <div class="trace-row">
+    <div class="trace-left">
+      {#if status === 'running'}
+        <div class="ind run"></div>
+      {:else if status === 'error'}
+        <div class="ind err"></div>
+      {:else}
+        <div class="ind ok"></div>
+      {/if}
+      <span class="t-name">{tool}</span>
     </div>
-    <span class="tool-name">{tool}</span>
-    {#if toolArgSummary}
-      <span class="tool-arg">{toolArgSummary}</span>
-    {/if}
-    
-    <div class="pusher"></div>
-    
-    {#if arguments_obj || result || error}
-      <svg class="chevron" class:open={expanded} width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="3 5 7 9 11 5"/>
-      </svg>
-    {/if}
-    
-    <span class="badge" class:done={status === 'done'} class:running={status === 'running'} class:err={status === 'error'}>{status}</span>
+    <div class="trace-right">
+      {#if status === 'error'}
+        <span class="t-meta err-text">error</span>
+      {:else if status === 'done' && result && typeof result === 'string'}
+        <span class="t-meta">{result.length > 20 ? result.slice(0, 15) + '...' : result}</span>
+      {:else if status === 'done' && result}
+        <span class="t-meta">done</span>
+      {/if}
+      
+      {#if arguments_obj || result || error}
+        <span class="t-chev">›</span>
+      {/if}
+    </div>
   </div>
-
-  {#if arguments_obj || result || error}
-    <div class="output" class:open={expanded}>
+  
+  <div class="sheet">
+    <div class="sheet-inner">
       <div class="out-section">
         {#if arguments_obj && Object.keys(arguments_obj).length > 0}
           <div class="section-label">Input</div>
           {#each Object.entries(arguments_obj) as [k, v]}
             <div class="out-kv">
-              <span class="k">{k}</span>
-              <span class="v pre input-val">{typeof v === 'object' ? JSON.stringify(v) : v}</span>
+              <span class="j-key">"{k}"</span><span class="j-punc">:</span>
+              <span class="v pre input-val">{typeof v === 'object' ? JSON.stringify(v, null, 2) : v}</span>
             </div>
           {/each}
         {/if}
@@ -61,123 +65,203 @@
           
           {#if error}
             <div class="out-kv">
-              <span class="k">error</span>
-              <span class="v pre err">{error}</span>
+              <span class="err-line pre">{typeof error === 'object' ? JSON.stringify(error, null, 2) : String(error)}</span>
             </div>
-          {:else if typeof result === 'object'}
+          {:else if typeof result === 'object' && result !== null}
             {#each Object.entries(result).slice(0, 5) as [k, v]}
               <div class="out-kv">
-                <span class="k">{k}</span>
-                <span class="v pre">{typeof v === 'object' ? JSON.stringify(v) : v}</span>
+                <span class="j-key">"{k}"</span><span class="j-punc">:</span>
+                <span class="v pre">{typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v)}</span>
               </div>
             {/each}
+            {#if Object.keys(result).length > 5}
+              <div class="out-kv"><span class="j-punc">...</span></div>
+            {/if}
           {:else}
             <div class="out-kv">
-              <span class="k">result</span>
-              <span class="v pre">{result}</span>
+              <span class="v pre">{String(result)}</span>
             </div>
           {/if}
         {/if}
       </div>
     </div>
-  {/if}
+  </div>
 </div>
 
 <style>
-  .tool-row {
-    background: var(--ag-accent-light);
-    border: 0.5px solid rgba(123,110,170,0.20);
-    border-radius: 8px;
-    padding: 7px 12px;
-    font-size: 12px;
-    color: var(--ag-accent);
+  .trace {
+    display: flex;
+    flex-direction: column;
+    max-width: 480px;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(1px);
+    animation: traceIn 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    position: relative;
     font-family: var(--font-sans);
   }
 
-  .row-head {
+  .trace-row {
+    display: flex;
+    align-items: center;
+    height: 22px;
+    gap: 10px;
+    padding: 3px 0;
+    border-top: 1px solid var(--ag-border);
+    transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .trace:hover .trace-row {
+    border-top-color: var(--ag-ink-3);
+  }
+
+  .trace[data-state="error"] .trace-row {
+    border-top-color: var(--ag-warm-light);
+  }
+
+  .trace-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .trace-right {
     display: flex;
     align-items: center;
     gap: 8px;
-    cursor: pointer;
-    user-select: none;
-    min-width: 0;
+    flex-shrink: 0;
   }
 
-  .dot-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  .ind {
+    width: 5px;
+    height: 5px;
+    flex-shrink: 0;
+    position: relative;
   }
 
-  .dot {
-    width: 6px;
-    height: 6px;
+  /* running: sliding bar */
+  .ind.run {
+    width: 10px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--ag-accent);
+    animation: slide 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+  @keyframes slide {
+    0%, 100% { transform: translateX(-3px); opacity: 0.4; }
+    50% { transform: translateX(3px); opacity: 1; }
+  }
+
+  /* success: solid dot */
+  .ind.ok {
+    background: var(--ag-accent);
     border-radius: 50%;
-    background: var(--ag-accent-mid);
-    flex-shrink: 0;
+    opacity: 0.7;
+    animation: dotIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  @keyframes dotIn {
+    from { transform: scale(0); opacity: 0; }
+    to { transform: scale(1); opacity: 0.7; }
   }
 
-  .dot.err {
+  /* error: small rotated square */
+  .ind.err {
     background: var(--ag-warm);
+    border-radius: 0.5px;
+    transform: rotate(45deg);
+    opacity: 0.6;
+    width: 4px;
+    height: 4px;
   }
 
-  .tool-name {
-    font-size: 12px;
+  .t-name {
+    font-size: 11px;
     font-weight: 500;
-    color: var(--ag-accent);
+    color: var(--ag-ink);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  .tool-arg {
+  .t-meta {
+    font-size: 11px;
+    font-weight: 400;
     color: var(--ag-ink-3);
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
-    min-width: 0;
   }
-
-  .pusher {
-    flex: 1;
-  }
-
-  .chevron {
-    flex-shrink: 0;
-    transition: transform 0.15s ease;
-  }
-
-  .chevron.open {
-    transform: rotate(180deg);
-  }
-
-  .badge {
-    background: var(--ag-accent-glow);
-    color: var(--ag-accent);
-    font-size: 10px;
-    letter-spacing: 0.01em;
-    border-radius: 6px;
-    padding: 2px 8px;
-    font-weight: 500;
-    flex-shrink: 0;
-  }
-
-  .badge.err {
-    background: var(--ag-warm-light);
+  
+  .t-meta.err-text {
     color: var(--ag-warm);
   }
 
-  .output {
-    display: none;
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 0.5px solid rgba(123,110,170,0.20);
+  .t-chev {
+    font-size: 10px;
+    color: var(--ag-ink-3);
+    opacity: 0;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s;
+    transform: rotate(0deg);
+    margin-left: 2px;
+  }
+  .trace[data-expand="true"] .t-chev { opacity: 0.5; }
+  .trace[data-open="true"] .t-chev { transform: rotate(90deg); opacity: 0.8; }
+
+  /* Sheet */
+  .sheet {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+                padding 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 0 0 0 15px;
+    position: relative;
+    background: transparent;
+  }
+  .trace[data-open="true"] .sheet {
+    max-height: 400px;
+    opacity: 1;
+    padding: 6px 0 8px 15px;
+    overflow-y: auto;
   }
 
-  .output.open {
+  .sheet::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--ag-accent);
+    opacity: 0.15;
+    transform: scaleY(0);
+    transform-origin: top;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .trace[data-open="true"] .sheet::before {
+    transform: scaleY(1);
+  }
+  .trace[data-state="error"] .sheet::before {
+    background: var(--ag-warm);
+    opacity: 0.2;
+  }
+
+  .sheet-inner {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--ag-ink-2);
+    padding-right: 8px;
+  }
+
+  .out-section {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
   }
 
   .section-label {
@@ -185,34 +269,31 @@
     letter-spacing: 0.01em;
     color: var(--ag-ink-3);
     font-weight: 500;
+    font-family: var(--font-sans);
+    margin-top: 4px;
+    margin-bottom: -2px;
   }
-
-  .out-section {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    background: var(--ag-warm-white);
-    border-radius: 8px;
-    padding: 8px 10px;
-    border: 0.5px solid var(--ag-border);
-  }
-
+  
   .out-kv {
-    font-size: 12px;
+    font-size: 11px;
     display: flex;
-    align-items: flex-start;
-    gap: 8px;
+    flex-wrap: wrap; /* allow long values to wrap elegantly */
+    align-items: baseline;
+    gap: 6px;
   }
 
-  .k {
-    color: var(--ag-ink-3);
+  .j-key {
+    color: var(--ag-accent);
     font-weight: 500;
-    min-width: 60px;
+  }
+  
+  .j-punc {
+    color: var(--ag-ink-3);
+    opacity: 0.6;
   }
 
   .v {
-    color: var(--ag-ink-2);
-    font-family: var(--font-mono);
+    flex: 1;
     word-break: break-all;
   }
 
@@ -220,13 +301,24 @@
     white-space: pre-wrap;
   }
 
-  .err {
+  .err-line {
     color: var(--ag-warm);
+    opacity: 0.85;
   }
 
   .divider {
     height: 0;
     border-top: 0.5px solid var(--ag-border);
-    margin: 2px 0;
+    margin: 4px 0;
+    opacity: 0.5;
+  }
+  
+  .sheet::-webkit-scrollbar { width: 3px; }
+  .sheet::-webkit-scrollbar-track { background: transparent; }
+  .sheet::-webkit-scrollbar-thumb { background: var(--ag-border); border-radius: 2px; }
+
+  @keyframes traceIn {
+    from { opacity: 0; transform: translateY(1px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 </style>
