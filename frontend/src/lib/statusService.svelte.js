@@ -1,5 +1,6 @@
+export const statusState = $state({ isServerActive: false });
+
 class StatusService {
-  isServerActive = $state(false);
   eventSource = null;
 
   connect() {
@@ -9,15 +10,15 @@ class StatusService {
     this.eventSource = source;
 
     source.onopen = () => {
-      this.isServerActive = true;
+      statusState.isServerActive = true;
     };
 
     source.onmessage = () => {
-      this.isServerActive = true;
+      statusState.isServerActive = true;
     };
 
     source.onerror = () => {
-      this.isServerActive = false;
+      statusState.isServerActive = false;
     };
   }
 
@@ -25,7 +26,7 @@ class StatusService {
     if (!this.eventSource) return;
     this.eventSource.close();
     this.eventSource = null;
-    this.isServerActive = false;
+    statusState.isServerActive = false;
   }
 }
 

@@ -5,7 +5,7 @@
   import { activeSessionId, theme, messages, activePage, restoredConfirmation, noApiKeys, settingsTab, isSidebarOpen } from './lib/store.js';
   import { getSession, shutdownAssistant, getSetupStatus } from './lib/api.js';
   import { sessionService } from './lib/sessionService.svelte.js';
-  import { statusService } from './lib/statusService.svelte.js';
+  import { statusService, statusState } from './lib/statusService.svelte.js';
   import Logo from './components/Logo.svelte';
 
   let showShutdownConfirm = false;
@@ -268,13 +268,13 @@
       </div>
       
       <div class="right">
-        <div class="engine-status" class:inactive={!statusService.isServerActive}>
+        <div class="engine-status" class:inactive={!statusState.isServerActive}>
           <span
             class="dot"
-            class:active={statusService.isServerActive}
-            class:inactive={!statusService.isServerActive}
+            class:active={statusState.isServerActive}
+            class:inactive={!statusState.isServerActive}
           ></span>
-          {#if statusService.isServerActive}
+          {#if statusState.isServerActive}
             Local engine active
           {:else}
             Engine disconnected
@@ -497,7 +497,7 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background-color: var(--ag-ink-3);
+    background-color: var(--ag-warm);
   }
 
   .engine-status .dot.active {
