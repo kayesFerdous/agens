@@ -145,7 +145,7 @@
     align-items: center;
     gap: 7px;
     height: 28px;
-    padding: 0 10px;
+    padding: 0 5px;
     border-radius: 12px;
     border: 0.5px solid rgba(201,124,74,0.25);
     background: var(--ag-warm-light);
@@ -189,7 +189,7 @@
     justify-content: center;
     min-width: 22px;
     height: 20px;
-    padding: 0 8px;
+    padding: 0px;
     border-radius: 999px;
     background: transparent;
     color: inherit;

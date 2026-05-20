@@ -329,14 +329,14 @@
   .trigger {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
+    gap: 6px;
     height: 28px;
     max-width: 260px;
-    padding: 0 10px;
-    border-radius: 9px;
+    padding: 0 8px 0 4px;
+    border-radius: 12px;
     border: 0.5px solid rgba(123, 110, 170, 0.25);
     background: var(--ag-accent-light);
-    color: var(--ag-ink);
+    color: var(--ag-accent);
     font-family: inherit;
     font-size: 11px;
     font-weight: 500;
@@ -354,7 +354,7 @@
   }
 
   .sparkle {
-    width: 10px;
+    width: 8px;
     color: inherit;
   }
 
