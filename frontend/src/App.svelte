@@ -430,7 +430,7 @@
 
   .top-nav {
     height: 56px;
-    background: var(--ag-warm-white);
+    background: var(--ag-cream);
     border-bottom: 0.5px solid var(--ag-border);
     display: flex;
     align-items: center;
