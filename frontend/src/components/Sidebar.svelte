@@ -229,7 +229,10 @@
     flex-direction: column;
     gap: 4px;
     overflow-y: auto;
+    overflow-x: hidden;
     flex: 1;
+    margin-right: -12px;
+    padding-right: 12px;
   }
 
   .sessions-label {
