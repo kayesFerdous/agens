@@ -3,7 +3,7 @@
 FROM node:24-bookworm-slim AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci
+RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
@@ -19,8 +19,7 @@ RUN apt-get update \
 COPY pyproject.toml MANIFEST.in README.md ./
 COPY src/ ./src/
 COPY --from=frontend-builder /app/src/interfaces/web/dist ./src/interfaces/web/dist
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip wheel --wheel-dir /wheels .
+RUN pip wheel --wheel-dir /wheels .
 
 FROM python:3.13-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -40,8 +39,7 @@ RUN groupadd --system --gid 10001 agens \
 
 WORKDIR /app
 COPY --from=wheel-builder /wheels /wheels
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-index --find-links=/wheels agens \
+RUN pip install --no-index --find-links=/wheels agens \
     && rm -rf /wheels
 
 USER agens

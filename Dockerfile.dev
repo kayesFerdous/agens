@@ -23,11 +23,11 @@ RUN apt-get update \
 WORKDIR /app
 COPY pyproject.toml MANIFEST.in README.md ./
 COPY src/ ./src/
-RUN --mount=type=cache,target=/root/.cache/pip pip install -e .
+RUN pip install -e .
 
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci
+RUN npm ci
 
 WORKDIR /app
 COPY frontend/ ./frontend/

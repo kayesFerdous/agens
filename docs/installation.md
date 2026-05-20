@@ -225,6 +225,17 @@ Docker container unhealthy:
 
 Check logs with `docker compose logs agens`. Confirm port `8000` is free, volumes are writable, and required environment variables are valid.
 
+Docker BuildKit / buildx errors:
+
+If you see warnings or errors regarding BuildKit or the `buildx` plugin, we have configured the Dockerfiles to build cleanly with the legacy builder by default. However, you can enable BuildKit to benefit from faster build performance and caching:
+
+```bash
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+```
+
+On Linux systems, if `buildx` is missing, you can install it using your package manager (e.g., `apt-get install docker-buildx` or similar).
+
 No API keys configured:
 
 Add a key with:
