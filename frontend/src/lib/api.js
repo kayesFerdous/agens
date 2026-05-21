@@ -154,6 +154,9 @@ export function streamChat(sessionId, message, model, toolGroups, callbacks) {
             case 'status':
               if (callbacks.onStatus) callbacks.onStatus(event.message);
               break;
+            case 'model':
+              if (callbacks.onModel) callbacks.onModel(event.active_model);
+              break;
 
             case 'tool_start':
               callbacks.onToolStart(event.tool, event.arguments);

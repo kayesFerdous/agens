@@ -317,6 +317,11 @@ class Agent:
                         message="API key rotated. Proceeding with the request.",
                     )
 
+                yield StreamEvent(
+                    type="model",
+                    active_model=f"{self._llm.config.name}/{active_model}",
+                )
+
                 async for event in self._llm.react_stream(
                     messages=messages,
                     model=active_model,

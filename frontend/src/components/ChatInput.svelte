@@ -7,12 +7,7 @@
   let { disabled = false, showStop = false, onsubmit, onstop } = $props();
 
   let text = $state('');
-  let currentModel = $state(null);
   let textareaElement = $state();
-
-  $effect(() => {
-    selectedModelStore.set(currentModel);
-  });
 
   function handleWindowKeydown(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -28,7 +23,7 @@
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (!disabled && text.trim()) {
-        if (onsubmit) onsubmit({ text: text.trim(), model: currentModel });
+        if (onsubmit) onsubmit({ text: text.trim(), model: $selectedModelStore });
         text = '';
       }
     }
@@ -36,17 +31,13 @@
 
   function handleSubmit() {
     if (!disabled && text.trim()) {
-      if (onsubmit) onsubmit({ text: text.trim(), model: currentModel });
+      if (onsubmit) onsubmit({ text: text.trim(), model: $selectedModelStore });
       text = '';
     }
   }
 
   function handleStop() {
     if (onstop) onstop();
-  }
-
-  function handleModelChange(val) {
-    currentModel = val;
   }
 </script>
 
@@ -69,8 +60,7 @@
     <div class="bottom-bar">
       <div class="control-group">
         <ModelSelector
-          bind:selectedModel={currentModel}
-          onchange={handleModelChange}
+          bind:selectedModel={$selectedModelStore}
         />
         <ToolGroupSelector />
       </div>

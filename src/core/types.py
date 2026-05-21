@@ -70,7 +70,7 @@ class StreamEvent:
         done       — the stream is complete (carries usage + tool history)
     """
     type: Literal[
-        "tool_start", "tool_end", "token", "status", "error", "done",
+        "tool_start", "tool_end", "token", "status", "error", "done", "model",
     ]
 
     # token events
@@ -88,3 +88,6 @@ class StreamEvent:
     # done event
     usage: Usage | None = None
     tool_calls: list[ToolCall] = field(default_factory=list)
+
+    # model event
+    active_model: str | None = None

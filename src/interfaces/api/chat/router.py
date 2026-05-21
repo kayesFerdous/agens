@@ -18,6 +18,7 @@ from interfaces.api_key_state import (
     has_any_api_keys,
     user_key_unavailable_message,
 )
+from interfaces.web.prefs import set_selected_model
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -114,6 +115,10 @@ async def chat(
 
                 elif event.type == "status":
                     payload = {"type": "status", "message": event.message}
+
+                elif event.type == "model":
+                    set_selected_model(event.active_model)
+                    payload = {"type": "model", "active_model": event.active_model}
 
                 elif event.type == "error":
                     payload = {"type": "error", "error": user_key_unavailable_message(event.error)}

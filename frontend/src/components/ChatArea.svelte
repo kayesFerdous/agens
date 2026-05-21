@@ -6,6 +6,7 @@
     isStreaming,
     activeSessionId,
     toolGroups,
+    selectedModel,
   } from "../lib/store.js";
   import { streamChat, stopChat } from "../lib/api.js";
   import { sessionService } from "../lib/sessionService.svelte.js";
@@ -213,6 +214,9 @@
     currentStream = streamChat(sessionId, text, model, $toolGroups, {
       async onSession(id) {
         streamSessionId = id;
+      },
+      onModel(activeModel) {
+        selectedModel.set(activeModel);
       },
       onToken(content) {
         messages.update((m) => {
