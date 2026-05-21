@@ -18,8 +18,6 @@ from llm.router import FreeTierRouter
 from core.tool_groups import get_enabled_tool_names, get_enabled_tool_schemas
 from core.registry import ToolRegistry
 from core.types import (
-    CONFIRMATION_TTL_SECONDS,
-    PendingConfirmation,
     StreamEvent,
 )
 from config.config_manager import ConfigManager
@@ -27,7 +25,6 @@ from planner.prompt_builder import build_system_prompt
 from memory.manager import MemoryManager
 from services.api_key_manager import APIKeyManager
 from services.settings_service import SettingsService
-# from tools.search_web import SearchUnavailableError
 from db.database import async_session
 
 logger = get_logger(__name__)
@@ -71,9 +68,6 @@ class Agent:
         self.model_name = llm.config.default_model
         self._config_manager = config_manager
         self._fernet = fernet
-        # Keyed by session_id. One pending confirmation per session at a time.
-        # In-memory only — cleared on server restart (by design).
-        self._pending_confirmations: dict[str, PendingConfirmation] = {}
 
     # ------------------------------------------------------------------
     # Public unified entry point — all interface adapters call this.
@@ -118,8 +112,6 @@ class Agent:
             if not session_closed:
                 await _close_db()
 
-
-
     async def run_stream(
         self,
         user_request: str,
@@ -138,151 +130,6 @@ class Agent:
         safety_mode: bool = app_settings.safety_mode
         tool_schemas = get_enabled_tool_schemas(self._registry, tool_groups)
         enabled_tool_names = get_enabled_tool_names(tool_groups)
-
-        # ── Confirmation gate — evaluated BEFORE the LLM is ever invoked ────────
-        # pop() atomically removes the pending entry so a second "YES" is a no-op.
-        pending = self._pending_confirmations.pop(session_id, None)
-        if pending is not None:
-            if pending.tool_name not in enabled_tool_names:
-                msg = (
-                    f"Action cancelled. The tool '{pending.tool_name}' is disabled "
-                    "for this chat session."
-                )
-                logger.info(
-                    "Pending confirmation cancelled by disabled tool: session=%s tool=%s",
-                    session_id,
-                    pending.tool_name,
-                )
-                yield StreamEvent(type="confirmation_result", message=msg)
-                yield StreamEvent(type="token", content=msg)
-                await memory_manager.store(session_id, user_request, msg, [])
-                yield StreamEvent(type="done", tool_calls=[], next_action=None)
-                return
-
-            elapsed = time.time() - pending.created_at
-            if elapsed > CONFIRMATION_TTL_SECONDS:
-                # Confirmation window has expired.
-                msg = (
-                    f"Confirmation expired after {int(elapsed)}s "
-                    f"(limit: {CONFIRMATION_TTL_SECONDS}s). Action cancelled. "
-                    "Please re-request if you still want to run the command."
-                )
-                logger.info("Confirmation TTL expired for session=%s", session_id)
-                yield StreamEvent(type="confirmation_result", message=msg)
-                yield StreamEvent(type="token", content=msg)
-                await memory_manager.store(session_id, user_request, msg, [])
-                yield StreamEvent(type="done", tool_calls=[], next_action=None)
-                return
-
-            normalized_confirmation = user_request.strip().upper()
-            is_confirmed = normalized_confirmation == "YES" or (
-                channel == Channel.TUI and normalized_confirmation == "Y"
-            )
-            if is_confirmed:
-                # Check if this is a sudo command that needs a password (TUI only).
-                use_sudo = bool(pending.arguments.get("use_sudo", False))
-                if use_sudo:
-                    if sudo_password_provider is None:
-                        # Web/Telegram should never reach here — but guard anyway.
-                        msg = (
-                            "Sudo commands cannot be executed via this interface for security reasons. "
-                            "Please use the TUI (`agens tui`) to run this command."
-                        )
-                        yield StreamEvent(type="confirmation_result", message=msg)
-                        yield StreamEvent(type="token", content=msg)
-                        await memory_manager.store(session_id, user_request, msg, [])
-                        yield StreamEvent(type="done", tool_calls=[], next_action=None)
-                        return
-
-                    # Prompt the user for their sudo password (TUI callback).
-                    password = await sudo_password_provider()
-                    if password is None:
-                        # User cancelled the password prompt.
-                        msg = "Sudo authorization cancelled. The command was not executed."
-                        logger.info("Sudo password prompt cancelled: session=%s", session_id)
-                        yield StreamEvent(type="confirmation_result", message=msg)
-                        yield StreamEvent(type="token", content=msg)
-                        await memory_manager.store(session_id, user_request, msg, [])
-                        yield StreamEvent(type="done", tool_calls=[], next_action=None)
-                        return
-
-                    confirmed_args = {
-                        **pending.arguments,
-                        "confirmed": True,
-                        "use_sudo": True,
-                        "sudo_password": password,
-                    }
-                else:
-                    confirmed_args = {**pending.arguments, "confirmed": True}
-
-                logger.info(
-                    "User confirmed dangerous command: tool=%s session=%s",
-                    pending.tool_name, session_id,
-                )
-                status_msg = f"Executing confirmed command: `{pending.command_preview}`"
-                yield StreamEvent(type="status", message=status_msg)
-                tool_call_record: dict = {
-                    "tool": pending.tool_name,
-                    "arguments": pending.arguments,
-                    "result": None,
-                    "error": None,
-                }
-                try:
-                    result = await self._execute_tool(pending.tool_name, confirmed_args)
-                    tool_call_record["result"] = result
-                    yield StreamEvent(
-                        type="confirmation_result",
-                        tool=pending.tool_name,
-                        result=result,
-                    )
-                    stdout = result.get("stdout", "").strip()
-                    stderr = result.get("stderr", "").strip()
-                    exit_code = result.get("exit_code", "n/a")
-                    output_section = stdout or stderr or "_No output._"
-                    answer = (
-                        f"✅ **Command executed successfully.**\n\n"
-                        f"```\n$ {pending.command_preview}\n```\n\n"
-                        f"**Exit code:** `{exit_code}`\n\n"
-                        f"**Output:**\n```\n{output_section}\n```"
-                    )
-                except Exception as e:
-                    error_msg = f"{type(e).__name__}: {e}"
-                    tool_call_record["error"] = error_msg
-                    logger.error("Confirmed command failed: %s", error_msg)
-                    yield StreamEvent(
-                        type="confirmation_result",
-                        tool=pending.tool_name,
-                        error=error_msg,
-                    )
-                    answer = (
-                        f"❌ **Command failed.**\n\n"
-                        f"```\n$ {pending.command_preview}\n```\n\n"
-                        f"**Error:** `{error_msg}`"
-                    )
-
-                yield StreamEvent(type="token", content=answer)
-                await memory_manager.store(
-                    session_id, user_request, answer, [tool_call_record]
-                )
-                yield StreamEvent(type="done", tool_calls=[], next_action=None)
-                return
-
-            else:
-                # Anything other than "YES" cancels the action.
-                cancel_msg = (
-                    "Action cancelled. The command was not executed. "
-                    "Reply with your next request."
-                )
-                logger.info(
-                    "User declined dangerous command: session=%s input=%r",
-                    session_id, user_request[:50],
-                )
-                yield StreamEvent(type="confirmation_result", message=cancel_msg)
-                yield StreamEvent(type="token", content=cancel_msg)
-                await memory_manager.store(session_id, user_request, cancel_msg, [])
-                yield StreamEvent(type="done", tool_calls=[], next_action=None)
-                return
-        # ── End confirmation gate ──────────────────────────────────────────────────
 
         system = build_system_prompt(
             self._config_manager,
@@ -318,34 +165,11 @@ class Agent:
         )
 
         # ── Gated tool executor ──────────────────────────────────────────────────
-        # Wraps self._execute_tool to intercept needs_confirmation responses.
-        # If a tool requests confirmation, we store the PendingConfirmation and
-        # stop the stream immediately after the current tool event. The UI renders
-        # the confirmation prompt directly;
-        captured_confirmation: list[PendingConfirmation] = []  # max length 1
-
-        async def _emit_pending_confirmation(
-            pending_conf: PendingConfirmation,
-            tool_calls: list[dict],
-        ) -> AsyncIterator[StreamEvent]:
-            logger.info(
-                "Stored pending confirmation: session=%s tool=%s",
-                session_id, pending_conf.tool_name,
-            )
-            yield StreamEvent(
-                type="confirmation_required",
-                tool=pending_conf.tool_name,
-                arguments=pending_conf.arguments,
-                confirmation_reason=pending_conf.reason,
-                confirmation_preview=pending_conf.command_preview,
-            )
-            await memory_manager.store(
-                session_id,
-                user_request,
-                "".join(answer_parts),
-                tool_calls,
-            )
-            yield StreamEvent(type="done", tool_calls=[], next_action="await_confirmation")
+        # Handles dangerous/sudo commands inline:
+        #   - Web/Telegram: blocked entirely (no confirmation flow).
+        #   - TUI: sudo password collected via sudo_password_provider and executed
+        #          immediately; non-sudo dangerous commands execute with confirmed=True.
+        #   - Safety mode ON: all dangerous commands blocked regardless of channel.
 
         async def _gated_tool_executor(name: str, args: dict[str, Any]) -> dict[str, Any]:
             if name not in enabled_tool_names:
@@ -360,19 +184,18 @@ class Agent:
                 cmd_str = args.get("command", "")
                 is_sudo = _is_sudo_command(cmd_str)
 
-                # ── Web & Telegram: block sudo commands entirely ─────────────
-                if is_sudo and channel in (Channel.WEB, Channel.TELEGRAM):
+                # ── Web & Telegram: block all dangerous commands ─────────────
+                if channel in (Channel.WEB, Channel.TELEGRAM):
                     channel_name = "web" if channel == Channel.WEB else "Telegram"
                     logger.info(
-                        "Sudo command blocked on %s: tool=%s session=%s",
+                        "Dangerous command blocked on %s: tool=%s session=%s",
                         channel_name, name, session_id,
                     )
                     return {
                         "status": "blocked_channel",
                         "message": (
-                            "Sudo commands cannot be executed via the "
-                            f"{channel_name} interface for security reasons. "
-                            "Please use the TUI (`agens tui`) to run this command."
+                            f"This command cannot be executed via the {channel_name} interface "
+                            "for security reasons. Please use the TUI (`agens tui`) to run it."
                         ),
                     }
 
@@ -390,8 +213,8 @@ class Agent:
                         ),
                     }
 
+                # ── Safety mode ON: block regardless of channel ──────────────
                 if safety_mode:
-                    # Safety mode ON — permanently block; no path to execution.
                     logger.info(
                         "Command blocked by safety mode: tool=%s session=%s",
                         name, session_id,
@@ -401,71 +224,46 @@ class Agent:
                         "message": (
                             "Safety mode is ON. This command is blocked and cannot be executed "
                             "through the assistant. Disable safety mode in Settings to enable "
-                            "the confirmation flow."
+                            "dangerous command execution."
                         ),
                     }
 
-                if channel in (Channel.TELEGRAM, Channel.WEB):
-                    # Telegram blocks ALL confirmation-required commands.
-                    logger.info(
-                        "Confirmation-required command blocked on telegram: tool=%s session=%s",
-                        name, session_id,
-                    )
-                    return {
-                        "status": "blocked_channel",
-                        "message": (
-                            "This command requires confirmation, which is not supported "
-                            "over Telegram for security reasons. Please use the "
-                            "terminal interface to run this command."
-                        ),
-                    }
+                # ── TUI: execute inline ──────────────────────────────────────
+                if is_sudo:
+                    if sudo_password_provider is None:
+                        return {
+                            "status": "blocked_channel",
+                            "message": (
+                                "Sudo commands cannot be executed via this interface for security reasons. "
+                                "Please use the TUI (`agens tui`) to run this command."
+                            ),
+                        }
 
-                elif channel == Channel.TUI:
-                    # In TUI, use a lightweight y/N flow.
-                    pending_args = {**args, "use_sudo": True} if is_sudo else args
-                    confirmation = PendingConfirmation(
-                        tool_name=name,
-                        arguments=pending_args,
-                        reason=result["reason"],
-                        command_preview=result["preview"],
-                        created_at=time.time(),
-                        session_id=session_id,
-                    )
-                    self._pending_confirmations[session_id] = confirmation
-                    captured_confirmation.append(confirmation)
-                    logger.info(
-                        "Confirmation-required command queued for TUI: tool=%s session=%s command=%r",
-                        name, session_id, result["preview"],
-                    )
-                    return {
-                        "status": "awaiting_user_confirmation",
-                        "reason": result["reason"],
-                        "preview": result["preview"],
-                    }
+                    password = await sudo_password_provider()
+                    if password is None:
+                        logger.info("Sudo password prompt cancelled: session=%s", session_id)
+                        return {
+                            "status": "cancelled",
+                            "message": "Sudo authorization cancelled. The command was not executed.",
+                        }
 
-                # Safety mode OFF on Web — normal confirmation flow (non-sudo only).
-                confirmation = PendingConfirmation(
-                    tool_name=name,
-                    arguments=args,
-                    reason=result["reason"],
-                    command_preview=result["preview"],
-                    created_at=time.time(),
-                    session_id=session_id,
-                )
-                self._pending_confirmations[session_id] = confirmation
-                captured_confirmation.append(confirmation)
+                    confirmed_args = {
+                        **args,
+                        "confirmed": True,
+                        "use_sudo": True,
+                        "sudo_password": password,
+                    }
+                else:
+                    confirmed_args = {**args, "confirmed": True}
+
                 logger.info(
-                    "Dangerous command intercepted: tool=%s session=%s command=%r",
-                    name, session_id, result["preview"],
+                    "Executing dangerous command inline (TUI): tool=%s session=%s",
+                    name, session_id,
                 )
-                return {
-                    "status": "awaiting_user_confirmation",
-                    "reason": result["reason"],
-                    "preview": result["preview"],
-                }
+                return await self._execute_tool(name, confirmed_args)
 
             return result
-        # ────────────────────────────────────────────────────────────────────────────────
+        # ────────────────────────────────────────────────────────────────────────
 
         for attempt in range(max_retries):
             answer_parts.clear()
@@ -518,29 +316,6 @@ class Agent:
                         last_done_event = event
                         continue
                     yield event
-
-                    if captured_confirmation:
-                        pending_conf = captured_confirmation[0]
-                        tool_calls_json: list[dict] = []
-                        if event.type == "tool_end" and event.tool == pending_conf.tool_name:
-                            tool_calls_json.append(
-                                {
-                                    "tool": pending_conf.tool_name,
-                                    "arguments": pending_conf.arguments,
-                                    "result": {
-                                        "status": "awaiting_user_confirmation",
-                                        "reason": pending_conf.reason,
-                                        "preview": pending_conf.command_preview,
-                                    },
-                                    "error": event.error,
-                                }
-                            )
-                        async for confirmation_event in _emit_pending_confirmation(
-                            pending_conf,
-                            tool_calls_json,
-                        ):
-                            yield confirmation_event
-                        return
 
                 if stream_error:
                     is_empty_stop = (
@@ -632,10 +407,6 @@ class Agent:
                 yield StreamEvent(type="error", error=str(e))
                 return
 
-            # except SearchUnavailableError as e:
-            #     yield StreamEvent(type="token", content=str(e))
-            #     return
-
             except Exception as e:
                 logger.error("Streaming ReAct loop failed: %s", e, exc_info=True)
                 yield StreamEvent(type="error", error=str(e))
@@ -712,7 +483,6 @@ class Agent:
         )
         return True, new_config.default_model
 
-
     async def _ensure_model_available(
         self,
         model: str,
@@ -743,7 +513,6 @@ class Agent:
         self._current_key_id = bound.key_id
         self.model_name = bound.entry.id
         return True
-
 
     async def _execute_tool(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         tool = self._registry.get(name)
