@@ -1,9 +1,22 @@
 [project]
 name = "agens"
 version = "0.1.0"
-description = "Add your description here"
+description = "An interface-agnostic AI agent platform that executes complex system-level and web tasks through a centralized ReAct orchestration engine."
 readme = "README.md"
 requires-python = ">=3.13"
+license = { file = "LICENSE" }
+authors = [{ name = "kayesFerdous" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
 dependencies = [
     "aiosqlite>=0.20.0",
     "alembic>=1.13.0",
@@ -24,6 +37,24 @@ dependencies = [
     "typer>=0.25.1",
     "uvicorn[standard]>=0.34.0",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "black>=24.0.0",
+    "ruff>=0.3.0",
+    "mypy>=1.9.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "build>=1.0.0",
+    "twine>=5.0.0",
+    "validate-pyproject>=0.16",
+]
+
+[project.urls]
+Homepage = "https://github.com/kayesFerdous/agens"
+Repository = "https://github.com/kayesFerdous/agens.git"
+"Bug Tracker" = "https://github.com/kayesFerdous/agens/issues"
+Documentation = "https://github.com/kayesFerdous/agens#readme"
 
 [project.scripts]
 agens = "agens.main:cli"
