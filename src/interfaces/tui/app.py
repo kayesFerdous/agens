@@ -291,6 +291,17 @@ class AssistantTUI(App):
         if kind == "token":
             return str(self._event_value(event, "content", "") or "")
 
+        if kind == "model":
+            active_model = self._event_value(event, "active_model", None)
+            if active_model:
+                self._selected_model = active_model
+                set_selected_model(active_model)
+                from .widgets.model_select import get_model_label
+                label = get_model_label(active_model)
+                self.query_one(AppHeader).update_model(label)
+                self._update_model_bar()
+            return ""
+
         if kind == "tool_start":
             tool_name = str(self._event_value(event, "tool", None) or "tool")
             arguments = self._event_value(event, "arguments", {}) or {}
