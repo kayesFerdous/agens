@@ -1,4 +1,6 @@
-# Installation
+# Installation & Setup
+
+[Home (README)](../README.md) · [Architecture Deep Dive](architecture.md) · [Tool System](tools.md) · [Configuration](configuration.md) · [Developer Manual](development.md)
 
 Agens supports `pipx`, `pip`, platform installer scripts, and Docker. `pipx` is preferred for local machines because it gives Agens an isolated Python environment and keeps project virtual environments untouched.
 
@@ -22,7 +24,7 @@ agens web
 One-line installer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kayesFerdous/assistant/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/kayesFerdous/agens/main/scripts/install.sh | bash
 ```
 
 Alternative (local script):
@@ -35,13 +37,13 @@ chmod +x scripts/install.sh
 Pinned install:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kayesFerdous/assistant/main/scripts/install.sh | bash -s -- --version 0.1.0
+curl -fsSL https://raw.githubusercontent.com/kayesFerdous/agens/main/scripts/install.sh | bash -s -- --version 0.1.0
 ```
 
 CI/non-interactive:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kayesFerdous/assistant/main/scripts/install.sh | bash -s -- --non-interactive --method pipx
+curl -fsSL https://raw.githubusercontent.com/kayesFerdous/agens/main/scripts/install.sh | bash -s -- --non-interactive --method pipx
 ```
 
 ## macOS
@@ -58,7 +60,7 @@ agens web
 One-line installer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kayesFerdous/assistant/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/kayesFerdous/agens/main/scripts/install.sh | bash
 ```
 
 Alternative (local script):
@@ -75,7 +77,7 @@ If the `agens` command is not found after installation, restart your shell or ru
 One-line installer (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/kayesFerdous/assistant/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/kayesFerdous/agens/main/scripts/install.ps1 | iex
 ```
 
 Alternative (local script):
@@ -262,8 +264,17 @@ Add a key with:
 agens apikey add personal gemini <your-api-key>
 ```
 
-For Docker:
-
 ```bash
 docker compose exec agens agens apikey add personal gemini <your-api-key>
 ```
+
+---
+
+## Navigation
+
+- 🏠 **[Home (README)](../README.md)**
+- 🏗️ **[Architecture Deep Dive](architecture.md)**
+- 🛠️ **[Tool System & Custom Tools](tools.md)**
+- ⚙️ **[Configuration & Key Management](configuration.md)**
+- 💻 **[Developer & Contributor Manual](development.md)**
+
