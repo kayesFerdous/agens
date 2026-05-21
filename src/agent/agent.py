@@ -13,7 +13,7 @@ from config.logging import get_logger
 from typing import Any, AsyncIterator, Awaitable, Callable
 from db.repositories.api_key import APIKeyRepository
 from llm.client import LLMClient
-from llm.errors import RateLimitError, LLMUnavailableError
+from llm.errors import RateLimitError, LLMUnavailableError, LLMError
 from llm.router import FreeTierRouter
 from core.tool_groups import get_enabled_tool_names, get_enabled_tool_schemas
 from core.registry import ToolRegistry
@@ -163,6 +163,22 @@ class Agent:
         selected_provider_bound = bool(
             selected_provider and self._llm.config.name == selected_provider
         )
+        transient_cooldown_seconds = 300
+
+        async def _pick_next_config(provider: str, model: str):
+            from llm.providers import build_provider_config
+
+            repo = api_key_manager.repo
+            available = await repo.pick_available_key(provider=provider, model=model)
+            if available is None:
+                available = await repo.pick_available_key(provider=None, model=None)
+            if available is None:
+                api_key_manager.last_rotated_key_id = None
+                return None
+
+            api_key_manager.last_rotated_key_id = available.id
+            raw_key = api_key_manager.fernet.decrypt(available.encrypted_key.encode()).decode()
+            return build_provider_config(available.provider, api_key=raw_key)
 
         # ── Gated tool executor ──────────────────────────────────────────────────
         # Handles dangerous/sudo commands inline:
@@ -402,9 +418,78 @@ class Agent:
                     yield StreamEvent(type="error", error=str(e2))
                     return
 
-            except LLMUnavailableError as e:
-                logger.warning("LLM unavailable on attempt %d: %s", attempt, e)
-                yield StreamEvent(type="error", error=str(e))
+            except LLMError as e:
+                is_auth_error = getattr(e, "is_auth_error", False)
+                is_transient = getattr(e, "is_transient", False)
+
+                if not (is_auth_error or is_transient):
+                    logger.warning("LLM error on attempt %d: %s", attempt, e)
+                    yield StreamEvent(type="error", error=str(e))
+                    return
+
+                if self._current_key_id is None:
+                    yield StreamEvent(
+                        type="error",
+                        error="No active API key is bound to this request.",
+                    )
+                    return
+
+                if is_auth_error:
+                    logger.error(
+                        "Deactivating revoked API key: %s",
+                        self._current_key_id,
+                    )
+                    await api_key_manager.deactivate(self._current_key_id)
+                else:
+                    logger.warning(
+                        "Key %s hit transient error (%s). Cooling down.",
+                        self._current_key_id,
+                        e,
+                    )
+                    await api_key_manager.repo.set_model_cooldown(
+                        key_id=self._current_key_id,
+                        model=active_model,
+                        reason="rate_limit",
+                        duration_seconds=transient_cooldown_seconds,
+                    )
+
+                try:
+                    new_config = await _pick_next_config(
+                        self._llm.config.name,
+                        active_model,
+                    )
+                except Exception as rotate_error:
+                    logger.warning(
+                        "Key rotation failed after LLM error: %s",
+                        rotate_error,
+                        exc_info=True,
+                    )
+                    yield StreamEvent(type="error", error=str(e))
+                    return
+
+                if new_config is None:
+                    yield StreamEvent(
+                        type="error",
+                        error="All API keys are exhausted across all providers.",
+                    )
+                    return
+
+                self._llm.swap_key(new_config)
+                self._current_key_id = api_key_manager.last_rotated_key_id
+                active_model = new_config.default_model
+                self.model_name = active_model
+                status_msg = (
+                    "Authentication error. Switched API keys."
+                    if is_auth_error
+                    else "Transient provider error. Switched API keys."
+                )
+                yield StreamEvent(type="status", message=status_msg)
+                if attempt < max_retries - 1:
+                    continue
+                yield StreamEvent(
+                    type="error",
+                    error=f"Retry budget exhausted. Last tried: {active_model}.",
+                )
                 return
 
             except Exception as e:

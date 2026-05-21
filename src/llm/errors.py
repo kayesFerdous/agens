@@ -6,17 +6,43 @@ from openai import APIStatusError
 class LLMError(Exception):
     """Base for all LLM errors surfaced to agent.py."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        is_transient: bool = False,
+        is_auth_error: bool = False,
+    ) -> None:
+        self.status_code = status_code
+        self.is_transient = is_transient
+        self.is_auth_error = is_auth_error
+        super().__init__(message)
+
 
 class RateLimitError(LLMError):
     def __init__(self, *, key_id: str, retry_after: int, is_daily: bool = False):
         self.key_id = key_id
         self.retry_after = retry_after
         self.is_daily = is_daily
-        super().__init__(f"Rate limited (key={key_id}, retry_after={retry_after}s, daily={is_daily})")
+        super().__init__(
+            f"Rate limited (key={key_id}, retry_after={retry_after}s, daily={is_daily})",
+            status_code=429,
+            is_transient=True,
+        )
 
 
 class LLMUnavailableError(LLMError):
     """Thrown when no keys are available or the provider is unreachable."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        is_transient: bool = False,
+    ) -> None:
+        super().__init__(message, status_code=status_code, is_transient=is_transient)
 
 
 _DAILY_KEYWORDS = ("per day", "daily limit", "quota exceeded", "resource_exhausted")
@@ -37,11 +63,25 @@ def normalize_error(e: APIStatusError, *, provider: str) -> LLMError:
         # key_id isn't available in the error; caller must inject it.
         return RateLimitError(key_id="unknown", retry_after=retry_after, is_daily=is_daily)
 
-    if e.status_code in (503, 529):
-        return LLMUnavailableError(f"{provider} is temporarily unavailable (HTTP {e.status_code})")
+    if e.status_code in (401, 403):
+        return LLMError(
+            f"{provider} authentication failed (HTTP {e.status_code}): {e.message}",
+            status_code=e.status_code,
+            is_auth_error=True,
+        )
+
+    if e.status_code >= 500:
+        return LLMError(
+            f"{provider} server error (HTTP {e.status_code}): {e.message}",
+            status_code=e.status_code,
+            is_transient=True,
+        )
 
     # Re-wrap everything else — at minimum gives you a typed exception.
-    return LLMError(f"{provider} API error {e.status_code}: {e.message}")
+    return LLMError(
+        f"{provider} API error {e.status_code}: {e.message}",
+        status_code=e.status_code,
+    )
 
 
 def _parse_retry_after(e: APIStatusError) -> int | None:

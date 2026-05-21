@@ -152,7 +152,10 @@ class LLMClient:
             except APIStatusError as e:
                 raise normalize_error(e, provider=self.config.name)
             except APITimeoutError:
-                raise LLMUnavailableError(f"Request timed out after {self.config.timeout}s")
+                raise LLMUnavailableError(
+                    f"Request timed out after {self.config.timeout}s",
+                    is_transient=True,
+                )
             except APIError as e:
                 error_msg = str(e).lower()
                 if "failed_generation" in error_msg or "failed to call a function" in error_msg:
