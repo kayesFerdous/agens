@@ -46,8 +46,10 @@ async def start_telegram(agent: Agent) -> None:
         console.print(Panel(
             "[bold red]Telegram Token Not Set[/bold red]\n\n"
             "You need to set up your Telegram bot token to use the Telegram interface.\n\n"
-            "If you are not sure how to configure it manually, you can start the TUI or Web session\n"
-            "and simply tell the agent your token:\n\n"
+            "[bold]Option 1: Set via CLI[/bold]\n"
+            "[green]agens telegram set-token <your_token>[/green]\n\n"
+            "[bold]Option 2: Set via TUI or Web[/bold]\n"
+            "Start the TUI or Web session and tell the agent:\n"
             "[green]\"Here is my Telegram API key: <your_token>. Please set it up for me.\"[/green]\n\n"
             "The agent will automatically configure the settings for you.",
             title="Configuration Error",
