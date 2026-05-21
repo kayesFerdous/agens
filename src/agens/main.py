@@ -681,14 +681,47 @@ def start_interfaces(
         "-s",
         help="Resume a TUI session by ID.",
     ),
+    host: str = typer.Option(
+        "0.0.0.0",
+        "--host",
+        "-h",
+        help="Bind socket to this host (web interface only).",
+    ),
+    port: int = typer.Option(
+        8000,
+        "--port",
+        "-p",
+        help="Bind socket to this port (web interface only).",
+    ),
 ) -> None:
     """Start one or more interfaces."""
+    os.environ["WEB_HOST"] = host
+    os.environ["WEB_PORT"] = str(port)
+    settings.WEB_HOST = host
+    settings.WEB_PORT = port
     _run_interface_command(interfaces, tui_session_id=tui_session_id)
 
 
 @app.command("web")
-def start_web_interface() -> None:
+def start_web_interface(
+    host: str = typer.Option(
+        "0.0.0.0",
+        "--host",
+        "-h",
+        help="Bind socket to this host.",
+    ),
+    port: int = typer.Option(
+        8000,
+        "--port",
+        "-p",
+        help="Bind socket to this port.",
+    ),
+) -> None:
     """Start the web interface."""
+    os.environ["WEB_HOST"] = host
+    os.environ["WEB_PORT"] = str(port)
+    settings.WEB_HOST = host
+    settings.WEB_PORT = port
     _run_interface_command(["web"])
 
 
