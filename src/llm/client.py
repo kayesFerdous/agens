@@ -169,7 +169,6 @@ class LLMClient:
                     type="done",
                     tool_calls=tool_history,
                     usage=usage_accum,
-                    next_action=None,
                 )
                 return
 
@@ -246,4 +245,4 @@ class LLMClient:
         ):
             if event["type"] == "token":
                 yield StreamEvent(type="token", content=event["content"])
-        yield StreamEvent(type="done", tool_calls=tool_history, next_action=None)
+        yield StreamEvent(type="done", tool_calls=tool_history)

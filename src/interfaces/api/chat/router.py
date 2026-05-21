@@ -130,7 +130,6 @@ async def chat(
                         "type": "done",
                         "session_id": session_id,
                         "usage": usage_data,
-                        "next_action": event.next_action,
                         "tool_history": [
                             {
                                 "tool": tc.tool,
