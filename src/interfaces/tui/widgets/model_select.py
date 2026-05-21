@@ -14,7 +14,7 @@ from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
 from db.database import async_session
-from interfaces.api.models.router import list_models
+from interfaces.web.api.models.router import list_models
 
 
 CACHE_TTL_SECONDS = 60

@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.database import get_db
 from db import repository as session_repo
-from interfaces.api.sessions.schemas import SessionCreateRequest, SessionDetailsResponse, SessionResponse
+from interfaces.web.api.sessions.schemas import SessionCreateRequest, SessionDetailsResponse, SessionResponse
 
 router = APIRouter()
 

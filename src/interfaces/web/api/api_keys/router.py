@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db.database import get_db
 from db.models import KeyStatus
 from db.repositories.api_key import APIKeyRepository
-from interfaces.api.api_keys.schemas import (
+from interfaces.web.api.api_keys.schemas import (
     APIKeyCreateRequest,
     APIKeyResponse,
     APIKeyStatusUpdateRequest,

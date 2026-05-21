@@ -101,13 +101,13 @@ def _create_app(agent: Agent) -> FastAPI:
 
     # Import routers here — not at module level — so this file can be imported
     # without triggering FastAPI route registration for other interfaces.
-    from interfaces.api.sessions.router import router as sessions_router
-    from interfaces.api.chat.router import router as chat_router
-    from interfaces.api.api_keys.router import router as api_keys_router
-    from interfaces.api.models.router import router as models_router
-    from interfaces.api.prefs.router import router as prefs_router
-    from interfaces.api.settings.router import router as settings_router
-    from interfaces.api.status.router import router as status_router
+    from interfaces.web.api.sessions.router import router as sessions_router
+    from interfaces.web.api.chat.router import router as chat_router
+    from interfaces.web.api.api_keys.router import router as api_keys_router
+    from interfaces.web.api.models.router import router as models_router
+    from interfaces.web.api.prefs.router import router as prefs_router
+    from interfaces.web.api.settings.router import router as settings_router
+    from interfaces.web.api.status.router import router as status_router
 
     app.include_router(sessions_router, prefix="/sessions", tags=["sessions"])
     app.include_router(chat_router, prefix="/chat", tags=["chat"])

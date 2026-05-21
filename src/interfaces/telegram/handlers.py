@@ -18,8 +18,8 @@ from db.database import async_session
 from db import repository as session_repo
 from db.models import APIKey, KeyStatus
 from db.repositories.api_key import APIKeyRepository
-from interfaces.api.models.router import list_models
-from interfaces.api.models.schemas import ModelInfo, ModelsResponse, ProviderModels
+from interfaces.web.api.models.router import list_models
+from interfaces.web.api.models.schemas import ModelInfo, ModelsResponse, ProviderModels
 from interfaces.api_key_state import (
     NO_API_KEYS_TELEGRAM_MESSAGE,
     has_any_api_keys,

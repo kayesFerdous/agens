@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from interfaces.api.prefs.schemas import WebPrefsResponse, WebPrefsUpdate
+from interfaces.web.api.prefs.schemas import WebPrefsResponse, WebPrefsUpdate
 from interfaces.web.prefs import get_selected_model, set_selected_model
 
 router = APIRouter()

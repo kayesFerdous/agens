@@ -1,4 +1,4 @@
-# interfaces/api/chat/router.py — thin adapter: validate → agent.chat() → SSE stream
+# interfaces/web/api/chat/router.py — thin adapter: validate → agent.chat() → SSE stream
 from __future__ import annotations
 
 import asyncio
@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from agent.agent import Channel
 from db.database import async_session
 from db import repository as session_repo
-from interfaces.api.chat.schemas import ChatRequest
+from interfaces.web.api.chat.schemas import ChatRequest
 from config.logging import get_logger
 from db.repositories.api_key import APIKeyRepository
 from interfaces.api_key_state import (

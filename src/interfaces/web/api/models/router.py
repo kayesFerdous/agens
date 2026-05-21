@@ -11,7 +11,7 @@ from db.repositories.api_key import (
     get_model_cooldown_info,
     is_model_available,
 )
-from interfaces.api.models.schemas import ModelInfo, ModelsResponse, ProviderModels
+from interfaces.web.api.models.schemas import ModelInfo, ModelsResponse, ProviderModels
 from llm.catalog import ModelEntry, get_catalog
 
 router = APIRouter()
