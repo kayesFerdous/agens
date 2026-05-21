@@ -49,6 +49,24 @@ _DAILY_KEYWORDS = ("per day", "daily limit", "quota exceeded", "resource_exhaust
 _DAY_SECONDS = 86_400
 
 
+def _is_auth_error(e: APIStatusError) -> bool:
+    """Check if the APIStatusError represents an invalid or revoked API key."""
+    if e.status_code in (401, 403):
+        return True
+
+    # Check the error message and the response body.
+    # Some providers like Google Gemini return HTTP 400 (Bad Request) for an invalid API key.
+    error_text = ""
+    if hasattr(e, "message") and e.message:
+        error_text += " " + str(e.message).lower()
+    if hasattr(e, "response") and e.response is not None:
+        if hasattr(e.response, "text") and e.response.text:
+            error_text += " " + str(e.response.text).lower()
+
+    keywords = ("api_key_invalid", "api key not valid", "invalid api key", "invalid_api_key")
+    return any(kw in error_text for kw in keywords)
+
+
 def normalize_error(e: APIStatusError, *, provider: str) -> LLMError:
     """
     Turn an OpenAI SDK APIStatusError into one of our typed errors.
@@ -63,7 +81,7 @@ def normalize_error(e: APIStatusError, *, provider: str) -> LLMError:
         # key_id isn't available in the error; caller must inject it.
         return RateLimitError(key_id="unknown", retry_after=retry_after, is_daily=is_daily)
 
-    if e.status_code in (401, 403):
+    if _is_auth_error(e):
         return LLMError(
             f"{provider} authentication failed (HTTP {e.status_code}): {e.message}",
             status_code=e.status_code,

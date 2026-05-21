@@ -468,10 +468,16 @@ class Agent:
                     return
 
                 if new_config is None:
-                    yield StreamEvent(
-                        type="error",
-                        error="All API keys are exhausted across all providers.",
-                    )
+                    if is_auth_error:
+                        yield StreamEvent(
+                            type="error",
+                            error="The API key is invalid or has been revoked. It has been deactivated. Please configure a valid API key in Settings.",
+                        )
+                    else:
+                        yield StreamEvent(
+                            type="error",
+                            error="All API keys are exhausted across all providers.",
+                        )
                     return
 
                 self._llm.swap_key(new_config)
