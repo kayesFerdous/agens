@@ -6,11 +6,10 @@
 
 **An interface-agnostic AI agent platform that executes complex system-level and web tasks through a centralized ReAct orchestration engine.**
 
+[![PyPI](https://img.shields.io/badge/pypi-placeholder-blue?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/agens/)
 [![Python](https://img.shields.io/badge/python-%3E%3D3.13-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)](./LICENSE)
-[![uv](https://img.shields.io/badge/managed%20with-uv-7c3aed?style=flat-square)](https://github.com/astral-sh/uv)
-[![Interfaces](https://img.shields.io/badge/interfaces-CLI%20%7C%20TUI%20%7C%20Web%20%7C%20Telegram-0ea5e9?style=flat-square)](#interface-overview)
-[![Providers](https://img.shields.io/badge/providers-Gemini%20%7C%20OpenAI%20%7C%20Groq%20%7C%20Cerebras-f97316?style=flat-square)](#model--key-management)
+[![Interfaces](https://img.shields.io/badge/interfaces-CLI%20%7C%20TUI%20%7C%20Web%20%7C%20Telegram-f97316?style=flat-square)](#interface-overview)
 
 [Quick Start](#quick-start) · [Installation](#installation) · [Architecture](#architecture) · [Tools](#tool-system) · [Configuration](#configuration) · [Contributing](#contributing)
 
@@ -19,6 +18,8 @@
 ---
 
 Agens decouples stateful AI reasoning from delivery channels. A centralized agent engine (`agent.py`) coordinates session histories, tool execution routing, and provider-fallback logic — exposing a unified interface to thin transport-layer adapters. All client interfaces share the same SQLite database, memory, and configuration with zero context drift.
+
+> **Agens is completely free to use.** The platform itself costs nothing — you only need a personal API key from any supported provider below.
 
 | Attribute | Value |
 | :--- | :--- |
@@ -45,6 +46,17 @@ agens web                                              # Web UI → http://local
 agens tui                                             # Terminal UI dashboard
 agens chat "List the contents of my workspace"        # One-shot CLI query
 ```
+
+### Get Your API Key
+
+| Provider | Console / Key Page |
+| :--- | :--- |
+| **Gemini** | [Google AI Studio](https://aistudio.google.com/app/apikey) |
+| **OpenAI** | [OpenAI Platform](https://platform.openai.com/api-keys) |
+| **Groq** | [Groq Console](https://console.groq.com/keys) |
+| **Cerebras** | [Cerebras Cloud](https://cloud.cerebras.ai/) |
+| **SiliconFlow** | [SiliconFlow Cloud](https://cloud.siliconflow.cn/account/ak) |
+| **DeepSeek** | [DeepSeek Platform](https://platform.deepseek.com/api_keys) |
 
 ---
 
@@ -234,7 +246,7 @@ Agens separates configuration across three boundaries:
 
 | Variable | Purpose | Default |
 | :--- | :--- | :--- |
-| `PRODUCTION` | Restricts logging verbosity | `False` |
+| `PRODUCTION` | Restricts logging verbosity | `True` |
 | `DATABASE_URL` | Path to local SQLite file | `.agens/db.sqlite` |
 | `FERNET_SECRET` | Base64 key for API key encryption | Auto-generated at first boot |
 | `SESSION_SECRET_KEY` | Min 32-char key for web session tokens | — |
@@ -369,24 +381,3 @@ Pull requests are accepted if they maintain clean separation between interface a
 - **Style:** Python 3.13 — no compatibility shims. Type annotations required.
 - **PRs:** describe what changed, which files are affected, and how it was verified
 - **Schema changes:** add an Alembic migration alongside any `db/models.py` change
-
----
-
-<div align="center">
-
-Built with [Textual](https://github.com/Textualize/textual) · [FastAPI](https://fastapi.tiangolo.com/) · [Svelte](https://svelte.dev/) · [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot)
-
-</div>
-
-<!-- DOCUMENTATION GAPS
-1. NOTIFICATION SYSTEM: PROJECT_OVERVIEW.md describes a server-side NotificationService with durable history
-   and per-session subscriptions. No such service, DB table, or subscription model exists in the repo.
-   Notifications are ephemeral: browser Notification API in ChatArea.svelte, inline message edits in
-   Telegram handlers. README reflects the actual implementation.
-
-2. DISCORD ADAPTER: Referenced as "planned" in project overview. No interfaces/discord/ directory exists.
-   Omitted from README until shipped.
-
-3. TEST SUITE: No pytest config, tests/ directory, or test dependencies declared in pyproject.toml.
-   Development workflow section reflects this accurately.
--->
