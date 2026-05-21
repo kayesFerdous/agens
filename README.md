@@ -1,337 +1,392 @@
+<div align="center">
+
+<img src="frontend/src/assets/logo.svg" alt="Agens Logo" width="180" />
+
 # Agens
 
-An interface-agnostic, asynchronous AI agent platform that executes complex system-level and web tasks using a centralized ReAct orchestration engine.
+**An interface-agnostic AI agent platform that executes complex system-level and web tasks through a centralized ReAct orchestration engine.**
 
-![Agens Logo](frontend/src/assets/logo.svg)
+[![Python](https://img.shields.io/badge/python-%3E%3D3.13-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)](./LICENSE)
+[![uv](https://img.shields.io/badge/managed%20with-uv-7c3aed?style=flat-square)](https://github.com/astral-sh/uv)
+[![Interfaces](https://img.shields.io/badge/interfaces-CLI%20%7C%20TUI%20%7C%20Web%20%7C%20Telegram-0ea5e9?style=flat-square)](#interface-overview)
+[![Providers](https://img.shields.io/badge/providers-Gemini%20%7C%20OpenAI%20%7C%20Groq%20%7C%20Cerebras-f97316?style=flat-square)](#model--key-management)
 
-| Metric / Attribute | Value |
+[Quick Start](#quick-start) · [Installation](#installation) · [Architecture](#architecture) · [Tools](#tool-system) · [Configuration](#configuration) · [Contributing](#contributing)
+
+</div>
+
+---
+
+Agens decouples stateful AI reasoning from delivery channels. A centralized agent engine (`agent.py`) coordinates session histories, tool execution routing, and provider-fallback logic — exposing a unified interface to thin transport-layer adapters. All client interfaces share the same SQLite database, memory, and configuration with zero context drift.
+
+| Attribute | Value |
 | :--- | :--- |
-| **Python Version Requirement** | `>=3.13` (enforced via `pyproject.toml`) |
-| **Database** | SQLite (via `aiosqlite` and `SQLAlchemy`) |
-| **Key Encryption** | Cryptography (`cryptography.fernet` symmetric encryption) |
-| **Supported Model Providers** | Gemini, OpenAI, Groq, Cerebras, SiliconFlow, DeepSeek |
-| **Primary Dependency Manager** | `uv` / `setuptools` |
+| **Python** | `>=3.13` (enforced via `pyproject.toml`) |
+| **Database** | SQLite via `aiosqlite` + `SQLAlchemy` |
+| **Key Encryption** | `cryptography.fernet` symmetric encryption |
+| **Model Providers** | Gemini, OpenAI, Groq, Cerebras, SiliconFlow, DeepSeek |
+| **Dependency Manager** | `uv` / `setuptools` |
 | **Interface Adapters** | CLI, Terminal UI (TUI), Web UI, Telegram Bot |
 
 ---
 
-## Value Proposition
+## Quick Start
 
-Agens decouples stateful AI reasoning from delivery channels. A centralized, stateful agent engine (`agent.py`) coordinates session histories, tool execution routing, and provider-fallback logic, exposing a unified interface to thin transport-layer adapters (`interfaces/`). This architecture guarantees that all client interfaces share the exact same memories, database state, and configuration with zero context drift.
+```bash
+# 1. Install
+pipx install agens
+
+# 2. Register an API key
+agens apikey add my-gemini gemini AIzaSyB...
+
+# 3. Launch an interface
+agens web                                              # Web UI → http://localhost:8000
+agens tui                                             # Terminal UI dashboard
+agens chat "List the contents of my workspace"        # One-shot CLI query
+```
 
 ---
 
 ## Interface Overview
 
-Agens routes all user interactions through four interface adapters, sharing centralized SQLite storage and memory configurations.
+All four adapters call the same `agent.chat()` method and read from the same SQLite database. The agent is interface-aware — safety policies and prompt behavior adapt based on the active channel.
 
-| Interface | CLI Entry / Launch Command | Core Capabilities | State & Concurrency Model |
+| Interface | Launch Command | Core Capabilities | Concurrency Model |
 | :--- | :--- | :--- | :--- |
-| **CLI** | `agens chat "<message>"` | One-shot system queries and administrative management (API keys, safety overrides, session shutdowns). | Ephemeral process; runs a single ReAct loop and terminates. |
-| **Terminal UI (TUI)** | `agens tui [--session <id>]` | Textual-based interactive console dashboard with session loading and inline `sudo` password collection. | Stateful Textual application; blocks terminal interactions during execution. |
-| **Web UI** | `agens web` | Svelte 5 + FastAPI single-page application with SSE streaming, model picker, and tool execution status blocks. | Decoupled client-server model; streams tokens live via Server-Sent Events (SSE). |
-| **Telegram Bot** | `agens telegram` | Remote message-based assistant powered by `python-telegram-bot`, supporting webhooks and polling. | Long-polling or webhook updater; handles edits sequentially to bypass API rate ceilings. |
+| **CLI** | `agens chat "<msg>"` | One-shot queries, API key administration, safety overrides | Ephemeral process; runs one ReAct loop and exits |
+| **Terminal UI (TUI)** | `agens tui [--session <id>]` | Interactive Textual dashboard, session loading, inline `sudo` password collection | Stateful Textual app; blocks terminal during execution |
+| **Web UI** | `agens web` | Svelte 5 + FastAPI SPA with SSE streaming, model picker, tool status blocks | Client-server; tokens stream live via Server-Sent Events |
+| **Telegram Bot** | `agens telegram` | Remote message-based assistant via `python-telegram-bot`, polling + webhooks | Long-polling or webhook updater; edits messages sequentially to stay within Telegram rate limits |
 
 ---
 
 ## Architecture
 
-The following diagram illustrates the request lifecycle, starting from client input to LLM execution, local tool resolution, and output streaming:
+One agent brain. Four transport adapters. The architecture follows a Hexagonal (Ports & Adapters) pattern — the core domain has no knowledge of the delivery channel.
 
 ```mermaid
 graph TD
-    Input[User Input: Web, TUI, Telegram, or CLI]
-    Adapter[Interface Adapter: src/interfaces/]
-    Agent[Agent Orchestrator: src/agent/agent.py]
-    DB[(Local SQLite: src/db/)]
-    PromptBuilder[Prompt Builder: src/planner/prompt_builder.py]
-    LLMClient[LLM Client & Router: src/llm/]
-    ToolRegistry[Tool Registry: src/core/registry.py]
-    Tools[Tool Execution: src/tools/]
+    Input["User Input<br/>(Web · TUI · Telegram · CLI)"]
+    Adapter["Interface Adapter<br/>src/interfaces/"]
+    Agent["Agent Orchestrator<br/>src/agent/agent.py"]
+    DB[("Local SQLite<br/>src/db/")]
+    PromptBuilder["Prompt Builder<br/>src/planner/prompt_builder.py"]
+    LLMClient["LLM Client & Router<br/>src/llm/"]
+    ToolRegistry["Tool Registry<br/>src/core/registry.py"]
+    Tools["Tool Execution<br/>src/tools/"]
 
-    Input -->|Triggers| Adapter
-    Adapter -->|Calls .chat| Agent
-    Agent -->|Loads Session History| DB
-    Agent -->|Requests System Prompt| PromptBuilder
-    PromptBuilder -->|Reads Settings & Memories| DB
-    Agent -->|Invokes ReAct Loop| LLMClient
-    LLMClient -->|Emits Chunks / Tool Calls| Agent
-    Agent -->|Routes Tool Call| ToolRegistry
-    ToolRegistry -->|Executes Tool| Tools
-    Tools -->|Returns Result| Agent
-    Agent -->|Streams StreamEvent| Adapter
-    Adapter -->|Renders Live Chunks| Input
+    Input -->|triggers| Adapter
+    Adapter -->|".chat(message, session_id, channel)"| Agent
+    Agent -->|loads session history| DB
+    Agent -->|requests system prompt| PromptBuilder
+    PromptBuilder -->|reads settings & memories| DB
+    Agent -->|invokes ReAct loop| LLMClient
+    LLMClient -->|"chunks / tool_calls"| Agent
+    Agent -->|routes tool call| ToolRegistry
+    ToolRegistry -->|executes| Tools
+    Tools -->|returns result dict| Agent
+    Agent -->|"yields StreamEvent"| Adapter
+    Adapter -->|renders live output| Input
 ```
 
-### Request Lifecycle Phases
+### Request Lifecycle
 
-1. **Input Phase:** The user provides text input to an active interface (e.g., Svelte frontend).
-2. **Context Aggregation:** The interface invokes `Agent.chat(...)`. The agent instantiates a `MemoryManager` to retrieve session history from SQLite, matching the request to an active `Session` model.
-3. **Prompt Formulation:** The agent requests a system prompt from `prompt_builder.py`. The builder evaluates active tool schemas, the interface channel type, and the system safety mode, injecting `user.memories` and local time data.
-4. **ReAct Loop Execution:** The agent dispatches messages to the active model provider via `llm/client.py`.
-   - If the LLM generates plain text tokens, the agent yields them instantly as `StreamEvent(type="token")`.
-   - If the LLM emits a tool execution request, the agent halts chunk delivery, routes the call to the `ToolRegistry`, and executes the tool class.
-5. **Tool Execution & Resumption:** The tool returns a dictionary payload. The agent appends this result to the prompt context, invokes the LLM client once more, and resumes streaming until a terminal completion token is received.
-6. **Persistence:** The final response text and associated tool histories are serialized to JSON and persisted to the SQLite `messages` table.
+| Phase | What Happens | Key Module |
+| :--- | :--- | :--- |
+| **1 · Input** | User sends text to an interface | `interfaces/` |
+| **2 · Context** | Agent loads session history from SQLite | `memory/`, `db/` |
+| **3 · Prompt** | Builder assembles system prompt with tools, channel, safety mode, and memories | `planner/prompt_builder.py` |
+| **4 · ReAct Loop** | LLM streams tokens or emits a tool call | `llm/`, `agent/agent.py` |
+| **5 · Tool Execution** | Agent halts stream, executes tool, appends result, resumes LLM | `tools/`, `core/registry.py` |
+| **6 · Persistence** | Response + tool history serialized to `messages` table | `db/` |
 
-### Concurrency Design Decisions
-- **`NullPool` Connection Management:** SQLite does not natively support concurrent connection pools when tasks are heavily interrupted. To avoid connection leaks and transaction conflicts during active stream cancellations (e.g., a browser tab closing mid-generation), `src/db/database.py` configures the engine with `poolclass=NullPool`. Every transaction provisions and tears down an independent, ephemeral database connection.
-- **Cancellation Isolation:** When a client interrupts an active streaming response, FastAPI raises an `asyncio.CancelledError`. The orchestrator handles the cancellation within `agent.py`, safely closing active SQLite transactions and cleaning up pending tasks within an independent finalization loop.
+### Concurrency Design
+
+- **`NullPool` connections** — SQLite does not handle concurrent pool connections under heavy async interruption. The engine is configured with `poolclass=NullPool` so each transaction provisions and tears down its own ephemeral connection. This eliminates race conditions when browser tabs close mid-stream.
+- **Cancellation isolation** — `asyncio.CancelledError` from disconnected clients is caught in `agent.py`. Database finalization runs in an independent task, leaving no orphaned queries.
 
 ---
 
 ## Tool System
 
-Tools are modules implementing the base class `core.tool_interface.Tool`. They export strict parameters matching JSON schemas required for function calling.
+Tools implement `core.tool_interface.Tool` and export strict JSON schemas consumed directly by LLM function-calling APIs. Registration is explicit via `_build_registry` in `src/agent/factory.py`.
 
-| Tool Name | Module Path | Purpose | Destructive? | Safety & Execution Constraints |
-| :--- | :--- | :--- | :--- | :--- |
-| `file_read` | `src/tools/file_read.py` | Reads the absolute contents of a file within the workspace. | No | Read-only; restricted to files within the designated `WORKSPACE_ROOT`. |
-| `file_write` | `src/tools/file_write.py` | Overwrites or creates new files under the workspace. | Yes | Restructured to write files only under `WORKSPACE_ROOT`. |
-| `file_edit` | `src/tools/file_edit.py` | Modifies existing files using precise target-matching replacements. | Yes | Requires strict string matches; restricted to `WORKSPACE_ROOT`. |
-| `list_directory` | `src/tools/list_directory.py` | Lists files and subfolders within a directory. | No | Read-only; restricted to `WORKSPACE_ROOT`. |
-| `find` | `src/tools/find.py` | Performs parameter-based file path searches. | No | Read-only; restricted to `WORKSPACE_ROOT`. |
-| `grep` | `src/tools/grep.py` | Performs text matches across files using pattern parameters. | No | Read-only; restricted to `WORKSPACE_ROOT`. |
-| `schedule_add` | `src/tools/schedule_add.py` | Creates a schedule event (meeting, calendar reminder) in the database. | No | Modifies local DB state. |
-| `schedule_list` | `src/tools/schedule_list.py` | Lists registered database schedule events. | No | Read-only database query. |
-| `schedule_update` | `src/tools/schedule_update.py` | Updates attributes of existing calendar events. | No | Modifies local DB state. |
-| `schedule_delete` | `src/tools/schedule_delete.py` | Permanently deletes calendar events from the database. | Yes | Permanently removes records from the database. |
-| `shell_command` | `src/tools/shell_command.py` | Runs arbitrary shell commands inside an isolated system subprocess. | Yes | Gated command execution. High-risk patterns (`sudo`, `su -`, `rm -rf`, `chmod 777`) require explicit confirmation. Destructive commands (`mkfs`, `dd` raw dev output, system `shutdown`/`reboot`) are hard-blocked. Windows execution does not support `sudo`. Sudo command execution is completely blocked on Web and Telegram interfaces. Safety Mode ON blocks all high-risk commands on all interfaces. |
-| `update_config` | `src/tools/update_config.py` | Deep-merges user metadata and memories into `config.json`. | Yes | Modifies configurations on disk. Allows deleting key-value facts by setting their target value to `null`. |
-| `web_search` | `src/tools/web_search.py` | Fetches search result pages from DuckDuckGo. | No | Read-only web query. |
-| `web_fetch` | `src/tools/web_fetch.py` | Downloads and parses raw HTML text from a specific URL. | No | Read-only web page download. |
+| Tool | Purpose | Destructive | Restrictions |
+| :--- | :--- | :---: | :--- |
+| `file_read` | Read file contents within the workspace | — | Read-only; scoped to `WORKSPACE_ROOT` |
+| `file_write` | Create or overwrite files | ✓ | Scoped to `WORKSPACE_ROOT` |
+| `file_edit` | Targeted string-match replacements in existing files | ✓ | Requires exact match; scoped to `WORKSPACE_ROOT` |
+| `list_directory` | List files and subdirectories | — | Read-only; scoped to `WORKSPACE_ROOT` |
+| `find` | Parameter-based file path search | — | Read-only; scoped to `WORKSPACE_ROOT` |
+| `grep` | Pattern-match text across files | — | Read-only; scoped to `WORKSPACE_ROOT` |
+| `shell_command` | Run arbitrary shell commands in a subprocess | ✓ | High-risk patterns require confirmation. Destructive commands hard-blocked. `sudo` blocked on Web + Telegram. Safety Mode ON blocks all high-risk commands everywhere. |
+| `web_search` | DuckDuckGo search queries | — | Read-only |
+| `web_fetch` | Download and parse raw HTML from a URL | — | Read-only |
+| `update_config` | Deep-merge user memories into `config.json` | ✓ | Setting a key to `null` deletes it (memory forget) |
+| `schedule_add` | Create a calendar event in the database | — | Modifies DB state |
+| `schedule_list` | List registered calendar events | — | Read-only |
+| `schedule_update` | Update an existing calendar event | — | Modifies DB state |
+| `schedule_delete` | Permanently delete a calendar event | ✓ | Removes DB record permanently |
+
+### Adding a New Tool
+
+```
+1. Create src/tools/your_tool.py implementing core.tool_interface.Tool
+2. Define .name, .description, and a JSON Schema in .parameters
+3. Implement async .execute(**kwargs) → dict
+4. Register it in _build_registry() inside src/agent/factory.py
+```
 
 ---
 
 ## Model & Key Management
 
 ### Provider Abstraction
-All model integrations inherit from a base layer in `llm/`, transforming vendor-specific structures (`google-genai`, `openai`) into a standardized `LLMClient`. This abstraction translates provider exceptions (e.g., authorization failures, network timeouts) into consistent internal exceptions like `RateLimitError` or `LLMUnavailableError`.
 
-### API Key Encryption at Rest
-API keys are never stored in plaintext environment variables or configuration files. When added, keys are encrypted using symmetric `cryptography.fernet` keys generated during the first runtime boot. Plaintext keys are decrypted only in-memory during active LLM client generation requests.
+All providers (`google-genai`, `openai`) implement a base interface in `llm/`. The abstraction normalizes vendor-specific exceptions into consistent internal types (`RateLimitError`, `LLMUnavailableError`) so the orchestrator never contains provider-specific error handling.
 
-### Rotation & Cooldown Mechanics
-When the active API key returns a 429 Rate Limit error, the orchestrator triggers key rotation:
-1. The error details are caught by the `APIKeyManager` in `services/api_key_manager.py`.
-2. The manager writes a timestamped cooldown index to the SQLite database (`model_cooldowns` column) for the failing key/model combination.
-3. Temporary rate-limit cooldown defaults to `RATE_LIMIT_COOLDOWN` (60s), while daily quota exhaustion triggers `QUOTA_EXHAUSTED_COOLDOWN` (24h).
-4. The system queries the `APIKeyRepository` to pick the next best available key supporting the current provider or model, rotates the provider client config, and retries the generation.
+### API Key Encryption
 
-### CLI Key Configuration
-To register a new key, run:
-```bash
-agens apikey add <label> <provider> <api_key>
+Keys are never written to `.env` files or plaintext configs. At first boot, a `FERNET_SECRET` is generated. All keys are encrypted before DB insertion and decrypted in-memory only during active generation requests.
+
+### Rotation & Cooldown
+
+When a key returns a `429`:
+
 ```
-Example:
+APIKeyManager catches error
+  → writes timestamped cooldown to api_keys.model_cooldowns (JSON)
+  → rate limit:       RATE_LIMIT_COOLDOWN      default 60s
+  → quota exhausted:  QUOTA_EXHAUSTED_COOLDOWN default 24h
+  → queries next eligible key for same provider
+  → retries generation transparently
+```
+
+### Key Management CLI
+
 ```bash
-agens apikey add personal-gemini gemini AIzaSyB...
+agens apikey add    <label> <provider> <api_key>   # Register a new key
+agens apikey list                                   # List all registered keys
+agens apikey remove <label>                         # Remove a key
+agens apikey enable  <label>                        # Re-enable a disabled key
+agens apikey disable <label>                        # Manually disable a key
 ```
 
 ---
 
 ## Safety & Authorization
 
-Agens secures the host operating system against malicious or hallucinatory shell commands through strict channel-aware and settings-based filters:
+The agent enforces a layered security model. Policies are injected into the LLM system prompt by `prompt_builder.py` — the model is told what it can and cannot do per channel before any user message is processed.
 
-1. **Safety Mode (`SAFETY_MODE_ENABLED`):** Controlled via `settings.py` (default: `True`). When enabled, the prompt builder injects strict blocks into the system prompt, and the agent gates command execution:
-   - High-risk shell commands (e.g., recursive force deletions, permission changes) are completely rejected.
-   - Sudo commands are hard-blocked on all interfaces, returning an immediate error: *"Sudo is disabled while safety mode is on."*
-2. **Channel-Aware Sudo Policy:** Sudo command execution is governed by the incoming client channel:
-   - **Web UI & Telegram Bot:** Elevated shell commands (`sudo`) are blocked by design. The prompt builder instructs the LLM to refuse requests and return: *"Sudo commands can only be run from the TUI. Launch it with `agens tui`."*
-   - **Terminal UI (TUI):** Linux/macOS sudo commands are allowed if Safety Mode is OFF. The TUI suspends normal stream rendering to display an out-of-stream password prompt modal (`SudoPasswordPrompt`), feeding the password securely to the subprocess without exposing or saving it in command logs.
-3. **Platform Barriers:** Elevated command execution is completely blocked on Windows platforms. Sudo execution attempts on Windows yield: *"Privileged execution (sudo) is not supported on Windows."*
+| Capability | CLI | TUI | Web UI | Telegram |
+| :--- | :---: | :---: | :---: | :---: |
+| Standard shell commands | ✓ | ✓ | ✓ | ✓ |
+| High-risk commands (Safety OFF) | ✓ | ✓ | ✓ | ✓ |
+| `sudo` execution (Safety OFF) | — | ✓ | — | — |
+| All commands (Safety ON) | blocked | blocked | blocked | blocked |
+| Windows `sudo` | — | — | — | — |
+
+**Safety Mode** (`SAFETY_MODE_ENABLED`, default: `True`) is a hard gate — when enabled, the agent rejects all high-risk shell patterns regardless of interface. Toggle via:
+
+```bash
+agens safety on
+agens safety off
+```
+
+**TUI sudo flow:** When `sudo` is permitted, the TUI suspends stream rendering and presents `SudoPasswordPrompt` — a modal widget that passes the password directly to the subprocess without logging or storing it.
 
 ---
 
 ## Installation
 
-### Requirements
-- **Python:** `>=3.13` (enforced via `pyproject.toml`)
-- **Package Manager:** `pipx` (recommended) or `pip`
-- **Environment:** Linux, macOS, or Windows (WSL recommended for shell tool compatibility)
-- **Containerization:** Docker & Docker Compose (optional)
+**Requirements:** Python `>=3.13`, Linux / macOS (Windows via WSL recommended for full shell tool support)
 
-### Native Installation
-Deploy Agens globally within an isolated Python environment:
 ```bash
-# Install via pipx (recommended)
+# Recommended — isolated global install
 pipx install agens
 
-# Upgrade Agens
+# Upgrade
 pipx upgrade agens
-```
 
-Alternatively, install using standard `pip`:
-```bash
+# Standard pip
 python -m pip install agens
 ```
 
-### Installation Scripts
-Execute local installation scripts from the workspace directory:
+**Platform scripts:**
 ```bash
-# Linux / macOS Bash Setup
-./scripts/install.sh install
-
-# Windows PowerShell Setup
-.\scripts\install.ps1 install
+./scripts/install.sh install      # Linux / macOS
+.\scripts\install.ps1 install     # Windows PowerShell
 ```
 
-### Docker Deployment
-Build and run the production image (non-root execution, exposes port `8000`):
+**Docker:**
 ```bash
-docker compose up --build
-```
-
----
-
-## Quick Start
-
-Get a local instance running and configure a model client in three commands:
-
-```bash
-# 1. Install Agens
-pipx install agens
-
-# 2. Add your Gemini API Key
-agens apikey add default-gemini gemini AIzaSyB...
-
-# 3. Launch your preferred interface channel
-agens web       # Runs the Web UI locally on http://localhost:8000
-# OR
-agens tui       # Launches the Terminal UI dashboard in your terminal
-# OR
-agens chat "List the contents of my current workspace directory"
+docker compose up --build         # Non-root; exposes port 8000
 ```
 
 ---
 
 ## Configuration
 
-Agens stores configuration and state data across three distinct boundaries:
+Agens separates configuration across three boundaries:
 
-### 1. Environment Settings (`settings.py`)
-Static deployment parameters are loaded from environment variables or custom dotenv files loaded via `AGENS_ENV_FILE`.
-- `PRODUCTION`: Enforces restricted logging levels (default `False`).
-- `DATABASE_URL`: Path to the local SQLite database.
-- `FERNET_SECRET`: Base64-encoded key used to encrypt stored API keys.
-- `SESSION_SECRET_KEY`: Minimum 32-character key for securing web session tokens.
-- `WORKSPACE_ROOT`: The absolute directory path exposed to file-system tools.
+### Environment (`settings.py` / `AGENS_ENV_FILE`)
 
-### 2. User & Assistant Preferences (`config.json`)
-Managed dynamically by the `ConfigManager`. Extensible schema storing user attributes, tone parameters, and the Telegram bot polling token.
-- **User Memories (`user.memories`):** Personal facts (e.g., university, hobby, job) are saved in a key-value index inside `config.json`.
-- **Memory Injection:** On every chat request, the prompt builder extracts active memories and appends them to the system prompt: `Remembered about user: <memories>`.
-- **Memory Deletion:** When a user requests that a memory be forgotten, the agent merges a config update setting the target memory key's value to `null`, pruning it from the file.
+| Variable | Purpose | Default |
+| :--- | :--- | :--- |
+| `PRODUCTION` | Restricts logging verbosity | `False` |
+| `DATABASE_URL` | Path to local SQLite file | `.agens/db.sqlite` |
+| `FERNET_SECRET` | Base64 key for API key encryption | Auto-generated at first boot |
+| `SESSION_SECRET_KEY` | Min 32-char key for web session tokens | — |
+| `WORKSPACE_ROOT` | Absolute path exposed to filesystem tools | CWD |
 
-### 3. Local SQLite Database
-Maintains persistent transaction states across runs:
-- `sessions`: Session identifiers and summary titles.
-- `messages`: Message histories, including role types, serialized tool execution contexts, and token usage records.
-- `api_keys`: Fernet-encrypted keys, hashed search indexes, key hints, and active `model_cooldowns` JSON payloads.
-- `schedule_events`: Calendar dates, titles, recurrence rules, and descriptions.
-- `settings`: Single-row system table storing the global `safety_mode` toggle state.
+### User Memories (`config.json`)
+
+The agent stores personal facts as key-value pairs under `user.memories` via the `update_config` tool:
+
+```json
+{
+  "user": {
+    "memories": {
+      "location": "Berlin",
+      "job": "backend engineer",
+      "preferred_language": "Python"
+    }
+  }
+}
+```
+
+On every request, `prompt_builder.py` injects active memories into the system prompt. To forget a memory, the agent sets its value to `null`, which the deep-merge logic prunes from the file.
+
+### SQLite Schema
+
+| Table | Contents |
+| :--- | :--- |
+| `sessions` | Session IDs and summary titles |
+| `messages` | Role, content, tool call history, token usage |
+| `api_keys` | Fernet-encrypted keys, hash index, hints, `model_cooldowns` JSON |
+| `schedule_events` | Calendar events with recurrence rules |
+| `settings` | Single-row global state (`safety_mode` toggle) |
+
+Schema migrations are managed by Alembic and applied automatically at startup via `app_bootstrap.py`.
 
 ---
 
 ## Project Structure
 
-```text
+```
 agens/
-├── frontend/                 # Svelte 5 / Vite SPA Web frontend
+├── frontend/                  # Svelte 5 / Vite SPA — compiles to interfaces/web/dist/
 ├── src/
-│   ├── agens/                # CLI Typer subcommands, entry shims, and app shims
-│   ├── agent/                # Central agent ReAct orchestrator loop
-│   ├── config/               # Pydantic-settings, ConfigManager, and logging bootstrap
-│   ├── core/                 # Tool interface definitions, schemas, and tool registries
-│   ├── db/                   # SQLAlchemy models, SQLite connectors, and migrations
-│   ├── interfaces/           # Thin adapters: FastAPI (web), Textual (tui), PTB (telegram)
-│   ├── llm/                  # Provider client wrappers, fallback router, and catalogs
-│   ├── memory/               # Conversation history managers
-│   ├── planner/              # prompt_builder (system prompt assembly & memory injection)
-│   ├── services/             # Fernet cryptographic API key & settings services
-│   └── tools/                # Extensible filesystem, calendar, shell, and web tools
-├── Dockerfile                # Production container deployment
-├── Makefile                  # Build and dev orchestration targets
-└── pyproject.toml            # Package configuration and dependency requirements
+│   ├── agens/                 # Typer CLI subcommands and entry shims
+│   ├── agent/                 # ReAct orchestration loop (agent.py, factory.py)
+│   ├── config/                # Pydantic-settings, ConfigManager, logging bootstrap
+│   ├── core/                  # Tool base interface, schemas, ToolRegistry
+│   ├── db/                    # SQLAlchemy models, aiosqlite engine, repositories
+│   ├── interfaces/
+│   │   ├── api/               # FastAPI routers (chat, sessions, settings, api_keys)
+│   │   ├── telegram/          # python-telegram-bot handlers, polling, webhook lifecycle
+│   │   ├── tui/               # Textual widgets (chat_view, command_palette, sudo_prompt)
+│   │   └── web/               # FastAPI app init, static mount for Svelte dist
+│   ├── llm/                   # Provider adapters (Gemini, OpenAI), fallback router
+│   ├── memory/                # Conversation history aggregation for LLM injection
+│   ├── planner/               # prompt_builder.py — system prompt assembly
+│   ├── services/              # APIKeyManager (Fernet + rotation + cooldowns)
+│   └── tools/                 # Individual tool modules
+├── alembic/                   # Migration environment and versioned migration files
+├── Dockerfile
+├── Makefile                   # Build, dev, and frontend orchestration targets
+└── pyproject.toml
 ```
 
 ---
 
 ## Development Workflow
 
-### Developer Setup
-Initialize a local development environment:
 ```bash
-# 1. Sync virtual environment and download dependencies
+# Set up the environment
 uv sync
 
-# 2. Build the Svelte static frontend assets
+# Build the Svelte frontend (writes to src/interfaces/web/dist/)
 make build-frontend
 
-# 3. Verify the installation
+# Verify the install
 uv run agens --version
-```
 
-### Build & Package
-Prepare distribution wheels:
-```bash
+# Run a specific interface locally
+uv run agens tui
+uv run agens web
+
+# Build distribution wheel
 make build
+
+# Apply new DB migrations
+alembic upgrade head
 ```
-*Note: The frontend build step writes static packages to `src/interfaces/web/dist` before wheels are built.*
 
-### Code Quality and Testing
-- **Testing Constraints:** There is no automated `pytest` test suite configured in this repository. Local verification must be conducted manually using the unified CLI and temporary execution scripts (e.g., `test.py`).
-- **Database Migrations:** Database schema updates must be registered within `src/db/models.py`. Generate a new migration file via the Alembic CLI. Migrations are automatically applied to the local SQLite database at runtime startup via `app_bootstrap.py`.
-
-### How to Add a New Tool
-1. Create a new tool class implementing `core.tool_interface.Tool` within `src/tools/`.
-2. Define `.name`, `.description`, and a valid JSON Schema in `.parameters`.
-3. Implement `.execute(**kwargs)` (asynchronous or synchronous block).
-4. Explicitly import and register your tool within `_build_registry` in `src/agent/factory.py`.
+> There is no automated test suite. Local verification uses the CLI and interface launchers directly.
 
 ---
 
 ## Adding a New Interface
 
-The Hexagonal architecture decouples transport layers from the central brain. Adding a new interaction channel (e.g., Slack, Discord) requires no changes to the agent logic. Implement three steps in a new interface adapter:
+The Hexagonal architecture means adding a new channel (e.g., Slack, Discord) requires no changes to agent logic. Implement three connection points in a new `interfaces/<channel>/` directory:
 
-1. **Boot Lifecycle:** Bind the interface's main execution loop under a new command CLI subcommand inside `src/agens/main.py`.
-2. **Orchestrator Invocation:** Retrieve the agent instance and call the `.chat()` async streaming generator:
-   ```python
-   async for event in agent.chat(
-       message=user_input,
-       session_id=session_id,
-       channel=Channel.MY_CHANNEL
-   ):
-       # Process stream events
-   ```
-3. **Event Rendering:** Map incoming `StreamEvent` payload types (`token`, `status`, `tool_call`, `error`, `done`) to the interface's rendering output API.
+**1. Boot lifecycle** — Register a CLI subcommand in `src/agens/main.py`:
+```python
+@app.command()
+def slack(ctx: typer.Context):
+    asyncio.run(start_slack(ctx.obj["agent"]))
+```
+
+**2. Orchestrator call** — Stream from `agent.chat()`:
+```python
+async for event in agent.chat(
+    message=user_input,
+    session_id=session_id,
+    channel=Channel.SLACK
+):
+    # handle event
+```
+
+**3. Event rendering** — Map `StreamEvent` types to your output API:
+
+| `event.type` | Meaning |
+| :--- | :--- |
+| `token` | Append text chunk to output |
+| `tool_call` | Show tool execution indicator |
+| `status` | Display agent status update |
+| `error` | Surface error to user |
+| `done` | Finalize and close stream |
 
 ---
 
 ## Contributing
 
-We accept pull requests that align with our codebase architecture.
-- **Branch Conventions:** Work must be conducted in dedicated branches prefixed with `feature/` or `bugfix/`.
-- **Formatting Guidelines:** Code must strictly comply with Python 3.13 constructs. Ensure that clean separation of interface adapters from domain layers is maintained.
-- **Pull Requests:** PR descriptions must concisely outline changes, file impacts, and testing verifications.
+Pull requests are accepted if they maintain clean separation between interface adapters and domain logic.
+
+- **Branches:** prefix with `feature/` or `bugfix/`
+- **Style:** Python 3.13 — no compatibility shims. Type annotations required.
+- **PRs:** describe what changed, which files are affected, and how it was verified
+- **Schema changes:** add an Alembic migration alongside any `db/models.py` change
 
 ---
 
-<!-- DOCUMENTATION GAPS -->
-<!--
-The following inconsistencies, omissions, and stale sections in the codebase require maintenance:
+<div align="center">
 
-1. **Notification System Scope Mismatch:**
-   - Problem: `PROJECT_OVERVIEW.md` describes a "configurable notification framework... durable notification history, per-session subscription preferences, and channel-specific formatting."
-   - Reality: The repository contains no database tables for notifications, no `NotificationService` server-side class, and no session-based subscription preferences. Notifications are completely ephemeral: handled client-side using the browser Notification API (`ChatArea.svelte`) and inline edits in Telegram message handlers (`handlers.py`).
+Built with [Textual](https://github.com/Textualize/textual) · [FastAPI](https://fastapi.tiangolo.com/) · [Svelte](https://svelte.dev/) · [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot)
 
-2. **Missing Seeded Discord Adapter Directory:**
-   - Problem: `PROJECT_OVERVIEW.md` states "The discord/ directory being seeded but empty should be noted as planned." Additionally, `src/config/runtime.py` references "discord" in its example docstring.
-   - Reality: No `discord/` folder exists under `src/interfaces/` in the codebase.
+</div>
 
-3. **Stale Testing Documentation:**
-   - Problem: Running tests is mentioned in architectural overviews.
-   - Reality: No automated `tests/` directory or `pytest` configs are declared in the codebase or dependencies.
+<!-- DOCUMENTATION GAPS
+1. NOTIFICATION SYSTEM: PROJECT_OVERVIEW.md describes a server-side NotificationService with durable history
+   and per-session subscriptions. No such service, DB table, or subscription model exists in the repo.
+   Notifications are ephemeral: browser Notification API in ChatArea.svelte, inline message edits in
+   Telegram handlers. README reflects the actual implementation.
+
+2. DISCORD ADAPTER: Referenced as "planned" in project overview. No interfaces/discord/ directory exists.
+   Omitted from README until shipped.
+
+3. TEST SUITE: No pytest config, tests/ directory, or test dependencies declared in pyproject.toml.
+   Development workflow section reflects this accurately.
 -->
