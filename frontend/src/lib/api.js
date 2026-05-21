@@ -97,7 +97,6 @@ export async function updateWebPrefs(prefsPatch) {
  * @property {string} session_id
  * @property {any} usage
  * @property {any[]} tool_history
- * @property {"await_confirmation"|null} [next_action]
  */
 
 export function streamChat(sessionId, message, model, toolGroups, callbacks) {
@@ -154,14 +153,6 @@ export function streamChat(sessionId, message, model, toolGroups, callbacks) {
               break;
             case 'status':
               if (callbacks.onStatus) callbacks.onStatus(event.message);
-              break;
-            case 'confirmation_required':
-              // Forward confirmation requests to the UI handler.
-              if (callbacks.onConfirmationRequired) callbacks.onConfirmationRequired(event);
-              break;
-            case 'confirmation_result':
-              // Forward confirmation results to the UI handler.
-              if (callbacks.onConfirmationResult) callbacks.onConfirmationResult(event);
               break;
 
             case 'tool_start':

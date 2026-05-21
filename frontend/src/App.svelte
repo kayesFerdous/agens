@@ -2,7 +2,7 @@
   
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
-  import { activeSessionId, theme, messages, activePage, restoredConfirmation, noApiKeys, settingsTab, isSidebarOpen } from './lib/store.js';
+  import { activeSessionId, theme, messages, activePage, noApiKeys, settingsTab, isSidebarOpen } from './lib/store.js';
   import { getSession, shutdownAssistant, getSetupStatus } from './lib/api.js';
   import { sessionService } from './lib/sessionService.svelte.js';
   import { statusService, statusState } from './lib/statusService.svelte.js';
@@ -54,73 +54,12 @@
   async function loadSession(id) {
     if (!id) {
       messages.set([]);
-      restoredConfirmation.set(null);
       return;
     }
     try {
       const data = await getSession(id);
       if (data && data.messages) {
         messages.set(data.messages);
-
-        // ── Restore confirmation UI on reload (if genuinely still pending) ────
-        //
-        // A tool_call with status "awaiting_user_confirmation" is written to the
-        // DB when the agent intercepts a dangerous command.  However that record
-        // is NEVER updated when the user later confirms or cancels — only a new
-        // assistant message is appended.  We therefore must apply two guards:
-        //
-        //   Guard 1 – already acted on:
-        //     If the assistant message that contains the pending tool_call is NOT
-        //     the very last message in the thread, the user already replied (YES
-        //     or NO) and new messages were appended.  Skip restoration.
-        //
-        //   Guard 2 – TTL expired:
-        //     The backend TTL is 300 s (CONFIRMATION_TTL_SECONDS).  If the
-        //     assistant message is older than that the backend will reject any
-        //     "YES" anyway, so showing the card would be misleading.  Skip.
-
-        const CONFIRMATION_TTL_MS = 300_000; // mirrors backend CONFIRMATION_TTL_SECONDS
-        const msgs = data.messages; // already in chronological order from the API
-
-        // Find the index of the last assistant message that has a pending tc.
-        let pendingTc = null;
-        let pendingMsgIndex = -1;
-        for (let i = msgs.length - 1; i >= 0; i--) {
-          const m = msgs[i];
-          if (m.role !== 'assistant') continue;
-          const tc = m.tool_calls?.find(
-            t => t.result?.status === 'awaiting_user_confirmation'
-          );
-          if (tc) {
-            pendingTc = tc;
-            pendingMsgIndex = i;
-            break;
-          }
-        }
-
-        let shouldRestore = false;
-        if (pendingTc && pendingMsgIndex !== -1) {
-          // Guard 1: must be the very last message in the thread.
-          const isLastMessage = pendingMsgIndex === msgs.length - 1;
-
-          // Guard 2: must be within the TTL window.
-          const msgAge = Date.now() - new Date(msgs[pendingMsgIndex].created_at).getTime();
-          const withinTtl = msgAge < CONFIRMATION_TTL_MS;
-
-          shouldRestore = isLastMessage && withinTtl;
-        }
-
-        if (shouldRestore) {
-          restoredConfirmation.set({
-            preview: pendingTc.result.preview
-              ?? pendingTc.arguments?.command
-              ?? '(unknown command)',
-            reason: pendingTc.result.reason ?? 'Dangerous command — requires confirmation.',
-          });
-        } else {
-          restoredConfirmation.set(null);
-        }
-        // ─────────────────────────────────────────────────────────────────────
       }
     } catch (err) {
       console.error('Failed to load session:', err);

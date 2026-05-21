@@ -26,15 +26,6 @@ export const isSidebarOpen = writable(typeof window !== 'undefined' ? window.inn
 export const toolGroups = writable(loadToolGroups());
 export const selectedModel = writable(null);
 
-/**
- * Set by App.svelte after loading a session whose last assistant message has
- * a tool_call with status "awaiting_user_confirmation".  ChatArea.svelte reads
- * this once on mount / reactive update and initialises its local
- * pendingConfirmation state, then clears the store.
- *
- * Shape: { preview: string, reason: string } | null
- */
-export const restoredConfirmation = writable(null);
 const initialPage = typeof window !== 'undefined'
   ? (new URLSearchParams(window.location.search).get('page') || 'chat')
   : 'chat';

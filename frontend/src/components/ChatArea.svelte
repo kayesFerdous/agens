@@ -5,7 +5,6 @@
     messages,
     isStreaming,
     activeSessionId,
-    restoredConfirmation,
     toolGroups,
   } from "../lib/store.js";
   import { streamChat, stopChat } from "../lib/api.js";
@@ -22,12 +21,7 @@
   let streamSessionId = $state(null);
   let chatWindow;
   let isIdle = $derived($messages.length === 0);
-  // Track pending dangerous command confirmations locally.
-  let pendingConfirmation = $state(null);
-  // Keep the latest confirmation payload for immediate display and done-state reconciliation.
-  let confirmationRequest = $state(null);
-  // Prevent duplicate confirmation submissions.
-  let confirmationBusy = $state(false);
+
   let isTabHidden = typeof document !== "undefined" ? document.hidden : false;
   let pendingStreamNotification = null;
 
@@ -121,13 +115,7 @@
     }
   });
 
-  // Bug 1 fix: Pull restored confirmation data from the session loader.
-  $effect(() => {
-    if ($restoredConfirmation) {
-      pendingConfirmation = $restoredConfirmation;
-      restoredConfirmation.set(null); // clear after consuming
-    }
-  });
+
 
 
 
@@ -191,9 +179,7 @@
     if (!text || $isStreaming || currentStream) return;
     void requestNotificationPermission();
 
-    confirmationRequest = null;
-    pendingConfirmation = null;
-    confirmationBusy = false;
+
 
     const sessionId = $activeSessionId;
 
@@ -294,84 +280,10 @@
           return m;
         });
       },
-      onConfirmationRequired(event) {
-        confirmationRequest = {
-          reason: event.reason,
-          preview: event.preview,
-        };
-        pendingConfirmation = confirmationRequest;
-        confirmationBusy = false;
-      },
-
-      onConfirmationResult(event) {
-        // Clear any pending confirmation state when a result arrives.
-        pendingConfirmation = null;
-        confirmationBusy = false;
-        if (event.message) {
-          messages.update((m) => [
-            ...m,
-            { id: generateId(), role: "status", content: event.message },
-          ]);
-        }
-        if (event.error) {
-          messages.update((m) => [
-            ...m,
-            {
-              id: generateId(),
-              role: "assistant",
-              content: `\n\n> **Error:** ${event.error}`,
-              toolBlocks: [],
-              isThinking: false,
-            },
-          ]);
-        }
-        if (event.result) {
-          messages.update((m) => {
-            const am = m.find((x) => x.id === assistantId);
-            if (am) {
-              const blocks = am.toolBlocks;
-              let applied = false;
-              for (let i = blocks.length - 1; i >= 0; i--) {
-                if (
-                  blocks[i].tool === event.tool &&
-                  blocks[i].status === "running"
-                ) {
-                  blocks[i].result = event.result;
-                  blocks[i].error = event.error;
-                  blocks[i].status = event.error ? "error" : "done";
-                  applied = true;
-                  break;
-                }
-              }
-              if (!applied) {
-                blocks.push({
-                  tool: event.tool,
-                  arguments: null,
-                  result: event.result,
-                  error: event.error,
-                  status: event.error ? "error" : "done",
-                });
-              }
-            }
-            return m;
-          });
-        }
-      },
       async onDone(event) {
         const sessionId = event?.session_id;
         const shouldRefreshSessions = sessionId && sessionId !== $activeSessionId;
         finalizeStream();
-
-        const nextAction = event?.next_action ?? null;
-        if (nextAction === "await_confirmation") {
-          pendingConfirmation = confirmationRequest || null;
-          confirmationBusy = false;
-        } else {
-          pendingConfirmation = null;
-          confirmationBusy = false;
-        }
-
-        confirmationRequest = null;
 
         if (shouldRefreshSessions) {
           activeSessionId.set(sessionId);
@@ -388,9 +300,6 @@
           body: String(err).slice(0, 40),
         };
         finalizeStream();
-        confirmationRequest = null;
-        pendingConfirmation = null;
-        confirmationBusy = false;
         messages.update((m) => {
           const am = m.find((x) => x.id === assistantId);
           if (am) {
@@ -411,14 +320,7 @@
     void abortStream();
   }
 
-  function handleConfirmation(choice) {
-    if (confirmationBusy) return;
 
-    // Normal confirmation flow.
-    confirmationBusy = true;
-    pendingConfirmation = null;
-    handleSubmit(choice);
-  }
 
 
 </script>
@@ -436,34 +338,7 @@
               />
             {/each}
           </div>
-          {#if pendingConfirmation}
-            <!-- Render the inline confirmation card under the latest assistant message. -->
-            <div class="confirmation-card" role="alert">
-              <div class="confirmation-header">
-                <span class="warning-icon" aria-hidden="true"></span>
-                <span class="confirmation-title">Confirm command</span>
-              </div>
-              <code class="confirm-code">{pendingConfirmation.preview}</code>
-              <p class="confirm-reason">{pendingConfirmation.reason}</p>
 
-              <div class="confirm-actions">
-                <button
-                  class="confirm-yes"
-                  onclick={() => handleConfirmation("YES")}
-                  disabled={confirmationBusy}
-                >
-                  Yes, run it
-                </button>
-                <button
-                  class="confirm-cancel"
-                  onclick={() => handleConfirmation("No")}
-                  disabled={confirmationBusy}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          {/if}
           <div class="scroll-spacer"></div>
         {/if}
       </div>
@@ -487,16 +362,13 @@
         </button>
       {/if}
       <ChatInput
-        disabled={$isStreaming || !!pendingConfirmation}
+        disabled={$isStreaming}
         showStop={$isStreaming}
         onsubmit={handleSubmit}
         onstop={handleStop}
       />
     </div>
-    {#if pendingConfirmation}
-      <!-- Hint is only visible when authorization is in progress. -->
-      <p class="confirm-hint">Complete the confirmation above to continue</p>
-    {/if}
+
   </div>
 </div>
 
@@ -592,9 +464,7 @@
     pointer-events: auto; /* Re-enable clicks for the input component */
   }
   
-  .chat-system.is-active .confirm-hint {
-    pointer-events: auto;
-  }
+
 
   @keyframes fadeIn {
     from { opacity: 0; }
@@ -644,99 +514,7 @@
     width: 100%;
   }
 
-  /* Confirmation card and hint styles. */
-  .confirmation-card {
-    margin-top: 16px;
-    padding: 16px 18px;
-    border-radius: 18px;
-    border: 0.5px solid rgba(201,124,74,0.25);
-    background: var(--ag-warm-light);
-    color: var(--ag-ink);
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    box-shadow: none;
-  }
 
-  .confirmation-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 500;
-  }
-
-  .warning-icon {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--ag-warm);
-  }
-
-  .confirmation-title {
-    font-size: 14px;
-    letter-spacing: 0;
-  }
-
-  .confirm-code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-      "Liberation Mono", "Courier New", monospace;
-    background: var(--ag-warm-white);
-    color: var(--ag-ink-2);
-    border: 0.5px solid var(--ag-border);
-    padding: 10px 12px;
-    border-radius: 8px;
-    display: block;
-    white-space: pre-wrap;
-  }
-
-  .confirm-reason {
-    margin: 0;
-    color: var(--ag-ink-2);
-    font-size: 13px;
-    line-height: 1.5;
-  }
-
-
-
-  .confirm-actions {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-  .confirm-yes {
-    background: var(--ag-warm-light);
-    color: var(--ag-warm);
-    border: 0.5px solid rgba(201,124,74,0.25);
-    padding: 8px 14px;
-    border-radius: 12px;
-    font-weight: 500;
-    cursor: pointer;
-  }
-
-  .confirm-yes:disabled,
-  .confirm-cancel:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .confirm-cancel {
-    background: transparent;
-    color: var(--ag-ink);
-    border: 0.5px solid var(--ag-border);
-    padding: 8px 14px;
-    border-radius: 12px;
-    font-weight: 500;
-    cursor: pointer;
-  }
-
-  .confirm-hint {
-    margin: 8px 0 0;
-    font-size: 11px;
-    color: var(--ag-ink-3);
-    text-align: center;
-    letter-spacing: 0.01em;
-  }
 
 
 </style>

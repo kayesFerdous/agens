@@ -115,24 +115,6 @@ async def chat(
                 elif event.type == "status":
                     payload = {"type": "status", "message": event.message}
 
-                elif event.type == "confirmation_required":
-                    payload = {
-                        "type": "confirmation_required",
-                        "tool": event.tool,
-                        "arguments": event.arguments,
-                        "reason": event.confirmation_reason,
-                        "preview": event.confirmation_preview,
-                    }
-
-                elif event.type == "confirmation_result":
-                    payload = {
-                        "type": "confirmation_result",
-                        "tool": event.tool,
-                        "result": event.result,
-                        "error": event.error,
-                        "message": event.message,
-                    }
-
                 elif event.type == "error":
                     payload = {"type": "error", "error": user_key_unavailable_message(event.error)}
 

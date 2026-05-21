@@ -41,13 +41,6 @@ class ChatView(Widget):
         await self._add_widget(widget)
         return widget
 
-    async def add_confirmation(self, request: "ConfirmationRequest") -> "InlineConfirmation":
-        from .inline_confirmation import InlineConfirmation
-
-        widget = InlineConfirmation(request)
-        await self._add_widget(widget)
-        return widget
-
     async def add_no_api_keys_onboarding(self) -> "NoAPIKeysOnboarding":
         from .no_api_keys import NoAPIKeysOnboarding
 

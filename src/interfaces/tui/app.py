@@ -22,7 +22,6 @@ from .widgets.chat_view import ChatView
 from .widgets.command_palette import CommandPalette
 from .widgets.header import AppHeader
 from .widgets.horizontal_rule import HorizontalRule
-from .widgets.inline_confirmation import ConfirmationRequest, InlineConfirmation
 from .widgets.input_row import InputRow
 from .widgets.no_api_keys import NoAPIKeysOnboarding
 from .widgets.sudo_prompt import SudoPasswordPrompt
@@ -70,13 +69,9 @@ class AssistantTUI(App):
         self._selected_model: str | None = get_selected_model()
         self._tool_groups: dict[str, bool] = get_tool_groups()
         self.model_name = self._detect_model_name()
-        self._awaiting_confirmation = False
         self._waiting_for_api_key = self._no_api_keys_at_startup
         self._active_no_api_key_prompt: NoAPIKeysOnboarding | None = None
         self._api_key_modal_open = False
-        self._confirmation_lock = asyncio.Lock()
-        self._pending_confirmation_response: str | None = None
-        self._active_confirmation: InlineConfirmation | None = None
         self._stop_requested = False
         self._welcome_active = True
 
@@ -138,10 +133,6 @@ class AssistantTUI(App):
             if self._active_no_api_key_prompt.handle_prompt_key(event):
                 return
 
-        if self._awaiting_confirmation:
-            if self._route_confirmation_key(event):
-                return
-
         if event.key != "f12":
             return
 
@@ -178,7 +169,7 @@ class AssistantTUI(App):
             pass
 
     def handle_submit(self, text: str) -> None:
-        if self._is_streaming or self._awaiting_confirmation:
+        if self._is_streaming:
             return
 
         if parse_command(text):
@@ -270,15 +261,10 @@ class AssistantTUI(App):
 
             self._current_block = None
             self._pending_tool_blocks = {}
-            pending_confirmation_response = self._pending_confirmation_response
-            self._pending_confirmation_response = None
             self._stream_task = None
             self._stop_requested = False
             chat.maybe_scroll_end()
-            if pending_confirmation_response is not None:
-                await self._run_turn(pending_confirmation_response, render_user=False)
-            elif not self._awaiting_confirmation:
-                self.query_one(InputRow).focus_input()
+            self.query_one(InputRow).focus_input()
 
     async def show_tool_call(self, tool_name: str, args: dict | str = "") -> ToolBlock:
         """Call this when a tool starts executing."""
@@ -324,8 +310,6 @@ class AssistantTUI(App):
         elif kind == "error":
             error = self._event_value(event, "error", "Unknown error")
             await self._add_assistant_error(user_key_unavailable_message(str(error)))
-        elif kind == "confirmation_required":
-            await self._show_confirmation_event(event, kind)
         elif kind == "done":
             usage = self._event_value(event, "usage")
             if usage is not None:
@@ -365,79 +349,7 @@ class AssistantTUI(App):
                 return str(result)
         return str(result)
 
-    async def _show_confirmation_event(self, event: Any, kind: str) -> None:
-        preview = self._event_value(event, "confirmation_preview", "") or ""
-        warning = (
-            self._event_value(event, "confirmation_reason", None)
-            or "This can modify system-level files or configuration."
-        )
-
-        async with self._confirmation_lock:
-            if self._pending_confirmation_response is not None:
-                return
-
-            input_row = self.query_one(InputRow)
-            request = ConfirmationRequest(
-                title="Confirm Command",
-                warning=warning,
-                command=preview,
-            )
-
-            self._awaiting_confirmation = True
-            input_row.set_locked(True)
-            try:
-                confirmed = await self._await_inline_confirmation(request)
-            except Exception as exc:
-                confirmed = False
-                await self.query_one(ChatView).add_system(
-                    f"[red]Confirmation error:[/red] {exc}. Command was cancelled."
-                )
-            finally:
-                self._awaiting_confirmation = False
-                input_row.set_locked(False)
-
-            self._pending_confirmation_response = "Y" if confirmed else "N"
-
-    async def _await_inline_confirmation(self, request: ConfirmationRequest) -> bool:
-        confirmation = await self.query_one(ChatView).add_confirmation(request)
-        self._active_confirmation = confirmation
-        try:
-            return await confirmation.wait()
-        except asyncio.CancelledError:
-            confirmation.resolve(False)
-            raise
-        finally:
-            if self._active_confirmation is confirmation:
-                self._active_confirmation = None
-
-    def _route_confirmation_key(self, event: events.Key) -> bool:
-        key = event.key.lower()
-        if key in {"up", "down", "pageup", "pagedown", "home", "end"}:
-            chat = self.query_one(ChatView)
-            if key == "up":
-                chat.scroll_up(animate=False)
-            elif key == "down":
-                chat.scroll_down(animate=False)
-            elif key == "pageup":
-                chat.scroll_page_up(animate=False)
-            elif key == "pagedown":
-                chat.scroll_page_down(animate=False)
-            elif key == "home":
-                chat.scroll_home(animate=False)
-            elif key == "end":
-                chat.scroll_end(animate=False)
-            event.stop()
-            event.prevent_default()
-            return True
-
-        if self._active_confirmation is not None:
-            return self._active_confirmation.handle_key(event)
-        return False
-
     def action_interrupt(self) -> None:
-        if self._awaiting_confirmation and self._active_confirmation is not None:
-            self._active_confirmation.resolve(False)
-            return
         if self._stream_task and not self._stream_task.done():
             asyncio.create_task(self._stop_active_stream())
 
@@ -465,7 +377,7 @@ class AssistantTUI(App):
         chat.maybe_scroll_end()
 
     def action_clear_chat(self) -> None:
-        if self._awaiting_confirmation or self._active_no_api_key_prompt is not None:
+        if self._active_no_api_key_prompt is not None:
             return
         asyncio.create_task(self._do_clear())
 
@@ -480,7 +392,7 @@ class AssistantTUI(App):
         self.query_one(AppHeader).update_tokens(0)
 
     def action_focus_input(self) -> None:
-        if self._awaiting_confirmation or self._active_no_api_key_prompt is not None:
+        if self._active_no_api_key_prompt is not None:
             return
         self.query_one(InputRow).focus_input()
 
@@ -512,7 +424,7 @@ class AssistantTUI(App):
     def action_history_prev(self) -> None:
         if self._route_no_api_key_prompt_action("up"):
             return
-        if self._awaiting_confirmation or self._waiting_for_api_key:
+        if self._waiting_for_api_key:
             return
         previous = self._history.prev()
         if previous is not None:
@@ -522,7 +434,7 @@ class AssistantTUI(App):
     def action_history_next(self) -> None:
         if self._route_no_api_key_prompt_action("down"):
             return
-        if self._awaiting_confirmation or self._waiting_for_api_key:
+        if self._waiting_for_api_key:
             return
         next_value = self._history.next()
         if next_value is not None:
@@ -573,7 +485,7 @@ class AssistantTUI(App):
         self.push_screen(ModelSelectScreen(current_model=self._selected_model), callback=_on_selected)
 
     def action_show_models(self) -> None:
-        if self._awaiting_confirmation or self._active_no_api_key_prompt is not None:
+        if self._active_no_api_key_prompt is not None:
             return
         self.show_model_selector()
 
