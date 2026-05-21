@@ -6,9 +6,9 @@ from agent.agent import Agent
 from agent.factory import _build_registry
 from config.config_manager import ConfigManager
 from config.settings import settings
-from core.types import Usage
 from llm.client import LLMClient
 from llm.providers import build_provider_config
+from llm.router import FreeTierRouter
 
 
 def build_dormant_agent() -> Agent:
@@ -19,11 +19,17 @@ def build_dormant_agent() -> Agent:
     currently usable.
     """
     fernet = Fernet(settings.FERNET_SECRET)
-    usage = Usage()
     config_manager = ConfigManager()
     registry = _build_registry(config_manager)
+    router = FreeTierRouter(fernet)
     provider_name = getattr(settings, "DEFAULT_PROVIDER", "gemini")
     model = getattr(settings, "DEFAULT_MODEL", "") or None
     llm = LLMClient(build_provider_config(provider_name, api_key="sk-dormant-placeholder", model=model))
     llm.current_key_id = None  # type: ignore[attr-defined]
-    return Agent(registry=registry, llm=llm, config_manager=config_manager, fernet=fernet)
+    return Agent(
+        registry=registry,
+        llm=llm,
+        router=router,
+        config_manager=config_manager,
+        fernet=fernet,
+    )
