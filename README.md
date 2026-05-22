@@ -13,6 +13,10 @@
 
 </div>
 
+<div align="center">
+  <img src="assets/demo.gif" alt="Agens Multi-Tool Live Demo" width="700" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); margin: 20px 0;" />
+</div>
+
 ---
 
 Agens decouples stateful AI reasoning from delivery channels. A centralized agent engine (`agent.py`) coordinates session histories, tool execution routing, and provider-fallback logic — exposing a unified interface to thin transport-layer adapters. All client interfaces share the same SQLite database, memory, and configuration with zero context drift.
@@ -52,6 +56,7 @@ pipx install agens
 
 ### 2. Register an API Key
 ```bash
+# agens apikey add <label> <provider> <api_key> 
 agens apikey add my-gemini gemini AIzaSyB...
 ```
 
@@ -71,9 +76,61 @@ All interface adapters communicate with the exact same central brain and write t
 | Interface | Launch Command | Core Capabilities | Concurrency Model |
 | :--- | :--- | :--- | :--- |
 | **CLI** | `agens chat "<msg>"` | One-shot queries, API key administration, safety overrides | Ephemeral process; runs one ReAct loop and exits |
-| **Terminal UI (TUI)** | `agens tui [--session <id>]` | Interactive Textual dashboard, session loading, inline `sudo` password collection | Stateful Textual app; blocks terminal during execution |
-| **Web UI** | `agens web` | Svelte 5 + FastAPI SPA with SSE streaming, model picker, tool status blocks | Client-server; tokens stream live via Server-Sent Events |
+| **Terminal UI (TUI)** | `agens tui [--session <id>]` | **Full feature parity with Web UI** (session handling, dynamic API key administration, provider model selection, granular tool group toggles) + secure local `sudo` password collection | Stateful Textual app; blocks terminal during execution |
+| **Web UI** | `agens web` | Svelte 5 + FastAPI SPA with SSE streaming, interactive model picker, encrypted key management, granular tool settings & status blocks | Client-server; tokens stream live via Server-Sent Events |
 | **Telegram Bot** | `agens telegram` | Remote message-based assistant via `python-telegram-bot`, polling + webhooks | Long-polling or webhook updater; edits messages sequentially to stay within Telegram rate limits |
+
+---
+
+## 🎨 Visual Showcase
+
+Experience Agens' premium, interface-agnostic design with absolute feature parity:
+
+### 🌐 Web UI Dashboard (`agens web`)
+The modern Web UI features real-time SSE streaming, interactive model selection, active key management, and fine-grained tool settings.
+
+<div align="center">
+  <table border="0">
+    <tr>
+      <td width="50%" align="center">
+        <b>Workspace Chat</b><br/>
+        <img src="assets/web-home.png" alt="Web UI Home" width="100%" style="border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);" />
+      </td>
+      <td width="50%" align="center">
+        <b>Streaming Message with Tool Output</b><br/>
+        <img src="assets/web-message.png" alt="Web Streaming & Tool Execution" width="100%" style="border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);" />
+      </td>
+    </tr>
+    <tr>
+      <td width="50%" align="center">
+        <b>Decoupled Provider Model Selection</b><br/>
+        <img src="assets/web-model-selection.png" alt="Interactive Model Selector" width="100%" style="border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);" />
+      </td>
+      <td width="50%" align="center">
+        <b>Granular Tool Control Panel</b><br/>
+        <img src="assets/web-tool-group.png" alt="Tool Permissions Dashboard" width="100%" style="border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);" />
+      </td>
+    </tr>
+  </table>
+</div>
+
+### 💻 Terminal UI (TUI) Dashboard (`agens tui`)
+For developers working in terminal or remote SSH environments, the Textual-powered TUI provides **absolute feature parity with the Web UI**. It supports the complete suite of administration controls (adding/managing Fernet-encrypted API keys, selecting providers and fallback models, toggling granular tool group permissions, and safety controls) alongside dynamic tool status animations and secure local `sudo` handling.
+
+<div align="center">
+  <table border="0">
+    <tr>
+      <td width="50%" align="center">
+        <b>Interactive TUI Home Dashboard</b><br/>
+        <img src="assets/tui-home.png" alt="TUI Dashboard" width="100%" style="border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);" />
+      </td>
+      <td width="50%" align="center">
+        <b>Stateful TUI Chat Session</b><br/>
+        <img src="assets/tui-message.png" alt="TUI Conversation" width="100%" style="border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);" />
+      </td>
+    </tr>
+  </table>
+</div>
 
 ---
 

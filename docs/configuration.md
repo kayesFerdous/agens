@@ -51,6 +51,15 @@ agens apikey disable <label>                        # Temporarily disable a key 
 agens apikey enable  <label>                        # Re-enable a disabled key
 ```
 
+Alternatively, you can manage your keys dynamically through the Web UI dashboard, which supports adding, viewing, enabling/disabling, and deleting credentials with instant feedback:
+
+<div align="center">
+  <p><b>API Keys Dashboard:</b></p>
+  <img src="../assets/web-api_keys.png" alt="Web API Keys Dashboard" width="600" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin-bottom: 20px;" />
+  <p><b>Adding a New Fernet-Encrypted Key:</b></p>
+  <img src="../assets/web-add-api_key.png" alt="Web Add API Key Form" width="600" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);" />
+</div>
+
 ---
 
 ## 3. Resilient Key Rotation & Cooldowns
@@ -61,7 +70,34 @@ To ensure maximum availability, Agens incorporates transparent model and key fai
 2. **Cooldown Tracking**: The `APIKeyManager` catches this exception and records a timestamped cooldown directly inside the DB `api_keys.model_cooldowns` JSON column:
    - *Rate limits*: Placed on cooldown for `60` seconds by default.
    - *Quota exhaustion*: Placed on cooldown for `24` hours.
-3. **Transparent Fallback**: The LLM router automatically bypasses the cooled-down key, queries the database for the next eligible API key for the requested provider, and retries the generation request without interrupting the user's active session.
+3. **In-Flight Stream Recovery & State Preservation**:
+   Unlike standard agent frameworks that abort and restart the entire user query from scratch upon hitting a rate limit (losing intermediate execution results), Agens features a highly resilient **in-flight recovery architecture**:
+   - The active ReAct state—including intermediate tool calls, raw arguments, and tool execution results—is tracked dynamically in-memory within `LLMClient.react_stream()` as `working_messages`.
+   - When a `RateLimitError` is caught inside the generator loop, the ReAct stream halts and invokes an internal rate-limit recovery callback (`_recover_rate_limit`).
+   - The recovery handler rotates to the next available API key or falls back to another configured model *without* replacing the live `LLMClient` object.
+   - It performs an in-place credential swap (`swap_key`) and retries the exact same ReAct iteration seamlessly, yielding status update events to the client interface.
+   - This preserves all accumulated `working_messages` context, allowing the engine to resume generating the final answer precisely where it left off, giving the user a smooth, uninterrupted experience.
+
+   ```mermaid
+   sequenceDiagram
+       participant R as ReAct Loop (react_stream)
+       participant C as LLMClient
+       participant A as Agent / KeyManager
+       participant LLM as LLM Provider (429)
+
+       R->>C: Call ReAct Iteration
+       C->>LLM: Stream request
+       LLM-->>C: 429 RateLimitError
+       C->>A: Trigger on_rate_limit callback
+       Note over A: APIKeyManager rotates key<br/>or switches provider
+       A->>C: swap_key(new_config)
+       A-->>C: Return new model / recovery events
+       C-->>R: Yield Switched API Key/Model status
+       Note over R: Retry ReAct iteration<br/>preserving working_messages
+       R->>C: Retry ReAct Iteration
+       C->>LLM: Stream request with new key
+       LLM-->>R: Yield token stream & final answer
+   ```
 
 ---
 

@@ -43,6 +43,13 @@ Safety Mode is a hard gate enforced directly inside the orchestrator. When enabl
   agens safety off
   ```
 
+Alternatively, you can manage active tool groups, customize capabilities, and toggle Safety Mode dynamically from the premium Svelte Web UI settings dashboard:
+
+<div align="center">
+  <p><b>Web UI Tool Settings & Safety Controls:</b></p>
+  <img src="../assets/web-tool-group.png" alt="Web Tool Group & Safety Controls" width="600" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);" />
+</div>
+
 ### 2. Interface-Aware Sudo Policies
 The LLM system prompt is channel-aware. Safety directives and sudo privileges adapt dynamically depending on the active interface transport:
 
