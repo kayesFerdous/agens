@@ -23,9 +23,9 @@ def _find_catalog_entry(provider: str, model_id: str) -> ModelEntry | None:
             return entry
     return None
 
-class FreeTierRouter:
+class LLMRouter:
     """
-    Picks the next best free-tier model + key combo.
+    Picks the next best available model + key combo from fallback chains.
     Stateless: relies on api_key.model_cooldowns for exclusion logic.
     """
 

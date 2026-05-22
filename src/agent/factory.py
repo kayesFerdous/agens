@@ -6,7 +6,7 @@ from cryptography.fernet import Fernet
 from agent.agent import Agent
 from core.registry import ToolRegistry
 from llm.errors import LLMUnavailableError
-from llm.router import FreeTierRouter
+from llm.router import LLMRouter
 from config.settings import settings
 from config.config_manager import ConfigManager
 from tools.file_read import FileReadTool
@@ -55,7 +55,7 @@ async def build_agent() -> Agent:
     fernet = Fernet(settings.FERNET_SECRET)
     config_manager = ConfigManager()
 
-    router = FreeTierRouter(fernet)
+    router = LLMRouter(fernet)
 
     # Let the router pick the best available free model right now.
     bound = await router.pick_next()

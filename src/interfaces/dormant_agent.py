@@ -8,7 +8,7 @@ from config.config_manager import ConfigManager
 from config.settings import settings
 from llm.client import LLMClient
 from llm.providers import build_provider_config
-from llm.router import FreeTierRouter
+from llm.router import LLMRouter
 
 
 def build_dormant_agent() -> Agent:
@@ -21,7 +21,7 @@ def build_dormant_agent() -> Agent:
     fernet = Fernet(settings.FERNET_SECRET)
     config_manager = ConfigManager()
     registry = _build_registry(config_manager)
-    router = FreeTierRouter(fernet)
+    router = LLMRouter(fernet)
     provider_name = getattr(settings, "DEFAULT_PROVIDER", "gemini")
     model = getattr(settings, "DEFAULT_MODEL", "") or None
     llm = LLMClient(build_provider_config(provider_name, api_key="sk-dormant-placeholder", model=model))
