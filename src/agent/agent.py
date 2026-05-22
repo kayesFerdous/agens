@@ -5,7 +5,6 @@ from enum import Enum
 import inspect
 import platform
 import re
-import time
 
 from cryptography.fernet import Fernet
 from sqlalchemy.ext.asyncio.session import AsyncSession
@@ -172,14 +171,12 @@ class Agent:
             repo = api_key_manager.repo
             available = await repo.pick_available_key(provider=provider, model=model)
             if available is None:
-                available = await repo.pick_available_key(provider=None, model=None)
-            if available is None:
                 api_key_manager.last_rotated_key_id = None
                 return None
 
             api_key_manager.last_rotated_key_id = available.id
             raw_key = api_key_manager.fernet.decrypt(available.encrypted_key.encode()).decode()
-            return build_provider_config(available.provider, api_key=raw_key)
+            return build_provider_config(available.provider, api_key=raw_key, model=model)
 
         # ── Gated tool executor ──────────────────────────────────────────────────
         # Handles dangerous/sudo commands inline:
@@ -452,7 +449,7 @@ class Agent:
                         )
                         yield StreamEvent(
                             type="status",
-                            message=f"Switched to {new_config.name}. Retrying.",
+                            message=f"Switched API key for {active_model} ({new_config.name}). Retrying.",
                         )
                         if attempt < max_retries - 1:
                             continue
@@ -592,8 +589,9 @@ class Agent:
         Check if the current key is cooling down for this model.
         If so, find and swap to an available key.
 
-        Returns (swapped, active_model). The active model can change when the
-        replacement key belongs to a different provider.
+        Returns (swapped, active_model). If the current key has a model-specific
+        cooldown, this only swaps to another key for the same provider/model; the
+        caller's router handles broader model/provider fallback.
         """
         from llm.providers import build_provider_config
 
@@ -629,8 +627,6 @@ class Agent:
         logger.info("Current key unavailable for model=%s, finding backup...", model)
         available = await repo.pick_available_key(self._llm.config.name, model)
         if available is None:
-            available = await repo.pick_available_key(None, None)
-        if available is None:
             raise LLMUnavailableError(
                 "No available keys for any provider."
             )
@@ -638,7 +634,7 @@ class Agent:
         raw_key = api_key_manager.fernet.decrypt(
             available.encrypted_key.encode()
         ).decode()
-        new_config = build_provider_config(available.provider, api_key=raw_key)
+        new_config = build_provider_config(available.provider, api_key=raw_key, model=model)
         self._llm.swap_key(new_config)
         self._current_key_id = available.id
         self.model_name = new_config.default_model

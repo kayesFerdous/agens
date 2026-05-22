@@ -133,19 +133,19 @@ _CATALOG: tuple[ModelEntry, ...] = (
         rate_limits={"free": {"rpm": 60, "rpd": 1_000, "tpm": 6_000, "tpd": 500_000}},
     ),
     ModelEntry(
-        id="openai/gpt-oss-120b",
-        provider="groq",
-        name="GPT-OSS 120B",
-        free_tier=True, tool_calling=True, streaming=True, parallel_tool_calls=False,
-        context_window=131_072, speed_tps=500,
-        rate_limits={"free": {"rpm": 30, "rpd": 1_000, "tpm": 8_000, "tpd": 200_000}},
-    ),
-    ModelEntry(
         id="openai/gpt-oss-20b",
         provider="groq",
         name="GPT-OSS 20B",
         free_tier=True, tool_calling=True, streaming=True, parallel_tool_calls=False,
         context_window=131_072, speed_tps=1_000,
+        rate_limits={"free": {"rpm": 30, "rpd": 1_000, "tpm": 8_000, "tpd": 200_000}},
+    ),
+    ModelEntry(
+        id="openai/gpt-oss-120b",
+        provider="groq",
+        name="GPT-OSS 120B",
+        free_tier=True, tool_calling=True, streaming=True, parallel_tool_calls=False,
+        context_window=131_072, speed_tps=500,
         rate_limits={"free": {"rpm": 30, "rpd": 1_000, "tpm": 8_000, "tpd": 200_000}},
     ),
     ModelEntry(
@@ -213,18 +213,17 @@ _CATALOG: tuple[ModelEntry, ...] = (
         rate_limits={"free": {"rpm": 500, "tpm": 2_000_000}},
     ),
     ModelEntry(
-        id="deepseek-v4-pro",
+        id="deepseek-v4-flash",
         provider="deepseek",
-        name="DeepSeek-V4-Pro",
+        name="DeepSeek-V4-Flash",
         free_tier=False, tool_calling=True, streaming=True, parallel_tool_calls=True,
         context_window=1_048_576, speed_tps=None,
         rate_limits={"free": {}, "paid": {}},
     ),
-
     ModelEntry(
-        id="deepseek-v4-flash",
+        id="deepseek-v4-pro",
         provider="deepseek",
-        name="DeepSeek-V4-Flash",
+        name="DeepSeek-V4-Pro",
         free_tier=False, tool_calling=True, streaming=True, parallel_tool_calls=True,
         context_window=1_048_576, speed_tps=None,
         rate_limits={"free": {}, "paid": {}},
@@ -236,14 +235,14 @@ _BY_ID: dict[str, ModelEntry] = {m.id: m for m in _CATALOG}
 
 # Fallback chain: fastest / highest-quota first, then downward.
 _FALLBACK_CHAIN: list[str] = [
-    "gemini-2.5-flash-lite",
-    "llama-3.1-8b-instant",
-    "gemini-2.5-flash",
-    "meta-llama/llama-4-scout-17b-16e-instruct",
+    "openai/gpt-oss-20b",
     "qwen/qwen3-32b",
-    "gpt-oss-120b",   # groq first; cerebras is same id, router de-dupes by provider
-    "Qwen/Qwen2.5-72B-Instruct",
-    "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B",
+    "meta-llama/llama-4-scout-17b-16e-instruct",
+    "openai/gpt-oss-120b",
+    "gpt-oss-120b",
+    "deepseek-ai/DeepSeek-V4-Flash",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash",
 ]
 
 def get_model(model_id: str) -> ModelEntry | None:

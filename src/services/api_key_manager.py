@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import APIKey, KeyStatus
 from db.repositories.api_key import APIKeyRepository, is_model_available
+from llm.errors import RateLimitError
 from llm.providers import PROVIDER_DEFAULTS, ProviderConfig, build_provider_config
 
 
@@ -160,16 +161,14 @@ class APIKeyManager:
         *,
         provider: str,
         model: str,
-        error: "RateLimitError",
+        error: RateLimitError,
         current_key_id: str,
         db: AsyncSession,
     ) -> ProviderConfig | None:
         """
         Mark the current key as cooling down for this model, then return
-        the next available key's complete provider configuration.
+        another key's provider configuration for the same provider/model.
         """
-        from llm.errors import RateLimitError
-
         if not isinstance(error, RateLimitError):
             raise TypeError("error must be a RateLimitError")
 
@@ -183,11 +182,9 @@ class APIKeyManager:
 
         available = await self.repo.pick_available_key(provider=provider, model=model)
         if available is None:
-            available = await self.repo.pick_available_key(provider=None, model=None)
-        if available is None:
             self.last_rotated_key_id = None
             return None
 
         self.last_rotated_key_id = available.id
         raw_key = self.fernet.decrypt(available.encrypted_key.encode()).decode()
-        return build_provider_config(available.provider, api_key=raw_key)
+        return build_provider_config(available.provider, api_key=raw_key, model=model)
