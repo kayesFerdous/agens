@@ -27,7 +27,7 @@ class FindTool(Tool):
 
     @property
     def description(self) -> str:
-        return "Find files/directories by name under the workspace. Default: substring match on filenames."
+        return "Find files/directories under the workspace by name pattern."
 
     @property
     def parameters(self) -> dict:
@@ -36,48 +36,36 @@ class FindTool(Tool):
             "properties": {
                 "pattern": {
                     "type": "string",
-                    "description": (
-                        "Name pattern to match. Behaviour depends on match_mode: "
-                        "'substring' (default) — pattern appears anywhere in the name; "
-                        "'exact' — name must equal pattern exactly; "
-                        "'glob' — shell-style wildcards, e.g. '*.py', 'test_*'."
-                    ),
+                    "description": "Name pattern to search (substring, exact, or glob).",
                 },
                 "type": {
                     "type": "string",
                     "enum": ["file", "directory", "both"],
-                    "description": "What to search for. Default 'file'.",
+                    "description": "Type: 'file' (default), 'directory', or 'both'.",
                     "default": "file",
                 },
                 "match_mode": {
                     "type": "string",
                     "enum": ["substring", "exact", "glob"],
-                    "description": "How to match pattern against names. Default 'substring'.",
+                    "description": "Match mode: 'substring' (default), 'exact', or 'glob'.",
                     "default": "substring",
                 },
                 "directory": {
                     "type": "string",
-                    "description": (
-                        "Absolute path to scope the search. "
-                        "Defaults to workspace root."
-                    ),
+                    "description": "Search scope path (default: workspace root).",
                 },
                 "extension": {
                     "type": "string",
-                    "description": (
-                        "Only return files with this extension, e.g. '.py'. "
-                        "Applies only when type='file' or type='both'. "
-                        "Include the leading dot."
-                    ),
+                    "description": "Filter by extension with leading dot (e.g. '.py').",
                 },
                 "include_hidden": {
                     "type": "boolean",
-                    "description": "Include names starting with '.'. Default false.",
+                    "description": "Include hidden files starting with '.' (default false).",
                     "default": False,
                 },
                 "max_results": {
                     "type": "integer",
-                    "description": f"Maximum results to return. Default {MAX_RESULTS}.",
+                    "description": f"Max results to return (default {MAX_RESULTS}).",
                     "default": MAX_RESULTS,
                 },
             },

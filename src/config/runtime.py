@@ -298,13 +298,7 @@ def resolve_knowledge_path(relative_path: str) -> Path | None:
 # Convenience: compact system-prompt snippet
 # ---------------------------------------------------------------------------
 def build_knowledge_prompt_snippet() -> str:
-    """
-    Return a compact, model-friendly description of available knowledge files
-    suitable for inclusion in a system prompt.
-
-    The snippet is intentionally small — it tells the model *what exists*
-    without injecting the actual file contents.
-    """
+    """Return a compact description of available knowledge files."""
     files = list_knowledge_files()
     if not files:
         return "No knowledge files are currently available."

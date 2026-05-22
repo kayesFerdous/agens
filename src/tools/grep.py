@@ -41,7 +41,7 @@ class GrepTool(Tool):
 
     @property
     def description(self) -> str:
-        return "Search file contents recursively. Use this instead of find+read_file loops to locate strings across files."
+        return "Search file contents recursively for a pattern. Faster than find + read loops."
 
     @property
     def parameters(self) -> dict:
@@ -50,32 +50,29 @@ class GrepTool(Tool):
             "properties": {
                 "pattern": {
                     "type": "string",
-                    "description": "Text to search for. Plain substring unless regex=true.",
+                    "description": "Text or regex pattern to search.",
                 },
                 "path": {
                     "type": "string",
-                    "description": (
-                        "Absolute path to a directory or file to search under. "
-                        "Defaults to workspace root."
-                    ),
+                    "description": "Directory or file path to search under (default: workspace root).",
                 },
                 "file_glob": {
                     "type": "string",
-                    "description": "Restrict search to filenames matching this glob, e.g. '*.py'.",
+                    "description": "Filter files matching glob pattern (e.g., '*.py').",
                 },
                 "regex": {
                     "type": "boolean",
-                    "description": "Treat pattern as a Python regular expression. Default false.",
+                    "description": "Treat pattern as regex (default false).",
                     "default": False,
                 },
                 "case_sensitive": {
                     "type": "boolean",
-                    "description": "Case-sensitive match. Default true.",
+                    "description": "Case-sensitive match (default true).",
                     "default": True,
                 },
                 "max_results": {
                     "type": "integer",
-                    "description": f"Max matching lines to return. Default {MAX_RESULTS}.",
+                    "description": f"Max matching lines (default {MAX_RESULTS}).",
                     "default": MAX_RESULTS,
                 },
             },

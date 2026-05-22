@@ -30,7 +30,7 @@ class ScheduleAddTool(Tool):
 
     @property
     def description(self) -> str:
-        return "Add a calendar, schedule, meeting, event, appointment, or reminder."
+        return "Add a calendar event or reminder."
 
     @property
     def parameters(self) -> dict:
@@ -40,13 +40,13 @@ class ScheduleAddTool(Tool):
                 "title": {"type": "string", "description": "Event title."},
                 "start_time": {
                     "type": "string",
-                    "description": "Event start time, ISO 8601 or natural-ish format.",
+                    "description": "Start time (ISO 8601 or natural format).",
                 },
                 "end_time": {
                     "type": "string",
-                    "description": "Optional event end time, ISO 8601 or natural-ish format.",
+                    "description": "Optional end time (ISO 8601 or natural format).",
                 },
-                "description": {"type": "string", "description": "Optional event details."},
+                "description": {"type": "string", "description": "Optional details."},
             },
             "required": ["title", "start_time"],
         }

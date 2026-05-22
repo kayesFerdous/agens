@@ -20,13 +20,7 @@ class UpdateConfigTool(Tool):
 
     @property
     def description(self) -> str:
-        return (
-            "Deep-merge partial JSON into config. "
-            "Keys: user, assistant, preferences. "
-            "Set null to delete a key. "
-            "Remember facts: {\"user\":{\"memories\":{\"k\":\"v\"}}}. "
-            "Forget: {\"user\":{\"memories\":{\"k\":null}}}."
-        )
+        return "Deep-merge partial JSON into config. Supports user, assistant, and preferences. Use User memories to save/forget facts."
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -35,11 +29,7 @@ class UpdateConfigTool(Tool):
             "properties": {
                 "partial_config": {
                     "type": "string",
-                    "description": (
-                        "A JSON string containing the partial config to merge. "
-                        "Example: '{\"user\": {\"name\": \"kayes\"}, "
-                        "\"assistant\": {\"tone\": \"casual\"}}'"
-                    ),
+                    "description": "JSON string to merge. Example: '{\"user\":{\"name\":\"kayes\"}}'",
                 },
             },
             "required": ["partial_config"],

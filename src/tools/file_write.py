@@ -12,7 +12,7 @@ class FileWriteTool(Tool):
 
     @property
     def description(self) -> str:
-        return "Write content to a file. Creates the file if missing, overwrites if it exists."
+        return "Write/overwrite file with content. Creates missing files."
 
     @property
     def parameters(self) -> dict:
@@ -21,11 +21,11 @@ class FileWriteTool(Tool):
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "Absolute path to the file to write.",
+                    "description": "Absolute path to file.",
                 },
                 "content": {
                     "type": "string",
-                    "description": "The content to write to the file.",
+                    "description": "Content to write.",
                 },
             },
             "required": ["path", "content"],

@@ -86,7 +86,7 @@ class ShellCommandTool(Tool):
 
     @property
     def description(self) -> str:
-        return "Run a shell command. Returns stdout, stderr, exit_code. Use only when no structured tool fits. Prefer list_directory over ls, grep over grep -r, read_file over cat."
+        return "Run a shell command. Use ONLY when no structured tool fits (prefer list_directory over ls, grep over grep -r, file_read over cat)."
 
     @property
     def parameters(self) -> dict:
@@ -95,21 +95,15 @@ class ShellCommandTool(Tool):
             "properties": {
                 "command": {
                     "type": "string",
-                    "description": "The shell command to execute.",
+                    "description": "Shell command string.",
                 },
                 "cwd": {
                     "type": "string",
-                    "description": (
-                        "Absolute working directory for the command. "
-                        "Defaults to workspace root. Must be inside workspace root."
-                    ),
+                    "description": "Working directory path (default: workspace root).",
                 },
                 "timeout": {
                     "type": "integer",
-                    "description": (
-                        f"Seconds before the command is killed. "
-                        f"Default {DEFAULT_TIMEOUT}, max {MAX_TIMEOUT}."
-                    ),
+                    "description": f"Timeout in seconds (default {DEFAULT_TIMEOUT}, max {MAX_TIMEOUT}).",
                     "default": DEFAULT_TIMEOUT,
                 },
             },

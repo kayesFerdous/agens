@@ -43,12 +43,7 @@ class WebSearchTool(Tool):
 
     @property
     def description(self) -> str:
-        return (
-            "Search the web for current information, recent news, facts, or any topic. "
-            "Returns ranked results with titles, URLs, and plain-text snippets. "
-            "Use this whenever you need up-to-date information or are uncertain about a fact. "
-            "After getting results, use web_fetch on a specific URL to read its full content."
-        )
+        return "Search the web for current information, news, and facts."
 
     @property
     def parameters(self) -> dict:
@@ -57,28 +52,20 @@ class WebSearchTool(Tool):
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "The search query string.",
+                    "description": "Search query.",
                 },
                 "max_results": {
                     "type": "integer",
-                    "description": "Number of results to return (1–10). Defaults to 6.",
+                    "description": "Results count (1-10, default 6).",
                 },
                 "time_filter": {
                     "type": "string",
-                    "description": (
-                        "Restrict results by recency. "
-                        "'d' = past day, 'w' = past week, "
-                        "'m' = past month, 'y' = past year. "
-                        "Omit for all-time results."
-                    ),
+                    "description": "Recency: 'd' (day), 'w' (week), 'm' (month), 'y' (year). Default: all-time.",
                     "enum": ["d", "w", "m", "y"],
                 },
                 "region": {
                     "type": "string",
-                    "description": (
-                        "Region/language code for results, e.g. 'us-en', 'gb-en', "
-                        "'wt-wt' (worldwide). Defaults to 'wt-wt'."
-                    ),
+                    "description": "Region code (e.g. 'us-en', 'wt-wt'). Default: 'wt-wt'.",
                 },
             },
             "required": ["query"],

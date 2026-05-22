@@ -24,7 +24,7 @@ class FileReadTool(Tool):
 
     @property
     def description(self) -> str:
-        return f"Read file content. Modes: metadata_only (stats only — use first on unknown files), start_line+end_line (range), query (search within file). Max {_MAX_LINES} lines/call."
+        return f"Read file content (metadata, line range, or search query). Max {_MAX_LINES} lines/call."
 
     @property
     def parameters(self) -> dict:
@@ -33,27 +33,27 @@ class FileReadTool(Tool):
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "Absolute path to the file.",
+                    "description": "Absolute path to file.",
                 },
                 "start_line": {
                     "type": "integer",
-                    "description": "1-based start line (inclusive). Requires end_line."
+                    "description": "1-based start line. Requires end_line."
                 },
                 "end_line": {
                     "type": "integer",
-                    "description": "1-based end line (inclusive). Requires start_line."
+                    "description": "1-based end line. Requires start_line."
                 },
                 "query": {
                     "type": "string",
-                    "description": "Search string. Returns matching lines + context. Case-insensitive."
+                    "description": "Search query for matching lines with context."
                 },
                 "context_lines": {
                     "type": "integer",
-                    "description": "Lines of context around each match. Default 3."
+                    "description": "Surrounding lines for query matches (default 3)."
                 },
                 "metadata_only": {
                     "type": "boolean",
-                    "description": "If true, return only file stats. No content."
+                    "description": "If true, return only file stats without content."
                 },
             },
             "required": ["path"],

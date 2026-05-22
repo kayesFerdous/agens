@@ -32,7 +32,7 @@ class ListDirectoryTool(Tool):
 
     @property
     def description(self) -> str:
-        return "List directory contents as structured data. Supports recursive listing."
+        return "List directory files and subdirectories."
 
     @property
     def parameters(self) -> dict:
@@ -41,21 +41,21 @@ class ListDirectoryTool(Tool):
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "Absolute path to the directory to list.",
+                    "description": "Absolute path to directory.",
                 },
                 "recursive": {
                     "type": "boolean",
-                    "description": "Recurse into subdirectories. Default false.",
+                    "description": "Recurse into subdirectories (default false).",
                     "default": False,
                 },
                 "max_depth": {
                     "type": "integer",
-                    "description": f"Max recursion depth when recursive=true. Default {DEFAULT_MAX_DEPTH}.",
+                    "description": f"Max depth when recursive=true (default {DEFAULT_MAX_DEPTH}).",
                     "default": DEFAULT_MAX_DEPTH,
                 },
                 "include_hidden": {
                     "type": "boolean",
-                    "description": "Include names starting with '.'. Default false.",
+                    "description": "Include hidden items starting with '.' (default false).",
                     "default": False,
                 },
             },

@@ -16,17 +16,17 @@ class ScheduleDeleteTool(Tool):
 
     @property
     def description(self) -> str:
-        return "Delete or cancel a calendar, schedule, meeting, event, appointment, or reminder by id or title match."
+        return "Delete a calendar event by ID or title match."
 
     @property
     def parameters(self) -> dict:
         return {
             "type": "object",
             "properties": {
-                "event_id": {"type": "integer", "description": "Event id to delete."},
+                "event_id": {"type": "integer", "description": "Event ID to delete."},
                 "title": {
                     "type": "string",
-                    "description": "Title text to fuzzy-match when event_id is not provided.",
+                    "description": "Title search term (if event_id not provided).",
                 },
             },
         }

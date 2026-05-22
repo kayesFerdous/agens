@@ -57,12 +57,7 @@ class WebFetchTool(Tool):
 
     @property
     def description(self) -> str:
-        return (
-            "Fetch the full text content of a specific web page by URL. "
-            "Use this after web_search to read the actual content of a result — "
-            "search gives you snippets, this gives you the full article or page. "
-            "Returns clean plain text with HTML stripped out."
-        )
+        return "Fetch and extract clean plain text from a URL."
 
     @property
     def parameters(self) -> dict:
@@ -71,7 +66,7 @@ class WebFetchTool(Tool):
             "properties": {
                 "url": {
                     "type": "string",
-                    "description": "The full URL (including https://) of the page to fetch.",
+                    "description": "URL to fetch (including https://).",
                 },
             },
             "required": ["url"],

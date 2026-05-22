@@ -48,7 +48,7 @@ class ScheduleListTool(Tool):
 
     @property
     def description(self) -> str:
-        return "List calendar, schedule, agenda, meeting, event, appointment, or reminder items by time range; use for 'what do I have today/this week'."
+        return "List calendar events or reminders in a range."
 
     @property
     def parameters(self) -> dict:
@@ -57,7 +57,7 @@ class ScheduleListTool(Tool):
             "properties": {
                 "range": {
                     "type": "string",
-                    "description": "today, tomorrow, this_week, all, or an ISO date YYYY-MM-DD.",
+                    "description": "Range: 'today', 'tomorrow', 'this_week', 'all', or ISO date YYYY-MM-DD.",
                 },
             },
             "required": ["range"],

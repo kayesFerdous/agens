@@ -31,24 +31,24 @@ class ScheduleUpdateTool(Tool):
 
     @property
     def description(self) -> str:
-        return "Update or reschedule a calendar, schedule, meeting, event, appointment, or reminder."
+        return "Update or reschedule an existing calendar event."
 
     @property
     def parameters(self) -> dict:
         return {
             "type": "object",
             "properties": {
-                "event_id": {"type": "integer", "description": "Event id to update."},
-                "title": {"type": "string", "description": "New event title."},
+                "event_id": {"type": "integer", "description": "ID of event to update."},
+                "title": {"type": "string", "description": "New title."},
                 "start_time": {
                     "type": "string",
-                    "description": "New start time, ISO 8601 or natural-ish format.",
+                    "description": "New start time.",
                 },
                 "end_time": {
                     "type": "string",
-                    "description": "New end time, ISO 8601 or natural-ish format.",
+                    "description": "New end time.",
                 },
-                "description": {"type": "string", "description": "New event details."},
+                "description": {"type": "string", "description": "New details."},
             },
             "required": ["event_id"],
         }
