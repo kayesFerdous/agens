@@ -14,7 +14,7 @@ from typing import Any, AsyncIterator, Awaitable, Callable
 from db.repositories.api_key import APIKeyRepository
 from llm.client import LLMClient
 from llm.errors import RateLimitError, LLMUnavailableError, LLMError
-from llm.router import FreeTierRouter
+from llm.router import LLMRouter
 from core.tool_groups import get_enabled_tool_names, get_enabled_tool_schemas
 from core.registry import ToolRegistry
 from core.types import (
@@ -59,7 +59,7 @@ class Agent:
         llm: LLMClient,
         config_manager: ConfigManager,
         fernet: Fernet,
-        router: FreeTierRouter | None = None,
+        router: LLMRouter | None = None,
     ) -> None:
         self._registry = registry
         self._llm = llm
@@ -164,6 +164,7 @@ class Agent:
             selected_provider and self._llm.config.name == selected_provider
         )
         transient_cooldown_seconds = 300
+        failed_models: set[str] = set()
 
         async def _pick_next_config(provider: str, model: str):
             from llm.providers import build_provider_config
@@ -292,7 +293,7 @@ class Agent:
                     and not selected_provider_bound
                     and self._llm.config.name != selected_provider
                 ):
-                    bound = await self._router.pick_next(preferred=preferred_model_ref)
+                    bound = await self._router.pick_next(preferred=preferred_model_ref, exclude=failed_models)
                     if bound is None:
                         raise LLMUnavailableError(
                             f"No available keys for provider={selected_provider} model={active_model}"
@@ -308,14 +309,34 @@ class Agent:
                     )
 
                 # Pre-flight key check — swap key if current one is cooling down.
-                swapped, active_model = await self._ensure_key_available(
-                    active_model, api_key_manager, db
-                )
-                if swapped:
+                try:
+                    swapped, active_model = await self._ensure_key_available(
+                        active_model, api_key_manager, db
+                    )
+                    if swapped:
+                        yield StreamEvent(
+                            type="status",
+                            message="API key rotated. Proceeding with the request.",
+                        )
+                except LLMUnavailableError as e:
+                    failed_models.add(active_model)
+                    router = self._router or LLMRouter(self._fernet)
+                    bound = await router.pick_next(exclude=failed_models)
+                    if bound is None:
+                        yield StreamEvent(type="error", error=str(e))
+                        return
+                    self._llm = bound.client
+                    self._current_key_id = bound.key_id
+                    active_model = bound.entry.id
+                    self.model_name = bound.entry.id
                     yield StreamEvent(
                         type="status",
-                        message="API key rotated. Proceeding with the request.",
+                        message=f"Switched model to {bound.entry.name} ({bound.client.config.name}) due to key unavailability. Retrying.",
                     )
+                    if attempt < max_retries - 1:
+                        continue
+                    yield StreamEvent(type="error", error="Retry budget exhausted.")
+                    return
 
                 yield StreamEvent(
                     type="model",
@@ -371,6 +392,7 @@ class Agent:
 
             except RateLimitError as e:
                 current_model = active_model
+                failed_models.add(current_model)
                 logger.warning(
                     "Rate limit on attempt %d: provider=%s model=%s retry_after=%ds daily=%s",
                     attempt,
@@ -395,30 +417,50 @@ class Agent:
                         db=db,
                     )
                     if new_config is None:
-                        raise LLMUnavailableError(
-                            "All API keys are exhausted across all providers."
+                        # Fallback to other models/keys using the LLMRouter
+                        router = self._router or LLMRouter(self._fernet)
+                        bound = await router.pick_next(exclude=failed_models)
+                        if bound is None:
+                            raise LLMUnavailableError(
+                                "All API keys are exhausted across all providers and fallback models."
+                            )
+                        self._llm = bound.client
+                        self._current_key_id = bound.key_id
+                        active_model = bound.entry.id
+                        self.model_name = bound.entry.id
+                        logger.info(
+                            "RateLimit fallback: switched to provider=%s model=%s",
+                            bound.client.config.name,
+                            active_model,
                         )
-
-                    self._llm.swap_key(new_config)
-                    self._current_key_id = api_key_manager.last_rotated_key_id
-                    active_model = new_config.default_model
-                    self.model_name = active_model
-                    logger.info(
-                        "Rotated to provider=%s model=%s",
-                        new_config.name,
-                        active_model,
-                    )
-                    yield StreamEvent(
-                        type="status",
-                        message=f"Switched to {new_config.name}. Retrying.",
-                    )
-                    if attempt < max_retries - 1:
-                        continue
-                    yield StreamEvent(
-                        type="error",
-                        error=f"Retry budget exhausted. Last tried: {current_model}.",
-                    )
-                    return
+                        yield StreamEvent(
+                            type="status",
+                            message=f"Switched model to {bound.entry.name} ({bound.client.config.name}) due to rate limit. Retrying.",
+                        )
+                        if attempt < max_retries - 1:
+                            continue
+                        raise LLMUnavailableError("Retry budget exhausted.")
+                    else:
+                        self._llm.swap_key(new_config)
+                        self._current_key_id = api_key_manager.last_rotated_key_id
+                        active_model = new_config.default_model
+                        self.model_name = active_model
+                        logger.info(
+                            "Rotated key to provider=%s model=%s",
+                            new_config.name,
+                            active_model,
+                        )
+                        yield StreamEvent(
+                            type="status",
+                            message=f"Switched to {new_config.name}. Retrying.",
+                        )
+                        if attempt < max_retries - 1:
+                            continue
+                        yield StreamEvent(
+                            type="error",
+                            error=f"Retry budget exhausted. Last tried: {current_model}.",
+                        )
+                        return
                 except LLMUnavailableError as e2:
                     yield StreamEvent(type="error", error=str(e2))
                     return
@@ -438,6 +480,8 @@ class Agent:
                         error="No active API key is bound to this request.",
                     )
                     return
+
+                failed_models.add(active_model)
 
                 if is_auth_error:
                     logger.error(
@@ -473,16 +517,42 @@ class Agent:
                     return
 
                 if new_config is None:
-                    if is_auth_error:
-                        yield StreamEvent(
-                            type="error",
-                            error="The API key is invalid or has been revoked. It has been deactivated. Please configure a valid API key in Settings.",
-                        )
-                    else:
-                        yield StreamEvent(
-                            type="error",
-                            error="All API keys are exhausted across all providers.",
-                        )
+                    # Fallback to other models/keys using the LLMRouter
+                    router = self._router or LLMRouter(self._fernet)
+                    bound = await router.pick_next(exclude=failed_models)
+                    if bound is None:
+                        if is_auth_error:
+                            yield StreamEvent(
+                                type="error",
+                                error="The API key is invalid or has been revoked. It has been deactivated. Please configure a valid API key in Settings.",
+                            )
+                        else:
+                            yield StreamEvent(
+                                type="error",
+                                error="All API keys are exhausted across all providers and fallback models.",
+                            )
+                        return
+                    self._llm = bound.client
+                    self._current_key_id = bound.key_id
+                    active_model = bound.entry.id
+                    self.model_name = bound.entry.id
+                    logger.info(
+                        "LLMError fallback: switched to provider=%s model=%s",
+                        bound.client.config.name,
+                        active_model,
+                    )
+                    status_msg = (
+                        f"Authentication error. Switched model to {bound.entry.name} ({bound.client.config.name}). Retrying."
+                        if is_auth_error
+                        else f"Transient provider error. Switched model to {bound.entry.name} ({bound.client.config.name}). Retrying."
+                    )
+                    yield StreamEvent(type="status", message=status_msg)
+                    if attempt < max_retries - 1:
+                        continue
+                    yield StreamEvent(
+                        type="error",
+                        error=f"Retry budget exhausted. Last tried: {active_model}.",
+                    )
                     return
 
                 self._llm.swap_key(new_config)
