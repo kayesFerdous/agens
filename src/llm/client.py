@@ -1,10 +1,9 @@
 # llm/client.py
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 
 from openai import AsyncOpenAI, APIStatusError, APITimeoutError, APIError
@@ -15,6 +14,11 @@ from llm.stream import assemble_stream
 from core.types import StreamEvent, ToolCall, Usage
 
 logger = logging.getLogger(__name__)
+
+RateLimitRecovery = Callable[
+    [RateLimitError, str],
+    Awaitable[tuple[str, list[StreamEvent]] | None],
+]
 
 
 def _provider_tool_metadata(tool_call: dict) -> dict[str, Any]:
@@ -102,6 +106,7 @@ class LLMClient:
         model: str | None = None,
         tool_schemas: list[dict],
         tool_executor: Any,   # Callable[[str, dict], Awaitable[dict]]
+        on_rate_limit: RateLimitRecovery | None = None,
         max_iterations: int = 20,
     ) -> AsyncIterator[StreamEvent]:
         """
@@ -123,48 +128,62 @@ class LLMClient:
             text_parts: list[str] = []
             assembled_tool_calls: list[dict] = []
 
-            try:
-                async for event in assemble_stream(
-                    client=self._openai,
-                    model=active_model,
-                    messages=working_messages,
-                    tool_schemas=tool_schemas,
-                    config=self.config,
-                ):
-                    if event["type"] == "token":
-                        text_parts.append(event["content"])
-                        yield StreamEvent(type="token", content=event["content"])
+            while True:
+                text_parts.clear()
+                assembled_tool_calls.clear()
+                try:
+                    async for event in assemble_stream(
+                        client=self._openai,
+                        model=active_model,
+                        messages=working_messages,
+                        tool_schemas=tool_schemas,
+                        config=self.config,
+                    ):
+                        if event["type"] == "token":
+                            text_parts.append(event["content"])
+                            yield StreamEvent(type="token", content=event["content"])
 
-                    elif event["type"] == "tool_call":
-                        assembled_tool_calls.append(event["call"])
+                        elif event["type"] == "tool_call":
+                            assembled_tool_calls.append(event["call"])
 
-                    elif event["type"] == "done":
-                        finish_reason = event["finish_reason"]
-                        usage = event.get("usage")
-                        if isinstance(usage, dict):
-                            usage_accum.record(
-                                prompt_tokens=usage.get("prompt_tokens", 0) or 0,
-                                completion_tokens=usage.get("completion_tokens", 0) or 0,
-                                total_tokens=usage.get("total_tokens", 0) or 0,
-                            )
-                        break
+                        elif event["type"] == "done":
+                            usage = event.get("usage")
+                            if isinstance(usage, dict):
+                                usage_accum.record(
+                                    prompt_tokens=usage.get("prompt_tokens", 0) or 0,
+                                    completion_tokens=usage.get("completion_tokens", 0) or 0,
+                                    total_tokens=usage.get("total_tokens", 0) or 0,
+                                )
+                            break
+                    break
 
-            except APIStatusError as e:
-                raise normalize_error(e, provider=self.config.name)
-            except APITimeoutError:
-                raise LLMUnavailableError(
-                    f"Request timed out after {self.config.timeout}s",
-                    is_transient=True,
-                )
-            except APIError as e:
-                error_msg = str(e).lower()
-                if "failed_generation" in error_msg or "failed to call a function" in error_msg:
+                except APIStatusError as e:
+                    normalized = normalize_error(e, provider=self.config.name)
+                    if not isinstance(normalized, RateLimitError) or on_rate_limit is None:
+                        raise normalized
+
+                    recovered = await on_rate_limit(normalized, active_model)
+                    if recovered is None:
+                        raise normalized
+
+                    active_model, recovery_events = recovered
+                    for recovery_event in recovery_events:
+                        yield recovery_event
+                    continue
+                except APITimeoutError:
                     raise LLMUnavailableError(
-                        f"{self.config.name} model failed to generate a valid tool call. "
-                        "Try a different model or reduce the number of enabled tools."
+                        f"Request timed out after {self.config.timeout}s",
+                        is_transient=True,
                     )
-                # Base APIError without a status code — wrap it directly, don't call normalize_error
-                raise LLMUnavailableError(f"{self.config.name} API error: {e}")
+                except APIError as e:
+                    error_msg = str(e).lower()
+                    if "failed_generation" in error_msg or "failed to call a function" in error_msg:
+                        raise LLMUnavailableError(
+                            f"{self.config.name} model failed to generate a valid tool call. "
+                            "Try a different model or reduce the number of enabled tools."
+                        )
+                    # Base APIError without a status code — wrap it directly, don't call normalize_error
+                    raise LLMUnavailableError(f"{self.config.name} API error: {e}")
 
             # ── No tool calls → final answer ─────────────────────────────────────
             if not assembled_tool_calls:

@@ -178,6 +178,70 @@ class Agent:
             raw_key = api_key_manager.fernet.decrypt(available.encrypted_key.encode()).decode()
             return build_provider_config(available.provider, api_key=raw_key, model=model)
 
+        async def _recover_rate_limit(
+            error: RateLimitError,
+            current_model: str,
+        ) -> tuple[str, list[StreamEvent]] | None:
+            nonlocal active_model
+
+            logger.warning(
+                "Rate limit during ReAct loop: provider=%s model=%s retry_after=%ds daily=%s",
+                self._llm.config.name,
+                current_model,
+                error.retry_after,
+                error.is_daily,
+            )
+            if self._current_key_id is None:
+                raise LLMUnavailableError("No active API key is bound to this request.")
+
+            new_config = await api_key_manager.rotate_key(
+                provider=self._llm.config.name,
+                model=current_model,
+                error=error,
+                current_key_id=self._current_key_id,
+                db=db,
+            )
+            if new_config is None:
+                failed_models.add(current_model)
+                router = self._router or LLMRouter(self._fernet)
+                bound = await router.pick_next(exclude=failed_models)
+                if bound is None:
+                    raise LLMUnavailableError(
+                        "All API keys are exhausted across all providers and fallback models."
+                    )
+
+                # Keep the existing LLMClient object alive so react_stream()
+                # can continue with its accumulated working messages.
+                self._llm.swap_key(bound.client.config)
+                self._current_key_id = bound.key_id
+                self.model_name = bound.entry.id
+                active_model = bound.entry.id
+                return bound.entry.id, [
+                    StreamEvent(
+                        type="status",
+                        message=f"Switched model to {bound.entry.name} ({bound.client.config.name}) due to rate limit. Continuing.",
+                    ),
+                    StreamEvent(
+                        type="model",
+                        active_model=f"{bound.client.config.name}/{bound.entry.id}",
+                    ),
+                ]
+
+            self._llm.swap_key(new_config)
+            self._current_key_id = api_key_manager.last_rotated_key_id
+            self.model_name = new_config.default_model
+            active_model = new_config.default_model
+            return new_config.default_model, [
+                StreamEvent(
+                    type="status",
+                    message=f"Switched API key for {new_config.default_model} ({new_config.name}). Continuing.",
+                ),
+                StreamEvent(
+                    type="model",
+                    active_model=f"{new_config.name}/{new_config.default_model}",
+                ),
+            ]
+
         # ── Gated tool executor ──────────────────────────────────────────────────
         # Handles dangerous/sudo commands inline:
         #   - Web/Telegram: blocked entirely (no confirmation flow).
@@ -345,6 +409,7 @@ class Agent:
                     model=active_model,
                     tool_schemas=tool_schemas,
                     tool_executor=_gated_tool_executor,
+                    on_rate_limit=_recover_rate_limit,
                 ):
                     if event.type == "error":
                         stream_error = event.error or "Unknown LLM stream error"
