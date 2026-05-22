@@ -2,54 +2,45 @@
 
 [Home (README)](../README.md) · [Architecture Deep Dive](architecture.md) · [Tool System](tools.md) · [Configuration](configuration.md) · [Developer Manual](development.md)
 
-Agens supports `pipx`, `pip`, platform installer scripts, and Docker. `pipx` is preferred for local machines because it gives Agens an isolated Python environment and keeps project virtual environments untouched.
+---
+
+Getting Agens running on your machine is designed to be quick and painless. You can install it using a package manager, simple installer scripts, or Docker.
 
 ## Requirements
 
-- Python 3.13 or newer for native installs.
-- `pip` for the fallback installer path.
-- `pipx` recommended.
-- Docker and Docker Compose for container usage.
+Agens is built to be extremely lightweight. All you need is:
+- **Python 3.13** or newer (for native setups)
+- **`pipx`** (highly recommended, as it isolates Agens from your other Python projects)
+- **Docker** & **Docker Compose** (if you prefer running inside containers)
 
-## Linux
+---
 
-Recommended:
+## 🐧 Linux Setup
 
+For most Linux distributions, you can install Agens in one command.
+
+### Recommended (Using `pipx`)
 ```bash
 pipx install agens
 agens --version
 agens web
 ```
 
-One-line installer:
-
+### Direct One-Line Installer
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kayesFerdous/agens/main/scripts/install.sh | bash
 ```
 
-Alternative (local script):
+> [!TIP]
+> **Why we recommend `pipx`**: Running traditional `pip install` can mess up your system-wide Python packages or clash with virtual environments. `pipx` solves this by packaging Agens inside its own isolated folder, while still letting you run `agens` globally in your terminal.
 
-```bash
-chmod +x scripts/install.sh
-./scripts/install.sh install
-```
+---
 
-Pinned install:
+## 🍏 macOS Setup
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/kayesFerdous/agens/main/scripts/install.sh | bash -s -- --version 0.1.1
-```
+Installing on macOS is simple and works with Homebrew.
 
-CI/non-interactive:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/kayesFerdous/agens/main/scripts/install.sh | bash -s -- --non-interactive --method pipx
-```
-
-## macOS
-
-Recommended:
-
+### Recommended (Using `pipx`)
 ```bash
 brew install pipx
 pipx ensurepath
@@ -57,216 +48,105 @@ pipx install agens
 agens web
 ```
 
-One-line installer:
-
+### Direct One-Line Installer
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kayesFerdous/agens/main/scripts/install.sh | bash
 ```
 
-Alternative (local script):
+> [!NOTE]
+> If your terminal says `command not found: agens` after installation, restart your terminal or run `pipx ensurepath` to refresh your terminal paths.
 
-```bash
-chmod +x scripts/install.sh
-./scripts/install.sh install
-```
+---
 
-If the `agens` command is not found after installation, restart your shell or run `pipx ensurepath`.
+## 🪟 Windows Setup
 
-## Windows
+Windows operators can get started natively via PowerShell or inside WSL2 (strongly recommended).
 
-One-line installer (PowerShell):
-
+### Recommended (PowerShell One-Liner)
+Run this command inside PowerShell:
 ```powershell
 irm https://raw.githubusercontent.com/kayesFerdous/agens/main/scripts/install.ps1 | iex
 ```
 
-Alternative (local script):
-
-```powershell
-.\scripts\install.ps1 install
-agens --version
-agens web
-```
-
-Pinned install:
-
-```powershell
-.\scripts\install.ps1 install -Version 0.1.1
-```
-
-CI/non-interactive:
-
-```powershell
-.\scripts\install.ps1 install -NonInteractive -Method pipx
-```
-
-Manual install:
-
+### Manual Install
+If you prefer doing it step-by-step:
 ```powershell
 py -3.13 -m pip install --user pipx
 py -3.13 -m pipx ensurepath
 pipx install agens
+agens web
 ```
 
-## Upgrade
+> [!WARNING]
+> **Run in WSL2 for the best experience**: While native Windows works well, running Agens inside **WSL2** (Windows Subsystem for Linux) is highly recommended. It is faster, handles shell tools natively, and has been road-tested much more extensively.
 
-With `pipx`:
+---
 
+## 🐳 Docker Setup
+
+If you prefer to run Agens inside a Docker container:
+
+### Build and Launch
+```bash
+docker compose up --build
+```
+Once it builds, open [http://localhost:8000](http://localhost:8000) in your web browser.
+
+### Troubleshooting and Monitoring
+```bash
+docker compose logs -f agens                  # View real-time logs
+docker compose exec agens agens --version      # Run commands inside the container
+docker compose down                           # Stop the container
+```
+
+### Where is my data stored?
+Agens uses persistent Docker volumes so you never lose your keys or histories:
+- `agens_config`: Saves your memories, preferences, and custom prompts.
+- `agens_database`: Stores your local SQLite database (chat history and encrypted keys).
+- `agens_workspace`: The specific folder that Agens is allowed to read and write files in.
+
+---
+
+## 🔄 Keeping Agens Updated
+
+Whenever a new version of Agens is released, updating is simple:
+
+### Using `pipx` (Recommended)
 ```bash
 pipx upgrade agens
 ```
 
-With `pip`:
-
+### Using Installer Scripts
 ```bash
-python -m pip install --upgrade agens
-```
-
-With the installers:
-
-```bash
+# On Linux/macOS
 ./scripts/install.sh upgrade
-```
 
-```powershell
+# On Windows
 .\scripts\install.ps1 upgrade
 ```
 
-## Uninstall
+---
 
-With `pipx`:
+## ❌ Uninstalling
 
+If you ever need to remove Agens:
+
+### Using `pipx`
 ```bash
 pipx uninstall agens
 ```
 
-With `pip`:
-
+### Using Installer Scripts
 ```bash
-python -m pip uninstall agens
-```
-
-With the installers:
-
-```bash
+# On Linux/macOS
 ./scripts/install.sh uninstall
-```
 
-```powershell
+# On Windows
 .\scripts\install.ps1 uninstall
 ```
 
-Uninstalling the package does not delete your runtime data. Agens stores config, generated secrets, preferences, and the default SQLite database in the OS user config directory. Remove that directory manually only when you intentionally want to delete local data.
-
-## Docker
-
-Build and run production:
-
-```bash
-docker compose up --build
-```
-
-Open <http://localhost:8000>.
-
-Useful commands:
-
-```bash
-docker compose logs -f agens
-docker compose exec agens agens --version
-docker compose down
-```
-
-Persistent Docker volumes:
-
-- `agens_config`: generated secrets, config, preferences, knowledge, prompts, logs.
-- `agens_database`: SQLite database, sessions, encrypted API key records.
-- `agens_memories`: reserved persistent memory volume.
-- `agens_runtime`: reserved runtime data volume.
-- `agens_workspace`: default workspace exposed to file tools.
-
-The production image runs as a non-root user and exposes only port `8000`. It uses a health check against `/health`.
-
-Developer Docker profile:
-
-```bash
-docker compose --profile dev up --build agens-dev
-```
-
-The dev profile serves the API on port `8000` and the Vite frontend on port `5173`.
-
-## Configuration
-
-Common environment variables:
-
-```text
-WEB_HOST=0.0.0.0
-WEB_PORT=8000
-DATABASE_URL=sqlite+aiosqlite:////data/db/agens.db
-WORKSPACE_ROOT=/workspace
-DEFAULT_PROVIDER=gemini
-DEFAULT_MODEL=gemini-2.5-flash-lite
-AGENS_ENV_FILE=/path/to/agens.env
-```
-
-Agens generates `SESSION_SECRET_KEY` and `FERNET_SECRET` on first run. Operators can provide them through environment variables or an `AGENS_ENV_FILE` when they need stable externally managed secrets.
-
-## Developer Setup
-
-```bash
-uv sync
-make build-frontend
-uv run agens --version
-uv run agens web
-```
-
-Build release artifacts:
-
-```bash
-make build
-```
-
-The frontend build writes packaged web assets to `src/interfaces/web/dist`. Build the frontend before creating wheels or source distributions.
-
-## Troubleshooting
-
-`agens` command not found:
-
-Run `pipx ensurepath`, restart your shell, or add your Python user scripts directory to `PATH`.
-
-Python version error:
-
-Install Python 3.13 or newer and rerun the installer with `--python /path/to/python` or `-Python C:\Path\To\python.exe`.
-
-`pipx` not found:
-
-Install `pipx`, or let the installer fall back to `pip --user`. The fallback avoids modifying active project virtual environments unless you intentionally run it inside one.
-
-Docker container unhealthy:
-
-Check logs with `docker compose logs agens`. Confirm port `8000` is free, volumes are writable, and required environment variables are valid.
-
-Docker BuildKit / buildx errors:
-
-If you see warnings or errors regarding BuildKit or the `buildx` plugin, we have configured the Dockerfiles to build cleanly with the legacy builder by default. However, you can enable BuildKit to benefit from faster build performance and caching:
-
-```bash
-export DOCKER_BUILDKIT=1
-export COMPOSE_DOCKER_CLI_BUILD=1
-```
-
-On Linux systems, if `buildx` is missing, you can install it using your package manager (e.g., `apt-get install docker-buildx` or similar).
-
-No API keys configured:
-
-Add a key with:
-
-```bash
-agens apikey add personal gemini <your-api-key>
-```
-
-```bash
-docker compose exec agens agens apikey add personal gemini <your-api-key>
-```
+> [!IMPORTANT]
+> **Your data remains safe**: Uninstalling the package will **never** delete your API keys, preferences, or chat histories. If you want to wipe everything permanently, you must manually delete the `.agens` directory located in your operating system's user config folder.
 
 ---
 
@@ -277,4 +157,3 @@ docker compose exec agens agens apikey add personal gemini <your-api-key>
 - 🛠️ **[Tool System & Custom Tools](tools.md)**
 - ⚙️ **[Configuration & Key Management](configuration.md)**
 - 💻 **[Developer & Contributor Manual](development.md)**
-

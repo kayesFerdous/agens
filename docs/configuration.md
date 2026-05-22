@@ -1,159 +1,128 @@
 # Configuration & Key Management
 
-Agens segregates its operating settings, memory storage, and secure credentials across three distinct operational boundaries:
-
-1. **Environment Variables**: Low-level engine parameters defined in `settings.py` or `.env`.
-2. **User Memories**: Highly dynamic facts stored in `config.json` and deep-merged via agent prompts.
-3. **SQLite Database Schema**: Persistent session histories, encrypted keys, calendar events, and settings.
+[Home (README)](../README.md) · [Architecture Deep Dive](architecture.md) · [Installation & Setup](installation.md) · [Tool System](tools.md) · [Developer Manual](development.md)
 
 ---
 
-## 1. Environment Configuration
+Agens keeps its configurations clean, organized, and secure across three simple boundaries:
+1. **System Variables**: Low-level engine preferences (set in your terminal or a `.env` file).
+2. **API Keys**: Encrypted third-party keys (stored safely in your database).
+3. **User Memories**: Custom facts about you (stored in a simple settings file).
 
-Low-level settings are parsed by Pydantic-Settings from environment variables or an `agens.env` file specified by the user:
+---
 
-| Variable | Purpose | Default Value |
+## 1. System Variables
+
+Low-level settings are parsed automatically from environment variables or an `agens.env` file. You normally do not need to touch these unless you want to customize ports or folders:
+
+| Variable | What it does | Default Value |
 | :--- | :--- | :--- |
-| `PRODUCTION` | Disables debug logs and optimizes execution verbosity | `True` |
-| `DATABASE_URL` | SQLAlchemy-compatible SQLite connection string | `sqlite+aiosqlite:///.agens/db.sqlite` |
-| `FERNET_SECRET` | Base64-encoded key used to encrypt provider API keys | Auto-generated on first startup |
-| `SESSION_SECRET_KEY` | Hex or random key used to secure active Web UI cookies | Auto-generated on first startup |
-| `WORKSPACE_ROOT` | Scopes directory tools to prevent filesystem escape | Current working directory (CWD) |
-| `AGENS_ENV_FILE` | Path to an external env configuration file | CWD or `.agens/` |
-| `WEB_HOST` | Host address uvicorn binds to | `0.0.0.0` |
-| `WEB_PORT` | Port number uvicorn listens on | `8000` |
+| `PRODUCTION` | Disables verbose debug logging for maximum speed | `True` |
+| `DATABASE_URL` | The location of your local SQLite database file | `.agens/db.sqlite` |
+| `FERNET_SECRET` | The master key used to lock and unlock your API keys | Auto-generated on first run |
+| `SESSION_SECRET_KEY` | Hex key to secure your Web UI dashboard cookies | Auto-generated on first run |
+| `WORKSPACE_ROOT` | The folder Agens is allowed to edit (prevents file escaping) | Current folder (CWD) |
+| `WEB_HOST` | The network address the web dashboard runs on | `0.0.0.0` (any address) |
+| `WEB_PORT` | The port the web dashboard listens on | `8000` |
 
 > [!TIP]
-> **Customizing Web Bind Port**: While the web server defaults to port `8000`, you can dynamically override it via environment variables or CLI options when booting the client:
-> - Direct CLI parameter: `agens web --port 8080` (or `-p 8080`)
-> - Direct environment override: `WEB_PORT=8080 agens web`
+> **Changing the Port**: If port `8000` is already taken, you can run the web dashboard on a different port (e.g. `8080`) easily via the CLI:
+> ```bash
+> agens web --port 8080
+> ```
 
 ---
 
 ## 2. Cryptographic API Key Management
 
-Agens treats third-party API credentials (Gemini, OpenAI, DeepSeek, etc.) with strict security. Plaintext API keys are **never** stored on disk or written to plaintext config files.
+Your API keys (for Gemini, OpenAI, DeepSeek, etc.) are treated with maximum security. Agens **never** writes your keys in plaintext inside config files or logs.
 
 ### Encryption at Rest
-At first launch, the engine generates a cryptographic `FERNET_SECRET` key and writes it securely to local configuration.
-1. When you add an API key, it is encrypted using `cryptography.fernet` symmetric encryption.
-2. The encrypted payload, along with an in-memory hash index, is saved to the SQLite database.
-3. Decryption happens **exclusively in-memory** during an active LLM generation request.
+1. On your very first run, Agens creates a strong, unique `FERNET_SECRET` master key.
+2. When you add a new API key, it is encrypted using industry-standard symmetric encryption before saving it to your SQLite database.
+3. The keys are decrypted **exclusively in your computer's temporary memory** when sending a request to the AI provider. They are never exposed.
 
-### API Key Administration
-API keys are easily managed using standard CLI commands:
-
+### Quick Key Administration CLI
+You can manage all your keys easily in your terminal:
 ```bash
 agens apikey add    <label> <provider> <api_key>   # Register and encrypt a new key
-agens apikey list                                   # Show all registered keys (hints only)
+agens apikey list                                   # See hints of all registered keys
+agens apikey disable <label>                        # Temporarily pause a key from being used
+agens apikey enable  <label>                        # Unpause a key
 agens apikey remove <label>                         # Permanently delete a key
-agens apikey disable <label>                        # Temporarily disable a key from rotation
-agens apikey enable  <label>                        # Re-enable a disabled key
 ```
 
-Alternatively, you can manage your keys dynamically through the Web UI dashboard, which supports adding, viewing, enabling/disabling, and deleting credentials with instant feedback:
+Alternatively, you can manage keys visually in the Web dashboard Settings tab:
 
 <div align="center">
-  <p><b>API Keys Dashboard:</b></p>
-  <img src="../assets/web-api_keys.png" alt="Web API Keys Dashboard" width="600" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin-bottom: 20px;" />
-  <p><b>Adding a New Fernet-Encrypted Key:</b></p>
-  <img src="../assets/web-add-api_key.png" alt="Web Add API Key Form" width="600" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);" />
+  <img src="../assets/web-api_keys.png" alt="Key Manager Dashboard" width="550" style="border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);" />
 </div>
 
 ---
 
-## 3. Resilient Key Rotation & Cooldowns
+## 3. In-Flight Key Rotation & Cooldowns
 
-To make sure Agens stays available when using free API keys, it supports automatic provider, model, and key failovers. If you are using free-tier API keys or model fallback options:
+Free API keys hit rate limits often. Agens is built specifically to handle rate limits in-flight without interrupting your chat.
 
-1. **Error Interception**: When a provider adapter intercepts a `429 Rate Limit` or quota exhausted error from an API call, it raises an internal `RateLimitError`.
-2. **Cooldown Tracking**: The `APIKeyManager` catches this exception and records a timestamped cooldown directly inside the DB `api_keys.model_cooldowns` JSON column:
-   - *Rate limits*: Placed on cooldown for `60` seconds by default.
-   - *Quota exhaustion*: Placed on cooldown for `24` hours.
-3. **In-Flight Stream Recovery & State Preservation**:
-   Instead of stopping and losing your work when you hit a rate limit, Agens has a built-in recovery flow:
-   - The active ReAct state—including intermediate tool calls, raw arguments, and tool execution results—is tracked dynamically in-memory within `LLMClient.react_stream()` as `working_messages`.
-   - When a `RateLimitError` is caught inside the generator loop, the ReAct stream halts and invokes an internal rate-limit recovery callback (`_recover_rate_limit`).
-   - The recovery handler rotates to the next available API key, swaps providers, or falls back to another configured model *without* replacing the live `LLMClient` object.
-   - It performs an in-place credential swap (`swap_key`) and retries the exact same ReAct iteration seamlessly, yielding status update events to the client interface.
-   - This preserves all accumulated `working_messages` context, allowing the engine to resume generating the final answer precisely where it left off, giving the user a smooth, uninterrupted experience.
+If your active API key hits a `429 Rate Limit` while typing:
+1. **Cooldown Trigger**: Agens automatically intercepts the error and flags the specific key as "resting" (60 seconds for normal limits, 24 hours for quota exhaustion).
+2. **In-Flight Recovery**: Instead of throwing an error and making you restart your task, the brain swaps in your next available key or switches to a fallback model **on the fly**.
+3. **Seamless Resume**: It immediately retries the exact step, keeping all conversation context intact, giving you a smooth, uninterrupted experience.
 
-   ```mermaid
-   sequenceDiagram
-       participant R as ReAct Loop (react_stream)
-       participant C as LLMClient
-       participant A as Agent / KeyManager
-       participant LLM as LLM Provider (429)
+```mermaid
+sequenceDiagram
+    participant R as ReAct Loop (typing...)
+    participant C as LLMClient (brain)
+    participant A as Key Manager
+    participant LLM as AI Provider (429 Rate Limit!)
 
-       R->>C: Call ReAct Iteration
-       C->>LLM: Stream request
-       LLM-->>C: 429 RateLimitError
-       C->>A: Trigger on_rate_limit callback
-       Note over A: APIKeyManager rotates key<br/>or switches provider
-       A->>C: swap_key(new_config)
-       A-->>C: Return new model / recovery events
-       C-->>R: Yield Switched API Key/Model status
-       Note over R: Retry ReAct iteration<br/>preserving working_messages
-       R->>C: Retry ReAct Iteration
-       C->>LLM: Stream request with new key
-       LLM-->>R: Yield token stream & final answer
-   ```
+    R->>C: Call AI
+    C->>LLM: Send message
+    LLM-->>C: 429 Rate Limit Error!
+    C->>A: Trigger key rotation
+    Note over A: APIKeyManager puts key on cooldown<br/>and picks the next active key
+    A->>C: Swaps key configuration
+    C-->>R: Yield recovery status update
+    Note over R: Resume generation seamlessly
+    R->>C: Retry AI call with new key
+    C->>LLM: Send message with new key
+    LLM-->>R: Yield final answer successfully!
+```
 
 ---
 
 ## 4. Persistent User Memories
 
-Rather than relying on short-term token window contexts, Agens utilizes a long-term dynamic configuration system (`config.json`) to persist user facts:
+Traditional chatbots forget everything about you the second you close the tab. Agens solves this by storing permanent facts about you in a small local file called `config.json`.
 
-### Memory Storage Flow
-The agent can decide to remember facts about you (e.g. location, coding languages, career goals) by executing the `update_config` tool. This writes directly into the `user.memories` key inside `config.json`:
-
+### How Memories are Saved
+If you say *"Remember that I write Python code"*, Agens runs a built-in memory tool that updates `config.json`:
 ```json
 {
   "user": {
     "memories": {
-      "city": "Berlin",
-      "specialty": "FastAPI and Svelte",
-      "style": "clean, concise, self-contained code"
+      "coding_style": "Python",
+      "specialty": "FastAPI and Svelte"
     }
   }
 }
 ```
 
-### Dynamic Injection
-On every single chat interaction, the `prompt_builder.py` module loads these memory keys and dynamically injects them into the LLM's active system prompt, preserving continuity.
+### Prompt Injection
+Every single time you start a new conversation, Agens reads these memories and injects them directly into the system instructions, ensuring the AI always remembers your preferences.
 
-### Forgetting Memories
-When a user instructs the assistant to "forget" a fact, the agent calls `update_config` with a target key set to `null`. The engine's deep-merge algorithm automatically prunes that key and deletes it from the `config.json` file.
-
----
-
-## 5. SQLite Database Schema
-
-Agens stores structural operational states in a local single-file SQLite database. Schema transitions are managed dynamically using Alembic migrations:
-
-| Table | Contents |
-| :--- | :--- |
-| `sessions` | Active conversation thread IDs, summaries, and creation timestamps. |
-| `messages` | Chat history records including prompt content, role tags, and tool schemas/results. |
-| `api_keys` | Encrypted Fernet strings, provider labels, active/disabled state, and cooldowns. |
-| `schedule_events` | Calendar entries, reminders, and user-scheduled alert data. |
-| `settings` | Row-level configuration parameters (e.g. global `safety_mode` state). |
-
-Schema upgrades are applied automatically during engine bootstrap, removing the need for manual database updates.
+### Forgetting Facts
+If you tell it to *"Forget my coding specialty"*, Agens updates the key to `null`, instantly pruning and removing the fact from `config.json`.
 
 ---
 
-## 6. Token Usage Optimization
+## 5. Token Optimization (Saving Your Limits)
 
-To help you stay within free-tier limits, Agens is designed to keep token usage low:
+To help you get the most out of free-tier accounts, Agens keeps its token footprint extremely small:
 
-1. **Compact Chat History Buffer**:
-   The memory manager (`MemoryManager.get_history`) defaults to retrieving only the last `3` messages for conversation history. This highly compact context window prevents exponential token accumulation as chat threads grow longer, keeping token bills at exactly zero.
-2. **Modular Dynamic Prompt Injection**:
-   Rather than dumping every tool guideline and schema into every single prompt, Agens dynamically checks which tool groups are actively enabled. The `PromptBuilder` only injects guidelines for the *active* tool groups, saving hundreds of context tokens per generation.
-3. **Preamble and Redundancy Stripping**:
-   The LLM's system-level instructions are optimized to enforce high conciseness. The model is commanded to bypass polite preambles, act only on the latest message, and provide minimal status confirmations, minimizing completion token usage and latency.
+1. **Compact Chat Histories**: Agens only retrieves the last **3** messages as history. This prevents the conversation context from growing exponentially as you talk, keeping token usage at an absolute minimum.
+2. **Modular Tools**: Rather than stuffing every single tool instruction into every prompt, Agens checks which tools you have turned ON. It only loads instructions for active tool families, saving hundreds of tokens per turn.
+3. **No Polite Fluff**: Agens commands the AI model to skip greetings, introductions, and polite filler words, getting straight to the point. This saves both output tokens and loading time.
 
 ---
 

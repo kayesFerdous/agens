@@ -4,96 +4,109 @@
 
 # Agens
 
-**A completely free, interface-agnostic AI agent platform that executes system and web tasks through a centralized ReAct orchestration engine.**
+**Your free, multi-platform AI assistant. Any interface. Zero cost. Runs where you do. 🚀**
 
-[![PyPI](https://img.shields.io/badge/pypi-0.1.1-blue?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/agens/)
-[![Python](https://img.shields.io/badge/python-%3E%3D3.13-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)](./LICENSE)
-[![Interfaces](https://img.shields.io/badge/interfaces-CLI%20%7C%20TUI%20%7C%20Web%20%7C%20Telegram-f97316?style=flat-square)](#interface-overview)
+[![PyPI](https://img.shields.io/badge/pypi-0.1.1-blue?style=for-the-badge&logo=pypi&logoColor=white)](https://pypi.org/project/agens/)
+[![Python](https://img.shields.io/badge/python-%3E%3D3.13-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-22c55e?style=for-the-badge)](./LICENSE)
+[![Interfaces](https://img.shields.io/badge/interfaces-CLI%20%7C%20TUI%20%7C%20Web%20%7C%20Telegram-f97316?style=for-the-badge)](#-docs-by-goal)
 
 </div>
 
 <div align="center">
-  <img src="assets/demo.webp" alt="Agens Multi-Tool Live Demo" width="700" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); margin: 20px 0;" />
+  <img src="assets/demo.webp" alt="Agens Live Demo" width="700" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); margin: 20px 0;" />
 </div>
 
 ---
 
-Agens is a completely **free** AI agent platform. I built this project so that **anyone can have a taste of an AI assistant completely for free, without having to spend a single penny.** Every part of it—from the ReAct engine (`agent.py`) and interface adapters to the encrypted key management and SQLite database—is set up to make this experience smooth and easy.
+Agens is a completely **free** AI assistant designed to let anyone experience the power of AI without spending a single penny. It is built to run entirely on your own devices (or in the cloud) and connects one smart, central brain to all the interfaces you already use: a modern Web dashboard, a sleek Terminal UI, quick command-line chats, or a Telegram bot. 
 
-To make sure it is accessible, reliable, and smooth for everyone, Agens is built with three simple rules:
-*   🌱 **Easy for Anyone**: You don't need to be a developer or have a technical background to use Agens. Getting started takes just a single command, and adding your API keys is fully visual and straightforward—no coding or configuration files required.
-*   🔄 **On-the-go Model & Key Failover**: Free API keys often hit rate limits. If you hit a `429 Rate Limit` while the agent is answering, it automatically rotates to your next key, provider, or fallback model on the go. It resumes the active task right where it left off, so you don't face interruptions.
-*   ⚡ **Low Token Usage**: Designed to use as few tokens as possible to help stay within free-tier limits. It only loads instructions for the tools you have turned on, keeps conversation history short and pruned, and avoids unnecessary prompt bloat.
+I built this project to make setting up and running your own personal assistant simple and completely hassle-free—no coding, configuration file editing, or subscription fees required.
 
 ---
 
-## Why Agens?
+## ⚡ Quick Install
 
-*   🧠 **All Interfaces in One Place**: All client interfaces share the same database, settings, and memories so you can switch between them without losing track of your chat.
-*   🔒 **Secure Key Storage**: API keys are encrypted at rest and decrypted only in-memory. They are never saved in plaintext files.
-*   🔄 **Automatic Failover**: If an API key hits a rate limit, Agens automatically shifts to the next available key or provider on the fly to finish the task.
-*   ⚡ **Efficient Token Usage**: Keeps prompts short and history pruned to save your free-tier quota.
-*   🌐 **Free Native Tools**: Built-in DuckDuckGo web search and web page reading with no paid search API keys needed.
-*   🛡️ **Safety Mode**: An optional safety mode to prevent accidental changes to your system.
+Get up and running in a single command:
 
----
-
-## 📚 Documentation Hub
-
-Explore the detailed technical manuals and operational guides:
-
-*   🚀 **[Installation & Setup](docs/installation.md)**: Native and containerized setups across Linux, macOS, and Windows.
-*   🏗️ **[Architecture Deep Dive](docs/architecture.md)**: Learn about the Hexagonal Ports & Adapters layout, the ReAct stream loop, and key database connection designs.
-*   🛠️ **[Tool System & Custom Tools](docs/tools.md)**: Explore the core tool directory, layered safety rules, and step-by-step custom tool development tutorials.
-*   ⚙️ **[Configuration & Key Management](docs/configuration.md)**: Deep dive into environments, user memory settings, encrypted API credentials, and automatic rate-limit cooldown algorithms.
-*   💻 **[Developer & Contributor Manual](docs/development.md)**: Workspace setup guides, release packaging commands, custom interface implementation, and open-source contribution rules.
-
----
-
-## Quick Start
-
-### 1. Install Agens
+### Linux, macOS, WSL2, Termux
 ```bash
-pipx install agens
+curl -fsSL https://raw.githubusercontent.com/kayesFerdous/agens/main/scripts/install.sh | bash
 ```
 
-### 2. Register an API Key
-You can register your keys through the CLI:
-```bash
-# agens apikey add <label> <provider> <api_key> 
-agens apikey add my-gemini gemini AIzaSyB...
+### Windows (PowerShell)
+```powershell
+irm https://raw.githubusercontent.com/kayesFerdous/agens/main/scripts/install.ps1 | iex
 ```
-*Tip: Alternatively, you can launch the Web UI or Terminal UI first (Step 3) and add your keys visually through the settings dashboard.*
 
-### 3. Launch an Interface
-```bash
-agens web                                              # Web UI (Svelte 5) → http://localhost:8000
-agens tui                                             # Terminal UI Dashboard (Textual)
-agens chat "List the contents of my workspace"        # Single-line Typer CLI query
-```
+*Note: The installer automatically takes care of environment setups, installing any missing tools, and gets Agens ready for your first chat.*
 
 ---
 
-## Interface Overview
+## 🧠 Why Agens?
 
-All interface adapters communicate with the exact same central brain and write to the same database. Prompt behavior and safety policies dynamically adjust depending on the interface:
+<table>
+<tr><td><b>Always Free & Low Token Cost</b></td><td>Built specifically to help you stay within free-tier API limits. Agens keeps conversation histories short, prunes prompt bloat, and only loads tools you actively turn on.</td></tr>
+<tr><td><b>Auto-Recover Rate Limits</b></td><td>Free keys hit rate limits often. If your key hits a rate limit while Agens is answering, it instantly rotates to your next key, provider, or fallback model in-flight so your task finishes seamlessly.</td></tr>
+<tr><td><b>One Brain, Any Interface</b></td><td>Switch between the Web dashboard, Terminal UI, quick command-line chats, or a Telegram bot. They all share the same memory, databases, and settings.</td></tr>
+<tr><td><b>Safe Command Execution</b></td><td>Agens can run shell commands, write files, and do web lookups. A built-in Safety Mode blocks harmful commands automatically, and it securely collects passwords for root commands locally.</td></tr>
+<tr><td><b>Secure By Default</b></td><td>Your API keys are encrypted at rest using industry-grade cryptography. They are decrypted only in memory during active runs and are never stored in plaintext files.</td></tr>
+<tr><td><b>Free Live Web Searching</b></td><td>Comes with built-in web search and page reading tools. No paid search API subscriptions required—look up facts and read live URLs completely for free.</td></tr>
+</table>
 
-| Interface | Launch Command | Core Capabilities | Concurrency Model |
-| :--- | :--- | :--- | :--- |
-| **CLI** | `agens chat "<msg>"` | One-shot queries, API key administration, safety overrides | Ephemeral process; runs one ReAct loop and exits |
-| **Terminal UI (TUI)** | `agens tui [--session <id>]` | **Full feature parity with Web UI** (session handling, dynamic API key administration, provider model selection, granular tool group toggles) + secure local `sudo` password collection | Stateful Textual app; blocks terminal during execution |
-| **Web UI** | `agens web` | Svelte 5 + FastAPI SPA with SSE streaming, interactive model picker, encrypted key management, granular tool settings & status blocks | Client-server; tokens stream live via Server-Sent Events |
-| **Telegram Bot** | `agens telegram` | Remote message-based assistant via `python-telegram-bot`, polling + webhooks | Long-polling or webhook updater; edits messages sequentially to stay within Telegram rate limits |
+---
+
+## 🔒 Security & Safety Defaults
+
+Agens is highly capable and can run shell commands or manage files in your workspace. To keep your system safe, we build security in by default:
+
+*   **Safety Mode**: Hard-blocks dangerous shell command families (such as recursive deletes on system folders or editing core OS files) and dangerous command-chaining.
+*   **Interface-Aware Sudo Policies**:
+    *   **Terminal UI (Trusted)**: If a command needs `sudo` access, the TUI pauses the output and displays a secure popup to collect your password, passing it directly to the system subprocess without ever saving it.
+    *   **Web & Telegram (Untrusted)**: All `sudo` executions are **hard-blocked** on remote or web channels to prevent security exploits.
+
+---
+
+## 💻 Operator Quick Reference
+
+Manage keys, safety modes, and environments easily from your terminal:
+
+| Category | Action | CLI Command |
+| :--- | :--- | :--- |
+| **Run Interfaces** | Start Web Dashboard | `agens web` |
+| | Start Terminal UI | `agens tui` |
+| | Chat via Command Line | `agens chat "your prompt"` |
+| | Launch Telegram Listener | `agens telegram` |
+| **API Key Manager** | Add and Encrypt Key | `agens apikey add <label> <provider> <key>` |
+| | List Active Keys | `agens apikey list` |
+| | Temporarily Disable Key | `agens apikey disable <label>` |
+| | Enable Disabled Key | `agens apikey enable <label>` |
+| | Permanently Remove Key | `agens apikey remove <label>` |
+| **Safety Controls** | Turn Safety Mode ON | `agens safety on` |
+| | Turn Safety Mode OFF | `agens safety off` |
+| **Daemon Control** | List Running Interfaces | `agens interfaces` |
+| | Stop All Running Interfaces | `agens shutdown` |
+
+---
+
+## 📚 Docs by Goal
+
+Find exactly what you need based on what you are trying to achieve:
+
+*   🚀 **[First-Time Setup](docs/installation.md)**: Detailed native, script-based, and containerized (Docker) setup steps across all operating systems.
+*   ⚙️ **[Platform & Key Configuration](docs/configuration.md)**: How encrypted credentials work, setting up automatic failover models, long-term memory configurations, and token optimizations.
+*   🛠️ **[Custom Tools & Extensions](docs/tools.md)**: List of built-in file and web tools, and a simple step-by-step tutorial on writing your own custom tools in Python.
+*   💻 **[Developer Loop & Contributions](docs/development.md)**: Setting up a local workspace, building Vite/Svelte 5 assets, compiling release wheels, and database migrations.
+*   🏗️ **[Under the Hood](docs/architecture.md)**: Architectural deep dive into ports & adapters layout, SQLite connection concurrency, and event loop cancellation protections.
 
 ---
 
 ## 🎨 Visual Showcase
 
-Experience Agens' premium, interface-agnostic design with absolute feature parity:
+All interfaces write to the exact same database. Explore the premium, feature-parity interfaces:
 
-### 🌐 Web UI Dashboard (`agens web`)
-The modern Web UI features real-time SSE streaming, interactive model selection, active key management, and fine-grained tool settings.
+### Web Dashboard (`agens web`)
+Features real-time SSE streaming, interactive model pickers, encrypted key managers, and granular tool controls.
 
 <div align="center">
   <table border="0">
@@ -120,8 +133,8 @@ The modern Web UI features real-time SSE streaming, interactive model selection,
   </table>
 </div>
 
-### 💻 Terminal UI (TUI) Dashboard (`agens tui`)
-For developers working in terminal or remote SSH environments, the Textual-powered TUI provides **absolute feature parity with the Web UI**. It supports the complete suite of administration controls (adding/managing Fernet-encrypted API keys, selecting providers and fallback models, toggling granular tool group permissions, and safety controls) alongside dynamic tool status animations and secure local `sudo` handling.
+### Terminal UI Dashboard (`agens tui`)
+Designed for developers working in terminal or remote SSH environments, offering full parity with the Web UI.
 
 <div align="center">
   <table border="0">
@@ -140,7 +153,7 @@ For developers working in terminal or remote SSH environments, the Textual-power
 
 ---
 
-## Architecture Diagram
+## 🏗️ Architecture Design
 
 ```mermaid
 graph TD
@@ -169,6 +182,6 @@ graph TD
 
 ---
 
-## License
+## 📄 License
 
 Agens is distributed under the [MIT License](LICENSE).

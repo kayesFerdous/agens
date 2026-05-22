@@ -1,73 +1,75 @@
 # Developer & Contributor Manual
 
-This guide describes how to set up your local workspace, compile release assets, implement new transport adapters (ports), and contribute code back to Agens.
+[Home (README)](../README.md) · [Architecture Deep Dive](architecture.md) · [Installation & Setup](installation.md) · [Tool System](tools.md) · [Configuration](configuration.md)
+
+---
+
+Welcome! This guide is written for anyone looking to hack on the Agens codebase, compile release assets, add new interface channels, or contribute code.
 
 ---
 
 ## 1. Local Workspace Setup
 
-Agens relies on the ultra-fast Python package installer and resolver **`uv`** to maintain isolated virtual environments.
+Setting up Agens on your machine for development takes only a few minutes. We use the ultra-fast tool **`uv`** to manage Python versions and environments.
 
-### Step 1: Install Dependencies
-Clone the repository, ensure Python 3.13+ is installed, and run `uv sync` to set up your environment:
+### Step 1: Get the Code & Dependencies
+Make sure Python 3.13+ is installed, clone this repository, and run the following command to sync your environment:
 ```bash
 uv sync
 ```
 
-### Step 2: Compile the Frontend UI
-The Web UI frontend is built with **Svelte 5** and **Vite**. The compiled assets must be bundled into the Python package so they can be served as static files by FastAPI.
-To trigger the build process, run:
+### Step 2: Compile the Web Dashboard
+The modern Web UI is built with **Svelte 5** and **Vite**. Its files are packaged directly into our Python package so they can be served as static files by FastAPI.
+To install node packages and build the UI assets, run:
 ```bash
 make build-frontend
 ```
-This runs the npm installation and compilation scripts, compiling the files directly into the target `src/interfaces/web/dist` directory.
+This writes the final compiled web app directly to `src/interfaces/web/dist`.
 
 ### Step 3: Verify the Setup
-Run the entry point through the virtual environment to confirm everything builds successfully:
+Run this quick command to make sure Python can find everything:
 ```bash
 uv run agens --version
 ```
 
-### Step 4: Run Interfaces Locally
-You can run any of the active adapters in local developer mode:
+### Step 4: Run Developer Interfaces
+You can launch any of our interfaces in developer mode:
 ```bash
-uv run agens tui                  # Launches Textual TUI dashboard
-uv run agens web                  # Launches FastAPI server & mounts Svelte
-uv run agens telegram             # Boots Telegram bot listener (polling mode)
+uv run agens tui                  # Launches Textual TUI
+uv run agens web                  # Launches Web Dashboard (FastAPI server + Svelte)
+uv run agens telegram             # Boots Telegram listener (in polling mode)
 ```
 
 ---
 
-## 2. Building Release Wheels
+## 2. Building Release Packages
 
-To package Agens into a standard Python distribution wheel and source package (suitable for publishing to PyPI), execute:
+If you want to package Agens into a standard Python distribution wheel (e.g., to upload to PyPI), run:
 ```bash
 make build
 ```
-This ensures setuptools parses `pyproject.toml` and bundles the bundled frontend assets, migrations, and source directories.
+This gathers your code, database migrations, and compiled frontend assets and bundles them into the `dist/` directory.
 
 ---
 
-## 3. Adding a New Interface Adapter
+## 3. Adding a New Platform Interface (Slack, Discord, etc.)
 
-The Hexagonal Architecture (Ports and Adapters) of Agens makes it easy to add a new communication channel (like Slack, Discord, or Teams) without modifying any core agent reasoning logic.
+Because Agens separates platform interfaces from the core brain, adding a new communication channel is incredibly easy. You do not need to modify any core AI logic.
 
-To add a new interface, implement three connection points:
+To connect a new platform, implement three simple connection points:
 
-### Step 1: Boot Lifecycle
-Define a Typer subcommand inside `src/agens/main.py` that hooks the interface to your async startup code:
-
+### Step 1: Add a Boot CLI Command
+Open `src/agens/main.py` and register a new subcommand to trigger your platform listener:
 ```python
 # src/agens/main.py
 @app.command()
 def slack(ctx: typer.Context):
-    """Launch the Slack adapter daemon."""
+    """Launch the Slack adapter."""
     asyncio.run(start_slack_adapter(ctx.obj["agent"]))
 ```
 
-### Step 2: Stream Loop Mapping
-Inside your adapter code, fetch user inputs and call the central orchestrator's `agent.chat()` method, passing the input text, database session ID, and channel enum identifier:
-
+### Step 2: Feed User Inputs to the Brain
+In your platform runner, capture user text inputs and feed them to the central brain's `agent.chat()` method:
 ```python
 # src/interfaces/slack/runner.py
 async for event in agent.chat(
@@ -78,44 +80,35 @@ async for event in agent.chat(
     await handle_slack_stream_event(event)
 ```
 
-### Step 3: StreamEvent Rendering
-Map the structured `StreamEvent` states yielded by the agent to your custom chat API:
+### Step 3: Stream the Output Back to Your App
+Agens streams events back to you as it thinks. Map these event types to your platform API:
 
-| Event Type (`event.type`) | Meaning | Recommended Actions |
+| Event Type (`event.type`) | What it means | Recommended Action |
 | :--- | :--- | :--- |
-| `token` | A raw text token was generated by the LLM. | Append the text chunk to the active Slack message. |
-| `tool_call` | The agent is initiating a tool execution. | Update your message or show a visual spinner/loading indicator. |
-| `status` | High-level status updates (e.g. "searching the web..."). | Render a minor info notice. |
-| `error` | An exception was raised during generation. | Format the error message and display a notification to the user. |
-| `done` | The ReAct generation loop is complete. | Finalize message edits and close the connection stream. |
+| `token` | AI generated a word chunk | Append the chunk to your active chat bubble. |
+| `tool_call` | AI is running a tool | Show a visual loading spinner (e.g. "searching..."). |
+| `status` | High-level status updates | Display a minor informational notification. |
+| `error` | An exception was raised | Format the error cleanly and notify the user. |
+| `done` | Generation completed | Finalize the chat bubble and save session state. |
 
 ---
 
-## 4. Contributing Guidelines
+## 4. Contributing Rules & Database Changes
 
-We welcome contributions to Agens. To ensure your code integrates smoothly, please follow these guidelines:
+We welcome your contributions! To keep the repository clean, please follow these rules:
 
-### Branch Management
-- Prepend branches with `feature/` for new systems/adapters or `bugfix/` for repairs.
-- Keep branches atomic and focused on a single logical change.
-
-### Coding Style & Standards
-- **Python 3.13 Standard**: Write modern, clean Python. Do not add legacy Python compatibility shims.
-- **Type Annotations**: All new functions and classes must be fully annotated with type hints.
-- **Formatting**: Run formatting scripts locally before submitting changes.
-- **Maintain Comments**: Maintain documentation integrity. Preserve all existing comments and docstrings that are unrelated to your code changes.
-
-### Database Migrations
-If your changes introduce modifications to any database tables or repositories:
-1. Generate an Alembic migration using:
-   ```bash
-   alembic revision --autogenerate -m "describe changes"
-   ```
-2. Place the resulting migration script in the version control folder alongside the schema modifications.
-3. Verify the migration applies successfully on an empty schema:
-   ```bash
-   alembic upgrade head
-   ```
+*   **Python Standards**: Write clean, modern Python 3.13. Do not include legacy Python code.
+*   **Keep Comments Intact**: Do not delete existing code comments or docstrings that are unrelated to your changes.
+*   **Database Changes**: If you modify database tables:
+    1. Create an Alembic migration script by running:
+       ```bash
+       alembic revision --autogenerate -m "describe your changes"
+       ```
+    2. Place the new file in your PR.
+    3. Make sure the migration applies cleanly by running:
+       ```bash
+       alembic upgrade head
+       ```
 
 ---
 

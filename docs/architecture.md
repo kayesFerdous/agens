@@ -1,10 +1,20 @@
 # Architecture Deep Dive
 
-Agens decouples stateful AI reasoning from delivery channels. The platform follows the **Hexagonal Architecture (Ports and Adapters)** pattern — the core domain has no direct knowledge of the transport interfaces.
+[Home (README)](../README.md) · [Installation & Setup](installation.md) · [Tool System](tools.md) · [Configuration](configuration.md) · [Developer Manual](development.md)
 
 ---
 
-## Architectural Layout
+Agens is built to run smoothly, safely, and fast. To help you understand what is happening under the hood, we describe our design below using simple, real-world analogies.
+
+---
+
+## 🏗️ The "Universal Adapter" Design (Hexagonal Layout)
+
+Think of Agens as a high-quality **universal adapter plug**. The core brain handles the hard thinking, memory, and database writes. The interfaces (Web UI, TUI, CLI, and Telegram) are just custom plugs that slide onto the adapter. 
+
+Because we keep them completely separated:
+*   The brain does not care if you are chatting on Telegram or in your command line. It processes information the exact same way.
+*   You can design and slide on a new platform plug (like Discord or Slack) without modifying a single line of code in the core brain.
 
 ```mermaid
 graph TD
@@ -31,59 +41,34 @@ graph TD
     Adapter -->|renders live output| Input
 ```
 
-### 1. Core Domain Layer
-Located under `src/db/models.py` and `src/core/types.py`. This layer represents the fundamental entities of the application (Sessions, Messages, and Tool Results). It has zero dependencies on any external APIs or delivery protocols.
-
-### 2. Service Layer
-Represented by `src/agent/agent.py`, `src/services/`, and `src/planner/`. This layer coordinates application workflows: assembling user system prompts, fetching chat context, managing key cooldown timers, and decrypting API keys.
-
-### 3. Adapter Layer (Input Ports)
-Located in `src/interfaces/web/`, `src/interfaces/telegram/`, and `src/interfaces/tui/`. These modules are lightweight "delivery adapters." They capture channel-specific inputs and translate them into a uniform orchestrator invocation via `Agent.chat(message=..., session_id=..., channel=...)`.
-
-### 4. Adapter Layer (Output Ports)
-Located in `src/tools/`. These modules handle side effects on the hosting platform (filesystem CRUD, web searches, raw HTML downloads, subprocess shell command execution).
-
 ---
 
-## The Request Lifecycle
+## 🔄 The Request Lifecycle
 
-When a user submits a query to Agens, the system guides the payload through a structured async ReAct execution cycle:
+When you ask Agens a question, your message travels through a simple 6-stage lifecycle:
 
-| Phase | What Happens | Key Module |
+| Phase | What Happens | Where it happens |
 | :--- | :--- | :--- |
-| **1 · Input** | User inputs a prompt via Svelte Web, Textual TUI, Telegram, or the Typer CLI | `src/interfaces/` |
-| **2 · Context** | The orchestrator queries the database repository to gather recent chat messages for context | `src/memory/`, `src/db/` |
-| **3 · Prompt** | `PromptBuilder` merges dynamic settings, user memories, tool JSON schemas, and channel safety policies into a system prompt | `src/planner/prompt_builder.py` |
-| **4 · ReAct Loop** | The model streams tokens or issues a tool execution request (yielding `StreamEvent` packets) | `src/llm/`, `src/agent/agent.py` |
-| **5 · Tool Execution** | The orchestrator halts the generation stream, performs the target tool execution, aggregates the result, and feeds it back to the LLM | `src/tools/`, `src/core/registry.py` |
-| **6 · Persistence** | The completed assistant answer along with all intermediate tool invocations are serialized back to the SQLite DB | `src/db/` |
+| **1. Input** | You type a message into Svelte Web, TUI, Telegram, or the CLI. | `src/interfaces/` |
+| **2. Context** | The orchestrator queries the SQLite database to fetch your recent chat history. | `src/db/` |
+| **3. Prompt** | `PromptBuilder` merges your database settings, long-term memories, and active tools into system instructions. | `src/planner/prompt_builder.py` |
+| **4. Think Loop** | The AI decides if it needs a tool, yielding stream updates to your screen in real time. | `src/agent/agent.py` |
+| **5. Tool Run** | If the AI wants to run a tool (like search the web), Agens pauses the text, runs the tool, and feeds the results back to the AI. | `src/tools/` |
+| **6. Save** | The final answer and all the intermediate tool runs are saved securely to the SQLite database. | `src/db/` |
 
 ---
 
-## Concurrency & Resiliency Design
+## 🔒 Concurrency & Resiliency Design
 
-Running asynchronous ReAct loops on SQLite with multiple potentially interrupted frontends presents unique race condition risks. Agens addresses these with two specific design choices:
+Running multiple interfaces (like having the Web dashboard open while running a command-line chat) on a local database presents unique challenges. Agens is built to survive these scenarios.
 
-### NullPool Connections
-Standard SQLAlchemy connection pools keep background connections open. In an asynchronous environment like a FastAPI app with active SSE streams, SQLite can experience write locks (`database is locked` errors). To mitigate this, Agens utilizes `poolclass=NullPool`. 
+### Ephemeral Database Lines (NullPool)
+*   **The Problem**: Standard databases keep connection lines open to speed things up. But if you open multiple browser tabs at once, SQLite can lock up and crash (`database is locked` error).
+*   **Our Solution**: Agens uses an active **NullPool** connection manager. Every single read or write transaction opens its own fresh connection line, performs the fast update, and instantly closes it. While this adds a microscopic overhead, it completely eliminates database lock crashes.
 
-Every database transaction provisions and tears down its own ephemeral connection. While this adds a tiny connection overhead, it completely eliminates race conditions when multiple client connections are made or disconnected simultaneously.
-
-### Graceful Cancellation Isolation
-When a web browser tab is closed mid-stream, or a client terminates a connection, the asyncio event loop raises an `asyncio.CancelledError`. If this happens during a database write or while final session summaries are being generated, it can leave the database in an inconsistent state.
-
-To prevent this:
-1. `agent.py` catches `asyncio.CancelledError` internally.
-2. It delegates database cleanups and session status updates to an independent task running outside the main cancellation context (`asyncio.create_task()`).
-3. This guarantees that SQLite databases are safely closed and no orphaned sessions are left in the database.
-
-### In-Flight Rate-Limit Recovery
-
-To make sure the assistant works well with free API keys, it supports in-flight model, key, and provider recovery. If the agent hits a `429 Rate Limit` while answering:
-1. The generator loop catches the error, registers a cooldown, and triggers a recovery callback.
-2. It automatically switches to the next available API key, model, or provider on the fly.
-3. The conversation state is kept as-is, and the agent retries the request immediately.
-This keeps the chat going smoothly without having to restart the active task.
+### Closing Tabs Safely (Cancellation Isolation)
+*   **The Problem**: If you close your web browser tab mid-sentence while the AI is writing to the database, standard systems can halt abruptly, leading to database corruption or incomplete chat histories.
+*   **Our Solution**: Agens watches for event loop cancellations. If a cancellation occurs, the engine isolates database cleanups and status saves into a protected background task. This guarantees that your local database is shut down cleanly and no broken data is left behind.
 
 ---
 
