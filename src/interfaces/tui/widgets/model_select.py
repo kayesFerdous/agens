@@ -15,6 +15,7 @@ from textual.widgets.option_list import Option
 
 from db.database import async_session
 from interfaces.web.api.models.router import list_models
+from llm.catalog import get_catalog
 
 
 CACHE_TTL_SECONDS = 60
@@ -62,6 +63,11 @@ def get_model_label(model_id: str | None) -> str:
                 value = f"{provider['id']}/{model['id']}"
                 if value == model_id:
                     return f"{provider['id']}/{model['name']}"
+    if "/" in model_id:
+        provider_id, catalog_model_id = model_id.split("/", maxsplit=1)
+        for entry in get_catalog():
+            if entry.provider == provider_id and entry.id == catalog_model_id:
+                return f"{provider_id}/{entry.name}"
     return model_id
 
 
