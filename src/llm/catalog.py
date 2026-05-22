@@ -108,14 +108,14 @@ _CATALOG: tuple[ModelEntry, ...] = (
         context_window=400_000, speed_tps=1_400,
         rate_limits={"paid": {}},
     ),
-    ModelEntry(
-        id="llama-3.1-8b-instant",
-        provider="groq",
-        name="Llama 3.1 8B Instant",
-        free_tier=True, tool_calling=True, streaming=True, parallel_tool_calls=False,
-        context_window=131_072, speed_tps=560,
-        rate_limits={"free": {"rpm": 30, "rpd": 14_400, "tpm": 6_000, "tpd": 500_000}},
-    ),
+    # ModelEntry(
+    #     id="llama-3.1-8b-instant",
+    #     provider="groq",
+    #     name="Llama 3.1 8B Instant",
+    #     free_tier=True, tool_calling=True, streaming=True, parallel_tool_calls=False,
+    #     context_window=131_072, speed_tps=560,
+    #     rate_limits={"free": {"rpm": 30, "rpd": 14_400, "tpm": 6_000, "tpd": 500_000}},
+    # ),
     ModelEntry(
         id="meta-llama/llama-4-scout-17b-16e-instruct",
         provider="groq",
