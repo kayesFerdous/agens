@@ -1,6 +1,6 @@
 [project]
 name = "agens"
-version = "0.1.0"
+version = "0.1.1"
 description = "An interface-agnostic AI agent platform that executes complex system-level and web tasks through a centralized ReAct orchestration engine."
 readme = "README.md"
 requires-python = ">=3.13"

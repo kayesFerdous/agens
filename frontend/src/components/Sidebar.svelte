@@ -67,7 +67,7 @@
     </div>
     <div>
       <h1 class="brand-name">agens</h1>
-      <p class="brand-version">v0.1.0 stable</p>
+      <p class="brand-version">v0.1.1 stable</p>
     </div>
   </div>
 

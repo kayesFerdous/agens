@@ -62,7 +62,7 @@ When a user submits a query to Agens, the system guides the payload through a st
 
 ## Concurrency & Resiliency Design
 
-Running complex, async ReAct loops on SQLite with multiple potentially interrupted frontends presents unique race condition risks. Agens addresses these with two specific design choices:
+Running asynchronous ReAct loops on SQLite with multiple potentially interrupted frontends presents unique race condition risks. Agens addresses these with two specific design choices:
 
 ### NullPool Connections
 Standard SQLAlchemy connection pools keep background connections open. In an asynchronous environment like a FastAPI app with active SSE streams, SQLite can experience write locks (`database is locked` errors). To mitigate this, Agens utilizes `poolclass=NullPool`. 
@@ -76,6 +76,14 @@ To prevent this:
 1. `agent.py` catches `asyncio.CancelledError` internally.
 2. It delegates database cleanups and session status updates to an independent task running outside the main cancellation context (`asyncio.create_task()`).
 3. This guarantees that SQLite databases are safely closed and no orphaned sessions are left in the database.
+
+### In-Flight Rate-Limit Recovery
+
+To make sure the assistant works well with free API keys, it supports in-flight model, key, and provider recovery. If the agent hits a `429 Rate Limit` while answering:
+1. The generator loop catches the error, registers a cooldown, and triggers a recovery callback.
+2. It automatically switches to the next available API key, model, or provider on the fly.
+3. The conversation state is kept as-is, and the agent retries the request immediately.
+This keeps the chat going smoothly without having to restart the active task.
 
 ---
 

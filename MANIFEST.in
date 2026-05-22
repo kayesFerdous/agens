@@ -1,6 +1,7 @@
 include README.md
 include Dockerfile Dockerfile.dev docker-compose.yml .dockerignore
 graft docs
+graft assets
 graft scripts
 graft src
 prune src/**/__pycache__

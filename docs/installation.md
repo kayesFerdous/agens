@@ -37,7 +37,7 @@ chmod +x scripts/install.sh
 Pinned install:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kayesFerdous/agens/main/scripts/install.sh | bash -s -- --version 0.1.0
+curl -fsSL https://raw.githubusercontent.com/kayesFerdous/agens/main/scripts/install.sh | bash -s -- --version 0.1.1
 ```
 
 CI/non-interactive:
@@ -91,7 +91,7 @@ agens web
 Pinned install:
 
 ```powershell
-.\scripts\install.ps1 install -Version 0.1.0
+.\scripts\install.ps1 install -Version 0.1.1
 ```
 
 CI/non-interactive:

@@ -87,7 +87,7 @@ def _create_app(agent: Agent) -> FastAPI:
 
     app = FastAPI(
         title="Agens API",
-        version="0.1.0",
+        version="0.1.1",
         lifespan=lifespan,
     )
 

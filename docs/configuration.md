@@ -64,17 +64,17 @@ Alternatively, you can manage your keys dynamically through the Web UI dashboard
 
 ## 3. Resilient Key Rotation & Cooldowns
 
-To ensure maximum availability, Agens incorporates transparent model and key failovers. If you have registered multiple API keys or are utilizing model fallback options:
+To make sure Agens stays available when using free API keys, it supports automatic provider, model, and key failovers. If you are using free-tier API keys or model fallback options:
 
 1. **Error Interception**: When a provider adapter intercepts a `429 Rate Limit` or quota exhausted error from an API call, it raises an internal `RateLimitError`.
 2. **Cooldown Tracking**: The `APIKeyManager` catches this exception and records a timestamped cooldown directly inside the DB `api_keys.model_cooldowns` JSON column:
    - *Rate limits*: Placed on cooldown for `60` seconds by default.
    - *Quota exhaustion*: Placed on cooldown for `24` hours.
 3. **In-Flight Stream Recovery & State Preservation**:
-   Unlike standard agent frameworks that abort and restart the entire user query from scratch upon hitting a rate limit (losing intermediate execution results), Agens features a highly resilient **in-flight recovery architecture**:
+   Instead of stopping and losing your work when you hit a rate limit, Agens has a built-in recovery flow:
    - The active ReAct state—including intermediate tool calls, raw arguments, and tool execution results—is tracked dynamically in-memory within `LLMClient.react_stream()` as `working_messages`.
    - When a `RateLimitError` is caught inside the generator loop, the ReAct stream halts and invokes an internal rate-limit recovery callback (`_recover_rate_limit`).
-   - The recovery handler rotates to the next available API key or falls back to another configured model *without* replacing the live `LLMClient` object.
+   - The recovery handler rotates to the next available API key, swaps providers, or falls back to another configured model *without* replacing the live `LLMClient` object.
    - It performs an in-place credential swap (`swap_key`) and retries the exact same ReAct iteration seamlessly, yielding status update events to the client interface.
    - This preserves all accumulated `working_messages` context, allowing the engine to resume generating the final answer precisely where it left off, giving the user a smooth, uninterrupted experience.
 
@@ -141,6 +141,19 @@ Agens stores structural operational states in a local single-file SQLite databas
 | `settings` | Row-level configuration parameters (e.g. global `safety_mode` state). |
 
 Schema upgrades are applied automatically during engine bootstrap, removing the need for manual database updates.
+
+---
+
+## 6. Token Usage Optimization
+
+To help you stay within free-tier limits, Agens is designed to keep token usage low:
+
+1. **Compact Chat History Buffer**:
+   The memory manager (`MemoryManager.get_history`) defaults to retrieving only the last `3` messages for conversation history. This highly compact context window prevents exponential token accumulation as chat threads grow longer, keeping token bills at exactly zero.
+2. **Modular Dynamic Prompt Injection**:
+   Rather than dumping every tool guideline and schema into every single prompt, Agens dynamically checks which tool groups are actively enabled. The `PromptBuilder` only injects guidelines for the *active* tool groups, saving hundreds of context tokens per generation.
+3. **Preamble and Redundancy Stripping**:
+   The LLM's system-level instructions are optimized to enforce high conciseness. The model is commanded to bypass polite preambles, act only on the latest message, and provide minimal status confirmations, minimizing completion token usage and latency.
 
 ---
 

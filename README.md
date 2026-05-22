@@ -1,37 +1,41 @@
 <div align="center">
 
-<img src="frontend/src/assets/logo.svg" alt="Agens Logo" width="180" />
+<img src="https://raw.githubusercontent.com/kayesFerdous/agens/main/frontend/src/assets/logo.svg" alt="Agens Logo" width="180" />
 
 # Agens
 
-**An interface-agnostic AI agent platform that executes complex system-level and web tasks through a centralized ReAct orchestration engine.**
+**A completely free, interface-agnostic AI agent platform that executes system and web tasks through a centralized ReAct orchestration engine.**
 
-[![PyPI](https://img.shields.io/badge/pypi-0.1.0-blue?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/agens/)
+[![PyPI](https://img.shields.io/badge/pypi-0.1.1-blue?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/agens/)
 [![Python](https://img.shields.io/badge/python-%3E%3D3.13-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)](./LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)](https://github.com/kayesFerdous/agens/blob/main/LICENSE)
 [![Interfaces](https://img.shields.io/badge/interfaces-CLI%20%7C%20TUI%20%7C%20Web%20%7C%20Telegram-f97316?style=flat-square)](#interface-overview)
 
 </div>
 
 <div align="center">
-  <img src="assets/demo.webp" alt="Agens Multi-Tool Live Demo" width="700" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); margin: 20px 0;" />
+  <img src="https://raw.githubusercontent.com/kayesFerdous/agens/main/assets/demo.webp" alt="Agens Multi-Tool Live Demo" width="700" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); margin: 20px 0;" />
 </div>
 
 ---
 
-Agens decouples stateful AI reasoning from delivery channels. A centralized agent engine (`agent.py`) coordinates session histories, tool execution routing, and provider-fallback logic — exposing a unified interface to thin transport-layer adapters. All client interfaces share the same SQLite database, memory, and configuration with zero context drift.
+Agens is a completely **free** AI agent platform. I built this project so that **anyone can have a taste of an AI assistant completely for free, without having to spend a single penny.** Every part of it—from the ReAct engine (`agent.py`) and interface adapters to the encrypted key management and SQLite database—is set up to make this experience smooth and easy.
 
-> **Agens is completely free to use.** The platform itself costs nothing — you only need a personal API key from any supported provider (Gemini, OpenAI, Groq, Cerebras, SiliconFlow, DeepSeek).
+To make sure it is accessible, reliable, and smooth for everyone, Agens is built with three simple rules:
+*   🌱 **Easy for Anyone**: You don't need to be a developer or have a technical background to use Agens. Getting started takes just a single command, and adding your API keys is fully visual and straightforward—no coding or configuration files required.
+*   🔄 **On-the-go Model & Key Failover**: Free API keys often hit rate limits. If you hit a `429 Rate Limit` while the agent is answering, it automatically rotates to your next key, provider, or fallback model on the go. It resumes the active task right where it left off, so you don't face interruptions.
+*   ⚡ **Low Token Usage**: Designed to use as few tokens as possible to help stay within free-tier limits. It only loads instructions for the tools you have turned on, keeps conversation history short and pruned, and avoids unnecessary prompt bloat.
 
 ---
 
 ## Why Agens?
 
-*   🧠 **Centralized Intelligence**: Decoupled Ports & Adapters (Hexagonal) architecture. All client interfaces share a single database, settings, and memories with zero context drift.
-*   🔒 **Zero-Trust Key Security**: API keys are Fernet-encrypted at rest and decrypted purely in-memory. They are never saved in plaintext configuration files.
-*   🔄 **Automatic Rate-Limit Cooldown**: Transparent key rotation and failover. If an API key hits a `429 Rate Limit`, Agens automatically shifts to the next available key and retries the request seamlessly.
-*   🌐 **Free Native Tools**: Built-in DuckDuckGo web search and HTML page retrieval — zero external paid search API subscriptions required.
-*   🛡️ **Layered Safety Controls**: Built-in Safety Mode gates dangerous subprocess executions, while local Textual TUI collects `sudo` credentials securely on-the-fly.
+*   🧠 **All Interfaces in One Place**: All client interfaces share the same database, settings, and memories so you can switch between them without losing track of your chat.
+*   🔒 **Secure Key Storage**: API keys are encrypted at rest and decrypted only in-memory. They are never saved in plaintext files.
+*   🔄 **Automatic Failover**: If an API key hits a rate limit, Agens automatically shifts to the next available key or provider on the fly to finish the task.
+*   ⚡ **Efficient Token Usage**: Keeps prompts short and history pruned to save your free-tier quota.
+*   🌐 **Free Native Tools**: Built-in DuckDuckGo web search and web page reading with no paid search API keys needed.
+*   🛡️ **Safety Mode**: An optional safety mode to prevent accidental changes to your system.
 
 ---
 
@@ -39,11 +43,11 @@ Agens decouples stateful AI reasoning from delivery channels. A centralized agen
 
 Explore the detailed technical manuals and operational guides:
 
-*   🚀 **[Installation & Setup](docs/installation.md)**: Native and containerized setups across Linux, macOS, and Windows.
-*   🏗️ **[Architecture Deep Dive](docs/architecture.md)**: Learn about the Hexagonal Ports & Adapters layout, the ReAct stream loop, and key database connection designs.
-*   🛠️ **[Tool System & Custom Tools](docs/tools.md)**: Explore the core tool directory, layered safety rules, and step-by-step custom tool development tutorials.
-*   ⚙️ **[Configuration & Key Management](docs/configuration.md)**: Deep dive into environments, user memory settings, encrypted API credentials, and automatic rate-limit cooldown algorithms.
-*   💻 **[Developer & Contributor Manual](docs/development.md)**: Workspace setup guides, release packaging commands, custom interface implementation, and open-source contribution rules.
+*   🚀 **[Installation & Setup](https://github.com/kayesFerdous/agens/blob/main/docs/installation.md)**: Native and containerized setups across Linux, macOS, and Windows.
+*   🏗️ **[Architecture Deep Dive](https://github.com/kayesFerdous/agens/blob/main/docs/architecture.md)**: Learn about the Hexagonal Ports & Adapters layout, the ReAct stream loop, and key database connection designs.
+*   🛠️ **[Tool System & Custom Tools](https://github.com/kayesFerdous/agens/blob/main/docs/tools.md)**: Explore the core tool directory, layered safety rules, and step-by-step custom tool development tutorials.
+*   ⚙️ **[Configuration & Key Management](https://github.com/kayesFerdous/agens/blob/main/docs/configuration.md)**: Deep dive into environments, user memory settings, encrypted API credentials, and automatic rate-limit cooldown algorithms.
+*   💻 **[Developer & Contributor Manual](https://github.com/kayesFerdous/agens/blob/main/docs/development.md)**: Workspace setup guides, release packaging commands, custom interface implementation, and open-source contribution rules.
 
 ---
 
@@ -55,10 +59,12 @@ pipx install agens
 ```
 
 ### 2. Register an API Key
+You can register your keys through the CLI:
 ```bash
 # agens apikey add <label> <provider> <api_key> 
 agens apikey add my-gemini gemini AIzaSyB...
 ```
+*Tip: Alternatively, you can launch the Web UI or Terminal UI first (Step 3) and add your keys visually through the settings dashboard.*
 
 ### 3. Launch an Interface
 ```bash
@@ -94,21 +100,21 @@ The modern Web UI features real-time SSE streaming, interactive model selection,
     <tr>
       <td width="50%" align="center">
         <b>Workspace Chat</b><br/>
-        <img src="assets/web-home.png" alt="Web UI Home" width="100%" style="border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);" />
+        <img src="https://raw.githubusercontent.com/kayesFerdous/agens/main/assets/web-home.png" alt="Web UI Home" width="100%" style="border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);" />
       </td>
       <td width="50%" align="center">
         <b>Streaming Message with Tool Output</b><br/>
-        <img src="assets/web-message.png" alt="Web Streaming & Tool Execution" width="100%" style="border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);" />
+        <img src="https://raw.githubusercontent.com/kayesFerdous/agens/main/assets/web-message.png" alt="Web Streaming & Tool Execution" width="100%" style="border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);" />
       </td>
     </tr>
     <tr>
       <td width="50%" align="center">
         <b>Decoupled Provider Model Selection</b><br/>
-        <img src="assets/web-model-selection.png" alt="Interactive Model Selector" width="100%" style="border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);" />
+        <img src="https://raw.githubusercontent.com/kayesFerdous/agens/main/assets/web-model-selection.png" alt="Interactive Model Selector" width="100%" style="border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);" />
       </td>
       <td width="50%" align="center">
         <b>Granular Tool Control Panel</b><br/>
-        <img src="assets/web-tool-group.png" alt="Tool Permissions Dashboard" width="100%" style="border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);" />
+        <img src="https://raw.githubusercontent.com/kayesFerdous/agens/main/assets/web-tool-group.png" alt="Tool Permissions Dashboard" width="100%" style="border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);" />
       </td>
     </tr>
   </table>
@@ -122,11 +128,11 @@ For developers working in terminal or remote SSH environments, the Textual-power
     <tr>
       <td width="50%" align="center">
         <b>Interactive TUI Home Dashboard</b><br/>
-        <img src="assets/tui-home.png" alt="TUI Dashboard" width="100%" style="border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);" />
+        <img src="https://raw.githubusercontent.com/kayesFerdous/agens/main/assets/tui-home.png" alt="TUI Dashboard" width="100%" style="border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);" />
       </td>
       <td width="50%" align="center">
         <b>Stateful TUI Chat Session</b><br/>
-        <img src="assets/tui-message.png" alt="TUI Conversation" width="100%" style="border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);" />
+        <img src="https://raw.githubusercontent.com/kayesFerdous/agens/main/assets/tui-message.png" alt="TUI Conversation" width="100%" style="border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);" />
       </td>
     </tr>
   </table>
@@ -165,4 +171,4 @@ graph TD
 
 ## License
 
-Agens is distributed under the [MIT License](LICENSE).
+Agens is distributed under the [MIT License](https://github.com/kayesFerdous/agens/blob/main/LICENSE).
