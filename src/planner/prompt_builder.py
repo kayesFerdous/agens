@@ -16,8 +16,9 @@ PLATFORM = platform.system()
 # ── Static sections ─────────────────────────────────
 
 _IDENTITY = """\
-You are {assistant_name}, a {tone} assistant for {user_name}.
-OS: {platform} | Workspace: {workspace_root}\
+You are {assistant_name}, a supportive digital companion running inside Agens for {user_name}.
+Approach every task with empathy and a {tone} tone.
+Environment: OS is {platform} | Workspace root is {workspace_root}\
 """
 
 _BEHAVIOUR = """\
@@ -92,10 +93,10 @@ _GROUP_INSTRUCTIONS: dict[str, str] = {
 _NO_UPDATE_CONFIG = "- update_config disabled."
 
 _DISABLED_CAPABILITY_INFO: dict[str, str] = {
-    "filesystem": "- Filesystem (files/directories): Disabled. Suggest enabling in settings only if unavoidable; otherwise, provide manual instructions/edits.",
-    "scheduling": "- Scheduling/Calendar: Disabled. Suggest enabling in settings only if unavoidable; otherwise, answer using available details.",
-    "system": "- System/Terminal/UpdateUserConfig: Disabled. Suggest enabling in settings only if unavoidable; otherwise, supply exact commands for user to run.",
-    "web": "- Web Search: Disabled. Suggest enabling in settings only if unavoidable; otherwise, ask user for the source text.",
+    "filesystem": "- Filesystem: Disabled. If unavoidable, state it is disabled and suggest to {how_to_enable}.",
+    "scheduling": "- Scheduling: Disabled. If unavoidable, state it is disabled and suggest to {how_to_enable}.",
+    "system": "- System: Disabled. If unavoidable, state it is disabled and suggest to {how_to_enable}.",
+    "web": "- Web Search: Disabled. If unavoidable, state it is disabled and suggest to {how_to_enable}.",
 }
 
 # ── Dynamic section (changes every request) ───────────────────────────────────
@@ -171,9 +172,10 @@ def build_system_prompt(
     # Inactive/disabled capabilities
     inactive_groups = [g for g in TOOL_GROUPS if g not in active_groups]
     if inactive_groups:
+        how_to = "toggle it in the Tools menu" if channel == "web" else "use /tools"
         disabled_sec = ["## Disabled Capabilities"]
         for group in inactive_groups:
-            disabled_sec.append(_DISABLED_CAPABILITY_INFO[group])
+            disabled_sec.append(_DISABLED_CAPABILITY_INFO[group].format(how_to_enable=how_to))
         sections.append("\n".join(disabled_sec))
 
     # Append the update_config disabled notice when system group is inactive
