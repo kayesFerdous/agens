@@ -14,7 +14,7 @@
 </div>
 
 <div align="center">
-  <img src="assets/demo.gif" alt="Agens Multi-Tool Live Demo" width="700" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); margin: 20px 0;" />
+  <img src="assets/demo.webp" alt="Agens Multi-Tool Live Demo" width="700" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); margin: 20px 0;" />
 </div>
 
 ---
