@@ -6,7 +6,7 @@
 
 **An interface-agnostic AI agent platform that executes complex system-level and web tasks through a centralized ReAct orchestration engine.**
 
-[![PyPI](https://img.shields.io/badge/pypi-placeholder-blue?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/agens/)
+[![PyPI](https://img.shields.io/badge/pypi-0.1.0-blue?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/agens/)
 [![Python](https://img.shields.io/badge/python-%3E%3D3.13-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)](./LICENSE)
 [![Interfaces](https://img.shields.io/badge/interfaces-CLI%20%7C%20TUI%20%7C%20Web%20%7C%20Telegram-f97316?style=flat-square)](#interface-overview)
